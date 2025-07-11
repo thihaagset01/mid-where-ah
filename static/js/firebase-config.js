@@ -4,15 +4,21 @@
 // For development, paste your Firebase config object from the Firebase Console here
 // For production, these values should be injected from environment variables
 
+// DO NOT hardcode Firebase credentials here
+// These should be injected by the server or loaded from environment variables
 const firebaseConfig = {
-    apiKey: "AIzaSyDpZqzqdhX0m5UDoxozq7B7MJFLDPiXZH4",
-    authDomain: "mid-where-ah.firebaseapp.com",
-    projectId: "mid-where-ah",
-    storageBucket: "mid-where-ah.firebasestorage.app",
-    messagingSenderId: "1095052427731",
-    appId: "1:1095052427731:web:dd49ccc7ca5cc80f5a2f26",
-    measurementId: "G-BSGWXZMLJQ"
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID",
+    measurementId: "YOUR_MEASUREMENT_ID"
 };
+
+// In production, this config should be injected by the server
+// For example, the Flask app should render this file with the actual values
+// from environment variables
 
 // Initialize Firebase
 const initFirebase = () => {

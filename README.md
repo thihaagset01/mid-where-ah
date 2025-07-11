@@ -73,9 +73,11 @@ midwhereah/
    pip install -r requirements.txt
    ```
 
-4. Set up environment variables:
-   - Copy `.env.example` to `.env`
-   - Fill in your Google Maps API key and Firebase configuration
+4. Set up environment variables securely:
+   - Copy `.env.example` to `.env` (`.env` is in `.gitignore` to prevent accidental commits)
+   - Fill in your Google Maps API key and Firebase configuration in the `.env` file
+   - **IMPORTANT:** Never commit your actual API keys or secrets to version control
+   - If you need to rotate credentials due to exposure, see the "Security" section below
 
 5. Run the application:
    ```
@@ -88,6 +90,41 @@ midwhereah/
 
 1. Create a new Firebase project at [firebase.google.com](https://firebase.google.com)
 2. Enable Authentication with Email/Password and Google sign-in methods
+
+## Security
+
+### Environment Variables
+
+This project uses environment variables to manage sensitive credentials. Follow these best practices:
+
+1. **Never commit secrets to version control**
+   - The `.env` file is listed in `.gitignore` to prevent accidental commits
+   - Only commit `.env.example` with placeholder values
+
+2. **Properly manage your .env file**
+   - Keep your `.env` file secure and restricted to only those who need access
+   - Use different environment variables for development and production
+
+3. **Rotate credentials regularly**
+   - Change API keys and secrets periodically as a security best practice
+   - Always rotate credentials immediately if they are accidentally exposed
+
+### If Credentials Are Exposed
+
+If you accidentally expose credentials (e.g., commit them to a public repository):
+
+1. **Rotate all exposed credentials immediately**
+   - Firebase: Go to Firebase Console > Project Settings > Web App > Regenerate keys
+   - Google Maps: Go to Google Cloud Console > APIs & Services > Credentials > Regenerate key
+   - Flask Secret Key: Generate a new random secret key
+
+2. **Clean Git history**
+   - Use tools like BFG Repo-Cleaner or git-filter-branch to remove secrets from history
+   - Force push the cleaned repository
+
+3. **Monitor for unusual activity**
+   - Check Firebase usage logs for unexpected activity
+   - Set up billing alerts to catch potential abuse
 3. Create a Firestore database in production mode
 4. Add your web app to the Firebase project and copy the configuration
 5. Update the Firebase configuration in `.env` or directly in `static/js/firebase-config.js`
