@@ -10,6 +10,8 @@ A mobile-first web application for coordinating meetups in Singapore. MidWhereAh
 - **Venue Recommendation**: Calculate midpoint between group members and find suitable venues
 - **Group Decision Making**: Swipe interface for venue selection with real-time voting
 - **Mobile-First UI**: Responsive design optimized for mobile with PWA capabilities
+- **Multiple Location Inputs**: Add multiple starting locations to calculate the fairest midpoint
+- **Interactive Map Interface**: Full-screen map with floating UI elements for better mobile experience
 
 ## Tech Stack
 
@@ -28,10 +30,13 @@ midwhereah/
 ├── config.py              # Configuration settings
 ├── static/                # Static assets
 │   ├── css/
-│   │   └── style.css      # Custom styles
+│   │   ├── style.css      # Custom styles
+│   │   ├── mobile.css     # Mobile-specific styles
+│   │   └── venue-cards.css # Venue card component styles
 │   ├── js/
 │   │   ├── app.js         # Main JavaScript
 │   │   ├── maps.js        # Google Maps integration
+│   │   ├── mobile.js      # Mobile UI functionality
 │   │   └── firebase-config.js  # Firebase configuration
 │   ├── images/            # App icons and images
 │   ├── manifest.json      # PWA manifest
@@ -43,7 +48,8 @@ midwhereah/
     ├── dashboard.html     # User dashboard
     ├── group.html         # Group management
     ├── venues.html        # Venue recommendations
-    └── swipe.html         # Venue voting interface
+    ├── swipe.html         # Venue voting interface
+    └── mobile_home.html    # Mobile-optimized home with map interface
 ```
 
 ## Setup Instructions
@@ -135,6 +141,27 @@ If you accidentally expose credentials (e.g., commit them to a public repository
 2. Enable the Maps JavaScript API and Places API
 3. Create an API key with appropriate restrictions
 4. Add the API key to your `.env` file
+
+## Mobile-First Design
+
+MidWhereAh uses a mobile-first approach with these key UI components:
+
+### Map Interface
+- Full-screen Google Map as the primary interface
+- Floating location input card at the top for adding multiple starting points
+- Bottom venue card that slides up to show recommendations
+- Bottom navigation bar for app-wide navigation
+
+### Location Inputs
+- Support for multiple location inputs (2+ addresses)
+- Dynamic addition of more location fields
+- Each location is geocoded and displayed on the map
+- Midpoint calculation based on all provided locations
+
+### Venue Discovery
+- Venues are recommended based on the calculated midpoint
+- Card-based UI for venue information
+- Quick actions for adding venues to group voting
 
 ## Contributing
 

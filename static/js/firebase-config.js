@@ -1,45 +1,74 @@
 // Firebase Configuration for MidWhereAh
 
-// IMPORTANT: Replace this configuration with your actual Firebase project details
-// For development, paste your Firebase config object from the Firebase Console here
-// For production, these values should be injected from environment variables
+// This file handles Firebase initialization using the config injected by Flask
+// The config is available as window.firebaseConfig
 
 // DO NOT hardcode Firebase credentials here
-// These should be injected by the server or loaded from environment variables
-const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID",
-    measurementId: "YOUR_MEASUREMENT_ID"
-};
-
-// In production, this config should be injected by the server
-// For example, the Flask app should render this file with the actual values
-// from environment variables
+// These are injected by the server from environment variables
 
 // Initialize Firebase
 const initFirebase = () => {
+    // Log the config for debugging (without exposing the full API key)
+    const safeConfig = {...firebaseConfig};
+    if (safeConfig.apiKey) {
+        safeConfig.apiKey = safeConfig.apiKey.substring(0, 5) + '...';
+    }
+    console.log('Firebase config:', safeConfig);
+    
     // Check if Firebase is already initialized to prevent multiple initializations
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-        
-        // Initialize Analytics if available
-        if ('measurementId' in firebaseConfig) {
-            firebase.analytics();
+    if (!firebase.apps || !firebase.apps.length) {
+        try {
+            firebase.initializeApp(firebaseConfig);
+            
+            // Initialize Analytics if available
+            if ('measurementId' in firebaseConfig && typeof firebase.analytics === 'function') {
+                try {
+                    firebase.analytics();
+                    console.log('Firebase Analytics initialized');
+                } catch (analyticsError) {
+                    console.warn('Firebase Analytics initialization failed:', analyticsError.message);
+                    console.warn('This is non-critical and the app will continue to function.');
+                }
+            }
+            
+            // Initialize Firestore with error handling
+            try {
+                const db = firebase.firestore();
+                window.db = db; // Make db accessible globally
+                console.log('Firebase Firestore initialized');
+            } catch (firestoreError) {
+                console.error('Firebase Firestore initialization failed:', firestoreError.message);
+            }
+            
+            // Initialize Authentication with error handling
+            try {
+                const auth = firebase.auth();
+                window.auth = auth; // Make auth accessible globally
+                console.log('Firebase Authentication initialized');
+            } catch (authError) {
+                console.error('Firebase Authentication initialization failed:', authError.message);
+            }
+            
+            // Disable Firebase Installations if causing 403 errors
+            try {
+                if (typeof firebase.installations === 'function') {
+                    // Add a custom error handler for installations
+                    firebase.installations().catch(error => {
+                        if (error.code === 'installations/request-failed' && error.message.includes('403')) {
+                            console.warn('Firebase Installations 403 error detected. This is likely due to missing permissions.');
+                            console.warn('This is non-critical and the app will continue to function.');
+                        }
+                    });
+                }
+            } catch (installError) {
+                console.warn('Firebase Installations handling failed:', installError.message);
+                console.warn('This is non-critical and the app will continue to function.');
+            }
+            
+            console.log('Firebase initialized successfully');
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
         }
-        
-        // Initialize Firestore
-        const db = firebase.firestore();
-        window.db = db; // Make db accessible globally
-        
-        // Initialize Authentication
-        const auth = firebase.auth();
-        window.auth = auth; // Make auth accessible globally
-        
-        console.log('Firebase initialized successfully');
     } else {
         console.log('Firebase already initialized');
     }

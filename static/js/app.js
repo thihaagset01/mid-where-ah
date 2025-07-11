@@ -93,6 +93,41 @@ function setupLogout() {
     }
 }
 
+// Google Sign-in
+function signInWithGoogle() {
+    // Log the current Firebase config (safely)
+    const safeConfig = {...window.firebaseConfig};
+    if (safeConfig.apiKey) {
+        safeConfig.apiKey = safeConfig.apiKey.substring(0, 5) + '...';
+    }
+    console.log('Firebase config before Google sign-in:', safeConfig);
+    
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        firebase.auth().signInWithPopup(provider)
+            .then((result) => {
+                // Handle successful sign-in
+                console.log("Google sign-in successful", result.user.email);
+                window.location.href = "/dashboard";
+            })
+            .catch((error) => {
+                // Handle errors
+                console.error("Google sign-in error:", error);
+                console.error("Error code:", error.code);
+                console.error("Error message:", error.message);
+                
+                if (error.code === 'auth/api-key-not-valid') {
+                    showToast("Invalid API key. Please check your Firebase configuration.", "error");
+                } else {
+                    showToast("Error signing in with Google. Please try again.", "error");
+                }
+            });
+    } catch (e) {
+        console.error("Exception during Google sign-in setup:", e);
+        showToast("Error initializing Google sign-in. Please try again later.", "error");
+    }
+}
+
 // Handle page-specific actions for authenticated users
 function handleAuthenticatedUserActions(user) {
     // Get current page path
@@ -131,6 +166,360 @@ function handleAuthenticatedUserActions(user) {
         loadGroupDetails(groupId);
         loadVenuesForVoting(groupId);
         setupChatFunctionality(groupId, user);
+    }
+}
+
+// Load venue recommendations for a group
+function loadVenueRecommendations(groupId) {
+    if (!groupId) return;
+    
+    // Show loading state
+    const venuesContainer = document.getElementById('venues-container');
+    if (venuesContainer) {
+        venuesContainer.innerHTML = `
+            <div class="text-center p-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Finding the perfect meetup spots...</p>
+            </div>
+        `;
+    }
+    
+    // Get group data from Firestore
+    db.collection('groups').doc(groupId).get()
+        .then(doc => {
+            if (!doc.exists) {
+                showNotification('Group not found', 'danger');
+                return;
+            }
+            
+            const groupData = doc.data();
+            const members = groupData.members || {};
+            
+            // Extract member locations
+            const memberLocations = [];
+            Object.keys(members).forEach(userId => {
+                const member = members[userId];
+                if (member.location && member.location.lat && member.location.lng) {
+                    memberLocations.push({
+                        lat: member.location.lat,
+                        lng: member.location.lng,
+                        name: member.name || 'Unknown'
+                    });
+                }
+            });
+            
+            // Check if we have enough locations
+            if (memberLocations.length < 1) {
+                if (venuesContainer) {
+                    venuesContainer.innerHTML = `
+                        <div class="alert alert-info" role="alert">
+                            <h4 class="alert-heading">No locations yet!</h4>
+                            <p>We need at least one location to recommend venues. Ask group members to add their locations.</p>
+                            <hr>
+                            <p class="mb-0">Once locations are added, we'll find the perfect meetup spots!</p>
+                        </div>
+                    `;
+                }
+                return;
+            }
+            
+            // Calculate midpoint
+            const calculatedMidpoint = calculateMidpoint(memberLocations);
+            midpoint = calculatedMidpoint; // Set global midpoint variable
+            
+            // Add midpoint marker to map
+            if (map) {
+                // Clear existing markers
+                markers.forEach(marker => marker.setMap(null));
+                markers = [];
+                
+                // Add midpoint marker
+                const midpointMarker = new google.maps.Marker({
+                    position: midpoint,
+                    map: map,
+                    title: 'Midpoint',
+                    icon: {
+                        url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+                    },
+                    animation: google.maps.Animation.DROP,
+                    zIndex: 1000
+                });
+                markers.push(midpointMarker);
+                
+                // Add member markers
+                memberLocations.forEach(location => {
+                    const marker = new google.maps.Marker({
+                        position: { lat: location.lat, lng: location.lng },
+                        map: map,
+                        title: location.name,
+                        icon: {
+                            url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                        }
+                    });
+                    markers.push(marker);
+                });
+                
+                // Center map on midpoint
+                map.setCenter(midpoint);
+                map.setZoom(14);
+            }
+            
+            // Check if venues are already stored in Firestore
+            return db.collection('groups').doc(groupId).collection('venues').get()
+                .then(snapshot => {
+                    if (!snapshot.empty) {
+                        // Venues already exist, display them
+                        const venues = [];
+                        snapshot.forEach(doc => {
+                            venues.push({
+                                id: doc.id,
+                                ...doc.data()
+                            });
+                        });
+                        displayVenueCards(venues, groupId);
+                        return { existingVenues: true };
+                    } else {
+                        // No venues yet, search for new ones
+                        return { existingVenues: false };
+                    }
+                });
+        })
+        .then(result => {
+            if (result && !result.existingVenues) {
+                // Search for venues near midpoint
+                searchNearbyVenues(midpoint, 1500, 'restaurant', (venues) => {
+                    if (venues.length === 0) {
+                        // No venues found, try with a larger radius
+                        searchNearbyVenues(midpoint, 3000, 'restaurant', (venuesWiderRadius) => {
+                            if (venuesWiderRadius.length === 0) {
+                                // Still no venues, show error
+                                if (venuesContainer) {
+                                    venuesContainer.innerHTML = `
+                                        <div class="alert alert-warning" role="alert">
+                                            <h4 class="alert-heading">No venues found</h4>
+                                            <p>We couldn't find any suitable venues near the midpoint. Try adjusting your locations or preferences.</p>
+                                        </div>
+                                    `;
+                                }
+                            } else {
+                                // Save and display venues from wider radius
+                                saveVenuesToFirestore(venuesWiderRadius, groupId);
+                                displayVenueCards(venuesWiderRadius, groupId);
+                                displayVenuesOnMap(venuesWiderRadius);
+                            }
+                        });
+                    } else {
+                        // Save and display venues
+                        saveVenuesToFirestore(venues, groupId);
+                        displayVenueCards(venues, groupId);
+                        displayVenuesOnMap(venues);
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading venue recommendations:', error);
+            showNotification('Error loading venue recommendations', 'danger');
+        });
+}
+
+// Save venues to Firestore
+function saveVenuesToFirestore(venues, groupId) {
+    if (!venues || venues.length === 0 || !groupId) return;
+    
+    const batch = db.batch();
+    
+    venues.forEach(venue => {
+        // Create a venue document reference
+        const venueRef = db.collection('groups').doc(groupId).collection('venues').doc();
+        
+        // Prepare venue data
+        const venueData = {
+            placeId: venue.place_id,
+            name: venue.name,
+            address: venue.vicinity || venue.formatted_address || '',
+            location: {
+                lat: venue.geometry.location.lat(),
+                lng: venue.geometry.location.lng()
+            },
+            rating: venue.rating || 0,
+            userRatingsTotal: venue.user_ratings_total || 0,
+            priceLevel: venue.price_level || 0,
+            types: venue.types || [],
+            photoUrl: venue.photos && venue.photos.length > 0 ? 
+                venue.photos[0].getUrl({maxWidth: 500, maxHeight: 300}) : '',
+            votes: {},
+            voteCount: {
+                likes: 0,
+                dislikes: 0,
+                total: 0
+            },
+            addedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        // Add to batch
+        batch.set(venueRef, venueData);
+    });
+    
+    // Commit the batch
+    return batch.commit()
+        .then(() => {
+            console.log(`${venues.length} venues saved to Firestore`);
+        })
+        .catch(error => {
+            console.error('Error saving venues to Firestore:', error);
+        });
+}
+
+// Display venue cards in the UI
+function displayVenueCards(venues, groupId) {
+    const venuesContainer = document.getElementById('venues-container');
+    if (!venuesContainer) return;
+    
+    if (!venues || venues.length === 0) {
+        venuesContainer.innerHTML = `
+            <div class="alert alert-info" role="alert">
+                <h4 class="alert-heading">No venues found</h4>
+                <p>We couldn't find any suitable venues. Try adjusting your search criteria.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Sort venues by rating (highest first)
+    venues.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    
+    // Create HTML for venue cards
+    let html = `
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Recommended Venues</h2>
+            <button id="start-voting-btn" class="btn btn-primary">
+                <i class="fas fa-thumbs-up me-2"></i>Start Voting
+            </button>
+        </div>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    `;
+    
+    venues.forEach(venue => {
+        // Get photo URL
+        let photoUrl = venue.photoUrl || '';
+        if (!photoUrl && venue.photos && venue.photos.length > 0) {
+            photoUrl = venue.photos[0].getUrl({maxWidth: 500, maxHeight: 300});
+        }
+        
+        // Format price level
+        let priceLevel = '';
+        for (let i = 0; i < (venue.priceLevel || 0); i++) {
+            priceLevel += '$';
+        }
+        
+        // Get venue types for tags
+        const venueTags = [];
+        if (venue.types) {
+            const displayTypes = ['restaurant', 'cafe', 'bar', 'food', 'bakery', 'meal_takeaway'];
+            venue.types.forEach(type => {
+                if (displayTypes.includes(type)) {
+                    venueTags.push(type.replace('_', ' '));
+                }
+            });
+        }
+        
+        // Create card HTML
+        html += `
+            <div class="col">
+                <div class="venue-card card h-100 shadow-sm" data-venue-id="${venue.id || venue.place_id}">
+                    <div class="venue-image position-relative">
+                        ${photoUrl ? `<img src="${photoUrl}" class="card-img-top" alt="${venue.name}">` : 
+                            `<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                                <i class="fas fa-utensils fa-3x text-secondary"></i>
+                            </div>`
+                        }
+                        <div class="venue-tags position-absolute bottom-0 start-0 p-2">
+                            ${priceLevel ? `<span class="tag tag-price badge bg-dark me-1">${priceLevel}</span>` : ''}
+                            ${venueTags.slice(0, 2).map(tag => `<span class="tag tag-cuisine badge bg-secondary me-1">${tag}</span>`).join('')}
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">${venue.name}</h5>
+                        <p class="card-text small text-muted">${venue.address}</p>
+                        <div class="venue-meta d-flex justify-content-between align-items-center">
+                            <div class="rating">
+                                <span class="text-warning">★</span> ${venue.rating || 'N/A'}
+                                <small class="text-muted">(${venue.userRatingsTotal || venue.user_ratings_total || 0})</small>
+                            </div>
+                            <div class="distance text-muted small">
+                                <i class="fas fa-map-marker-alt me-1"></i>Near midpoint
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white border-top-0">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-primary btn-add-voting" data-venue-id="${venue.id || venue.place_id}">
+                                <i class="fas fa-plus-circle me-2"></i>Add to Voting
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    venuesContainer.innerHTML = html;
+    
+    // Add event listeners to buttons
+    document.querySelectorAll('.btn-add-voting').forEach(button => {
+        button.addEventListener('click', function() {
+            const venueId = this.getAttribute('data-venue-id');
+            addVenueToVoting(venueId, groupId);
+        });
+    });
+    
+    // Start voting button
+    const startVotingBtn = document.getElementById('start-voting-btn');
+    if (startVotingBtn) {
+        startVotingBtn.addEventListener('click', function() {
+            window.location.href = `/swipe/${groupId}`;
+        });
+    }
+}
+
+// Add a venue to the voting list
+function addVenueToVoting(venueId, groupId) {
+    if (!venueId || !groupId) {
+        console.error('Missing venue ID or group ID');
+        return;
+    }
+    
+    // Get button and update its state
+    const button = document.querySelector(`.venue-card[data-venue-id="${venueId}"] .btn-add-voting`);
+    if (button) {
+        // Disable button and show loading state
+        // Show loading state
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Adding...';
+        
+        // Update venue in Firestore to mark it for voting
+        db.collection('groups').doc(groupId).collection('venues').doc(venueId).update({
+            addedToVoting: true,
+            addedToVotingAt: firebase.firestore.FieldValue.serverTimestamp()
+        })
+        .then(() => {
+            // Update button to show success
+            button.classList.remove('btn-outline-primary');
+            button.classList.add('btn-success');
+            button.innerHTML = '<i class="fas fa-check me-2"></i>Added to Voting';
+            showNotification('Venue added to voting list', 'success');
+        })
+        .catch(error => {
+            console.error('Error adding venue to voting:', error);
+            button.disabled = false;
+            button.innerHTML = originalText;
+            showNotification('Error adding venue to voting', 'danger');
+        });
     }
 }
 
@@ -919,8 +1308,24 @@ function loadVenueRecommendations(groupId) {
 }
 
 function loadVenuesForVoting(groupId) {
-    console.log('Loading venues for voting in group:', groupId);
-    // TODO: Implement loading venues for voting from Firestore
+    if (!groupId) {
+        console.error('Missing group ID');
+        return;
+    }
+    
+    // Get current user ID
+    const userId = firebase.auth().currentUser?.uid;
+    if (!userId) {
+        console.error('User not authenticated');
+        return;
+    }
+    
+    // Initialize swipe interface
+    if (typeof initSwipeInterface === 'function') {
+        initSwipeInterface(groupId, userId);
+    } else {
+        console.error('Swipe interface not loaded');
+    }
 }
 
 function setupChatFunctionality(groupId, user) {
@@ -1018,33 +1423,67 @@ function setupGoogleSignIn() {
     if (!googleBtn) return;
     
     googleBtn.addEventListener('click', function() {
-        const provider = new firebase.auth.GoogleAuthProvider();
+        // Log the current Firebase config (safely)
+        const safeConfig = {...window.firebaseConfig};
+        if (safeConfig.apiKey) {
+            safeConfig.apiKey = safeConfig.apiKey.substring(0, 5) + '...';
+        }
+        console.log('Firebase config before Google sign-in:', safeConfig);
         
-        firebase.auth().signInWithPopup(provider)
-            .then((result) => {
-                // Check if user is new
-                const isNewUser = result.additionalUserInfo.isNewUser;
-                
-                if (isNewUser) {
-                    // Create user document in Firestore
-                    return firebase.firestore().collection('users').doc(result.user.uid).set({
-                        name: result.user.displayName,
-                        email: result.user.email,
-                        photoURL: result.user.photoURL,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    }).then(() => {
-                        showNotification('Account created successfully!', 'success');
+        try {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            
+            // Show loading state
+            googleBtn.disabled = true;
+            googleBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Signing in...';
+            
+            firebase.auth().signInWithPopup(provider)
+                .then((result) => {
+                    console.log('Google sign-in successful');
+                    // Check if user is new
+                    const isNewUser = result.additionalUserInfo.isNewUser;
+                    
+                    if (isNewUser) {
+                        // Create user document in Firestore
+                        return firebase.firestore().collection('users').doc(result.user.uid).set({
+                            name: result.user.displayName,
+                            email: result.user.email,
+                            photoURL: result.user.photoURL,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }).then(() => {
+                            showNotification('Account created successfully!', 'success');
+                            window.location.href = '/dashboard';
+                        });
+                    } else {
+                        showNotification('Login successful!', 'success');
                         window.location.href = '/dashboard';
-                    });
-                } else {
-                    showNotification('Login successful!', 'success');
-                    window.location.href = '/dashboard';
-                }
-            })
-            .catch((error) => {
-                console.error('Google sign-in error:', error);
-                showNotification(error.message, 'danger');
-            });
+                    }
+                })
+                .catch((error) => {
+                    console.error('Google sign-in error:', error);
+                    console.error('Error code:', error.code);
+                    console.error('Error message:', error.message);
+                    
+                    // Reset button
+                    googleBtn.disabled = false;
+                    googleBtn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18" height="18" class="me-2">Continue with Google';
+                    
+                    if (error.code === 'auth/api-key-not-valid') {
+                        showNotification('Invalid API key. Please check your Firebase configuration.', 'danger');
+                    } else if (error.code === 'auth/network-request-failed') {
+                        showNotification('Network error. Please check your internet connection.', 'danger');
+                    } else {
+                        showNotification(error.message, 'danger');
+                    }
+                });
+        } catch (e) {
+            console.error('Exception during Google sign-in setup:', e);
+            showNotification('Error initializing Google sign-in. Please try again later.', 'danger');
+            
+            // Reset button
+            googleBtn.disabled = false;
+            googleBtn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18" height="18" class="me-2">Continue with Google';
+        }
     });
 }
 

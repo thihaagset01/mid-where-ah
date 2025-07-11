@@ -9,6 +9,8 @@ let directionsService;
 let directionsRenderer;
 let autocomplete;
 let midpoint = null;
+let venueMarkers = [];
+let infoWindow = null;
 
 // Initialize the map when the page loads
 function initMap() {
@@ -58,6 +60,158 @@ function initMap() {
     } else if (path.startsWith('/venues/')) {
         initializeVenuesMap();
     }
+}
+
+// Calculate the midpoint between multiple locations
+function calculateMidpoint(locations) {
+    if (!locations || locations.length === 0) {
+        return null;
+    }
+    
+    if (locations.length === 1) {
+        return locations[0];
+    }
+    
+    let totalLat = 0;
+    let totalLng = 0;
+    
+    // Sum all latitudes and longitudes
+    locations.forEach(location => {
+        totalLat += location.lat;
+        totalLng += location.lng;
+    });
+    
+    // Calculate average
+    const midpointLocation = {
+        lat: totalLat / locations.length,
+        lng: totalLng / locations.length
+    };
+    
+    return midpointLocation;
+}
+
+// Search for venues near the midpoint
+function searchNearbyVenues(location, radius = 1500, type = 'restaurant', callback) {
+    if (!placesService) {
+        console.error('Places service not initialized');
+        return;
+    }
+    
+    const request = {
+        location: location,
+        radius: radius,
+        type: type,
+        rankBy: google.maps.places.RankBy.PROMINENCE,
+        openNow: true
+    };
+    
+    placesService.nearbySearch(request, (results, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK) {
+            // Filter results by rating (4.0+)
+            const filteredResults = results.filter(place => place.rating >= 4.0);
+            callback(filteredResults);
+        } else {
+            console.error('Places search failed:', status);
+            callback([]);
+        }
+    });
+}
+
+// Get detailed information about a place
+function getPlaceDetails(placeId, callback) {
+    if (!placesService) {
+        console.error('Places service not initialized');
+        return;
+    }
+    
+    const request = {
+        placeId: placeId,
+        fields: ['name', 'formatted_address', 'geometry', 'rating', 'photos', 'price_level', 'website', 'opening_hours', 'types', 'user_ratings_total']
+    };
+    
+    placesService.getDetails(request, (place, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK) {
+            callback(place);
+        } else {
+            console.error('Place details request failed:', status);
+            callback(null);
+        }
+    });
+}
+
+// Display venues on the map
+function displayVenuesOnMap(venues) {
+    // Clear existing venue markers
+    clearVenueMarkers();
+    
+    // Create info window if it doesn't exist
+    if (!infoWindow) {
+        infoWindow = new google.maps.InfoWindow();
+    }
+    
+    // Add markers for each venue
+    venues.forEach((venue, index) => {
+        const marker = new google.maps.Marker({
+            position: venue.geometry.location,
+            map: map,
+            title: venue.name,
+            icon: {
+                url: 'https://maps.google.com/mapfiles/ms/icons/purple-dot.png'
+            },
+            animation: google.maps.Animation.DROP,
+            zIndex: 100 - index
+        });
+        
+        // Add click listener to show info window
+        marker.addListener('click', () => {
+            const content = `
+                <div class="info-window">
+                    <h5>${venue.name}</h5>
+                    <p>${venue.vicinity || venue.formatted_address}</p>
+                    <div class="rating">
+                        Rating: ${venue.rating} ⭐ (${venue.user_ratings_total || 0} reviews)
+                    </div>
+                    ${venue.photos ? `<img src="${venue.photos[0].getUrl({maxWidth: 200, maxHeight: 120})}" alt="${venue.name}">` : ''}
+                </div>
+            `;
+            
+            infoWindow.setContent(content);
+            infoWindow.open(map, marker);
+        });
+        
+        venueMarkers.push(marker);
+    });
+    
+    // Adjust map bounds to fit all markers
+    if (venueMarkers.length > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        
+        // Add midpoint to bounds
+        if (midpoint) {
+            bounds.extend(midpoint);
+        }
+        
+        // Add all venue markers to bounds
+        venueMarkers.forEach(marker => {
+            bounds.extend(marker.getPosition());
+        });
+        
+        map.fitBounds(bounds);
+        
+        // Don't zoom in too far
+        const listener = google.maps.event.addListener(map, 'idle', () => {
+            if (map.getZoom() > 15) {
+                map.setZoom(15);
+            }
+            google.maps.event.removeListener(listener);
+        });
+    }
+}
+
+// Clear venue markers from the map
+function clearVenueMarkers() {
+    venueMarkers.forEach(marker => marker.setMap(null));
+    venueMarkers = [];
 }
 
 // Initialize Google Places Autocomplete
@@ -227,7 +381,9 @@ function searchVenues() {
     // Show loading state
     document.getElementById('loading-venues')?.classList.remove('d-none');
     document.getElementById('no-venues')?.classList.add('d-none');
-    document.getElementById('venues-list')?.innerHTML = '';
+    if (document.getElementById('venues-list')) {
+        document.getElementById('venues-list').innerHTML = '';
+    }
     
     // Get filter values
     const venueType = document.getElementById('venue-type')?.value || 'restaurant';

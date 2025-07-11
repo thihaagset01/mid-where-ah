@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 from flask_cors import CORS
 import os
+import json
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -10,10 +11,55 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
 CORS(app)
 
+# Helper function to get Firebase configuration
+def get_firebase_config():
+    # First try to get the complete Firebase config JSON
+    firebase_config_json = os.environ.get('FIREBASE_CONFIG')
+    if firebase_config_json:
+        try:
+            config = json.loads(firebase_config_json)
+            # Validate that we have the minimum required fields
+            if config.get('apiKey') and config.get('authDomain') and config.get('projectId'):
+                print("Using Firebase config from FIREBASE_CONFIG environment variable")
+                return config
+            else:
+                print("Warning: FIREBASE_CONFIG is missing required fields")
+        except json.JSONDecodeError:
+            print("Error: FIREBASE_CONFIG is not valid JSON")
+    
+    # Fallback to individual environment variables
+    api_key = os.environ.get('FIREBASE_API_KEY')
+    auth_domain = os.environ.get('FIREBASE_AUTH_DOMAIN')
+    project_id = os.environ.get('FIREBASE_PROJECT_ID')
+    
+    if not (api_key and auth_domain and project_id):
+        print("Warning: Missing required Firebase configuration values")
+    
+    config = {
+        "apiKey": api_key,
+        "authDomain": auth_domain,
+        "projectId": project_id,
+        "storageBucket": os.environ.get('FIREBASE_STORAGE_BUCKET'),
+        "messagingSenderId": os.environ.get('FIREBASE_MESSAGING_SENDER_ID'),
+        "appId": os.environ.get('FIREBASE_APP_ID'),
+        "measurementId": os.environ.get('FIREBASE_MEASUREMENT_ID')
+    }
+    
+    print(f"Using Firebase config from individual environment variables")
+    return config
+
+# Create a context processor to make config available to all templates
+@app.context_processor
+def inject_config():
+    return dict(
+        firebase_config=get_firebase_config(),
+        google_maps_api_key=os.environ.get('GOOGLE_MAPS_API_KEY')
+    )
+
 # Routes
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('mobile_home.html')
 
 @app.route('/login')
 def login():
@@ -22,6 +68,11 @@ def login():
 @app.route('/dashboard')
 def dashboard():
     # In a real app, we would check if user is authenticated here
+    return render_template('dashboard.html')
+
+@app.route('/groups')
+def groups():
+    # Redirected from bottom nav, shows all user groups
     return render_template('dashboard.html')
 
 @app.route('/group/<group_id>')

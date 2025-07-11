@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}MidWhereAh - Find Your Midpoint{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+{% endblock %}
+
+{% block content %}
+<!-- Full-screen map -->
+<div id="map"></div>
+
+<!-- Floating Location Input Card -->
+<div class="location-input-card">
+  <div class="app-header">
+    <div class="app-logo">
+      <i class="fas fa-map-marker-alt"></i>
+      <span>MidWhereAh</span>
+    </div>
+    <button class="menu-btn" id="menu-toggle">
+      <i class="fas fa-bars"></i>
+    </button>
+  </div>
+  
+  <!-- Location inputs container -->
+  <div class="locations-container">
+    <div class="location-item">
+      <div class="location-icon purple">
+        <i class="fas fa-circle"></i>
+      </div>
+      <input type="text" id="location-1" class="location-input" placeholder="Address 1">
+      <button class="user-btn">
+        <i class="fas fa-user-plus"></i>
+      </button>
+    </div>
+    
+    <div class="location-item">
+      <div class="location-icon purple">
+        <i class="fas fa-circle"></i>
+      </div>
+      <input type="text" id="location-2" class="location-input" placeholder="Address 2">
+      <button class="user-btn">
+        <i class="fas fa-user-plus"></i>
+      </button>
+    </div>
+    
+    <button class="add-location-btn" id="add-location">
+      <i class="fas fa-plus"></i>
+      <span>Add another location</span>
+    </button>
+  </div>
+</div>
+
+<!-- Venue Card (Initially Hidden) -->
+<div class="venue-card" id="venue-card">
+  <div class="venue-header">
+    <h3 class="venue-name">P.S. Cafe</h3>
+    <div class="venue-rating">
+      <span class="stars">★★★★☆</span>
+      <span class="rating-value">4.5</span>
+    </div>
+  </div>
+  <div class="venue-details">
+    <p class="venue-description">The cafe for brunch or anytime afternoon meal, consider this place for your next meetup with friends.</p>
+    <div class="venue-meta">
+      <span class="venue-distance">250m</span>
+      <span class="venue-price">$$</span>
+    </div>
+  </div>
+  <div class="venue-actions">
+    <button class="venue-action-btn primary">Add to Voting</button>
+    <button class="venue-action-btn secondary">Details</button>
+  </div>
+</div>
+
+<!-- Bottom Navigation -->
+<div class="bottom-navigation">
+  <div class="nav-item active" data-page="home">
+    <i class="fas fa-home"></i>
+    <span>Home</span>
+  </div>
+  <div class="nav-item" data-page="compass">
+    <i class="fas fa-compass"></i>
+    <span>Explore</span>
+  </div>
+  <div class="nav-item nav-item-center" data-page="create">
+    <div class="center-fab">
+      <i class="fas fa-plus"></i>
+    </div>
+  </div>
+  <div class="nav-item" data-page="groups">
+    <i class="fas fa-users"></i>
+    <span>Groups</span>
+  </div>
+  <div class="nav-item" data-page="profile">
+    <i class="fas fa-user"></i>
+    <span>Profile</span>
+  </div>
+</div>
+
+<!-- Slide-out Menu -->
+<div class="slide-menu" id="slide-menu">
+  <div class="menu-header">
+    <div class="user-info">
+      <div class="user-avatar">TA</div>
+      <div class="user-details">
+        <h3>Thiha Aung Set</h3>
+        <p>Signed in</p>
+      </div>
+    </div>
+    <button class="menu-close" id="menu-close">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+  <div class="menu-items">
+    <a href="/dashboard" class="menu-item">
+      <i class="fas fa-users"></i>
+      <span>My Groups</span>
+    </a>
+    <a href="/settings" class="menu-item">
+      <i class="fas fa-cog"></i>
+      <span>Settings</span>
+    </a>
+    <a href="#" class="menu-item" id="logout-menu">
+      <i class="fas fa-sign-out-alt"></i>
+      <span>Logout</span>
+    </a>
+  </div>
+</div>
+<div class="menu-overlay" id="menu-overlay"></div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Load mobile.js and maps.js first -->
+<script src="{{ url_for('static', filename='js/maps.js') }}"></script>
+<script src="{{ url_for('static', filename='js/mobile.js') }}"></script>
+
+<!-- Load Google Maps API following official best practices -->
+<script>
+  // Make sure initMap is accessible globally
+  window.initMap = initMap;
+  
+  // Add debugging to check map container
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('Map container:', document.getElementById('map'));
+    console.log('Map container dimensions:', 
+      document.getElementById('map').offsetWidth, 
+      document.getElementById('map').offsetHeight);
+  });
+  
+  // Load the Google Maps JavaScript API
+  (g=>{
+    var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;
+    b=b[c]||(b[c]={});
+    var d=b.maps||(b.maps={});
+    r=new Set,e=new URLSearchParams;
+    u=()=>h||(h=new Promise(async(f,n)=>{
+      await (a=m.createElement("script"));
+      e.set("libraries",[...r]+"");
+      for(k in g)e.set(k.replace(/[A-Z]/g,t=>"-"+t[0].toLowerCase()),g[k]);
+      e.set("callback",c+".maps."+q);
+      a.src=`https://maps.googleapis.com/maps/api/js?`+e;
+      d[q]=f;
+      a.onerror=()=>h=n(Error(p+" could not load."));
+      a.nonce=m.querySelector("script[nonce]")?.nonce||"";
+      m.head.append(a);
+    }));
+    d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));
+  })({key: "{{ google_maps_api_key }}"});
+  
+  // Add a fallback to ensure map initialization
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      if (!window.midwhereahMap) {
+        console.log('Map not initialized after timeout, trying again...');
+        if (typeof initMap === 'function') {
+          initMap();
+        }
+      }
+    }, 1000);
+  });
+</script>
+{% endblock %}
