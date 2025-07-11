@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Login or Sign Up{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <h2 class="text-center mb-4">Welcome to MidWhereAh</h2>
+                
+                <ul class="nav nav-tabs mb-4" id="authTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="login-tab" data-bs-toggle="tab" data-bs-target="#login-pane" 
+                                type="button" role="tab" aria-controls="login-pane" aria-selected="true">Login</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="signup-tab" data-bs-toggle="tab" data-bs-target="#signup-pane" 
+                                type="button" role="tab" aria-controls="signup-pane" aria-selected="false">Sign Up</button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" id="authTabsContent">
+                    <!-- Login Form -->
+                    <div class="tab-pane fade show active" id="login-pane" role="tabpanel" aria-labelledby="login-tab">
+                        <form id="login-form">
+                            <div class="mb-3">
+                                <label for="login-email" class="form-label">Email address</label>
+                                <input type="email" class="form-control" id="login-email" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="login-password" class="form-label">Password</label>
+                                <input type="password" class="form-control" id="login-password" required>
+                            </div>
+                            <div class="d-grid mb-3">
+                                <button type="submit" class="btn btn-primary">Login</button>
+                            </div>
+                            <div class="text-center mb-3">
+                                <a href="#" id="forgot-password" class="text-decoration-none">Forgot password?</a>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Sign Up Form -->
+                    <div class="tab-pane fade" id="signup-pane" role="tabpanel" aria-labelledby="signup-tab">
+                        <form id="signup-form">
+                            <div class="mb-3">
+                                <label for="signup-name" class="form-label">Full Name</label>
+                                <input type="text" class="form-control" id="signup-name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="signup-email" class="form-label">Email address</label>
+                                <input type="email" class="form-control" id="signup-email" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="signup-password" class="form-label">Password</label>
+                                <input type="password" class="form-control" id="signup-password" required>
+                                <div class="form-text">Password must be at least 6 characters</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="signup-confirm-password" class="form-label">Confirm Password</label>
+                                <input type="password" class="form-control" id="signup-confirm-password" required>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Create Account</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="separator my-4 text-center">
+                    <span class="separator-text">OR</span>
+                </div>
+                
+                <div class="d-grid">
+                    <button id="google-signin" class="btn btn-outline-dark">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18" height="18" class="me-2">
+                        Continue with Google
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alert for auth messages -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 5">
+    <div id="auth-toast" class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="auth-toast-message">
+                Error message here
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Firebase authentication will be implemented in app.js
+        
+        // Form submission handlers
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Login logic will be implemented in app.js
+        });
+        
+        document.getElementById('signup-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Signup logic will be implemented in app.js
+        });
+        
+        document.getElementById('google-signin').addEventListener('click', function() {
+            // Google sign-in logic will be implemented in app.js
+        });
+        
+        document.getElementById('forgot-password').addEventListener('click', function(e) {
+            e.preventDefault();
+            // Password reset logic will be implemented in app.js
+        });
+    });
+</script>
+{% endblock %}

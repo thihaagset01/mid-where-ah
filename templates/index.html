@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Find the perfect meetup spot{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="text-center mb-5">
+            <h1 class="display-4 fw-bold">MidWhereAh</h1>
+            <p class="lead">Find the perfect meetup spot in Singapore based on everyone's location</p>
+        </div>
+        
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="fas fa-map-marked-alt fa-4x text-primary mb-3"></i>
+                    <h2>Meet in the middle</h2>
+                    <p class="text-muted">Create a group, invite friends, and let MidWhereAh find the perfect venue for everyone</p>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg" id="get-started-btn">
+                        Get Started
+                    </a>
+                    <button class="btn btn-outline-secondary btn-lg" id="join-group-btn" data-bs-toggle="modal" data-bs-target="#joinGroupModal">
+                        Join Existing Group
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-5 g-4 text-center">
+            <div class="col-md-4">
+                <div class="feature-icon bg-primary bg-gradient text-white rounded-3 mb-3">
+                    <i class="fas fa-users"></i>
+                </div>
+                <h5>Create Groups</h5>
+                <p class="text-muted small">Invite friends and family to join your meetup group</p>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-icon bg-primary bg-gradient text-white rounded-3 mb-3">
+                    <i class="fas fa-map-pin"></i>
+                </div>
+                <h5>Find Midpoints</h5>
+                <p class="text-muted small">We calculate the perfect middle location for everyone</p>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-icon bg-primary bg-gradient text-white rounded-3 mb-3">
+                    <i class="fas fa-utensils"></i>
+                </div>
+                <h5>Discover Venues</h5>
+                <p class="text-muted small">Vote on suggested restaurants, cafes, and more</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Join Group Modal -->
+<div class="modal fade" id="joinGroupModal" tabindex="-1" aria-labelledby="joinGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="joinGroupModalLabel">Join a Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="join-group-form">
+                    <div class="mb-3">
+                        <label for="group-code" class="form-label">Enter Group Code</label>
+                        <input type="text" class="form-control" id="group-code" placeholder="Enter the 6-digit code" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="your-name" class="form-label">Your Name</label>
+                        <input type="text" class="form-control" id="your-name" placeholder="Enter your name" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Join Group</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Check if user is already logged in and redirect to dashboard
+    document.addEventListener('DOMContentLoaded', function() {
+        // This will be implemented in app.js to check Firebase auth state
+    });
+</script>
+{% endblock %}

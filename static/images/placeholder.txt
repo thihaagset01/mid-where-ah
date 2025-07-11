@@ -1,0 +1,14 @@
+This directory will contain the following image files:
+- favicon.ico
+- icon-192x192.png
+- icon-512x512.png
+
+You'll need to create these image files with appropriate Singapore-themed branding for your MidWhereAh app.
+
+For development purposes, you can use placeholder images or create simple icons with tools like:
+1. Figma
+2. Canva
+3. Adobe Illustrator
+4. Online favicon generators
+
+The icons should follow your app's color scheme (blue primary color #4285F4) and include a map pin or location marker as part of the design.

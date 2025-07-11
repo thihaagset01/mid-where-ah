@@ -1,0 +1,72 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection
+    match /users/{userId} {
+      // Allow read if authenticated and it's your own document
+      // Allow create for new users
+      // Allow update for own document
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Groups collection
+    match /groups/{groupId} {
+      // Allow read if authenticated and user is a member of the group
+      // Allow create if authenticated
+      // Allow update if authenticated and user is the group admin
+      allow read: if request.auth != null && 
+                   (resource.data.members[request.auth.uid] != null || 
+                    resource.data.admin == request.auth.uid);
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && 
+                     (resource.data.admin == request.auth.uid || 
+                      request.resource.data.admin == request.auth.uid);
+    }
+    
+    // Locations collection (subcollection of groups)
+    match /groups/{groupId}/locations/{locationId} {
+      // Allow read if authenticated and user is a member of the parent group
+      // Allow create/update if authenticated and it's your own location or you're the group admin
+      allow read: if request.auth != null && 
+                   get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null;
+      allow create, update: if request.auth != null && 
+                             (locationId == request.auth.uid || 
+                              get(/databases/$(database)/documents/groups/$(groupId)).data.admin == request.auth.uid);
+    }
+    
+    // Venues collection (subcollection of groups)
+    match /groups/{groupId}/venues/{venueId} {
+      // Allow read if authenticated and user is a member of the parent group
+      // Allow create/update if authenticated and user is the group admin
+      allow read: if request.auth != null && 
+                   get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null;
+      allow create, update: if request.auth != null && 
+                             get(/databases/$(database)/documents/groups/$(groupId)).data.admin == request.auth.uid;
+    }
+    
+    // Votes collection (subcollection of groups)
+    match /groups/{groupId}/votes/{voteId} {
+      // Allow read if authenticated and user is a member of the parent group
+      // Allow create/update if authenticated and it's your own vote
+      allow read: if request.auth != null && 
+                   get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null;
+      allow create, update: if request.auth != null && 
+                             voteId == request.auth.uid;
+    }
+    
+    // Messages collection (subcollection of groups)
+    match /groups/{groupId}/messages/{messageId} {
+      // Allow read if authenticated and user is a member of the parent group
+      // Allow create if authenticated and user is a member of the parent group
+      // No updates allowed to messages
+      allow read: if request.auth != null && 
+                   get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null;
+      allow create: if request.auth != null && 
+                     get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null &&
+                     request.resource.data.userId == request.auth.uid;
+    }
+  }
+}

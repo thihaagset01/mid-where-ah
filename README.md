@@ -1,1 +1,108 @@
-# mid-where-ah
+# MidWhereAh
+
+A mobile-first web application for coordinating meetups in Singapore. MidWhereAh helps groups find fair meeting points based on everyone's location and preferences.
+
+## Features
+
+- **User Authentication**: Sign up/login with email or Google using Firebase Auth
+- **Group Management**: Create meetup groups and invite friends via email/link
+- **Location Input**: Current location detection or manual address input with Google Places autocomplete
+- **Venue Recommendation**: Calculate midpoint between group members and find suitable venues
+- **Group Decision Making**: Swipe interface for venue selection with real-time voting
+- **Mobile-First UI**: Responsive design optimized for mobile with PWA capabilities
+
+## Tech Stack
+
+- **Backend**: Flask (Python)
+- **Frontend**: HTML/CSS with Twitter Bootstrap 5
+- **Database**: Firebase Firestore
+- **Authentication**: Firebase Auth
+- **APIs**: Google Maps JavaScript API, Google Places API
+
+## Project Structure
+
+```
+midwhereah/
+├── app.py                 # Flask main application
+├── requirements.txt       # Python dependencies
+├── config.py              # Configuration settings
+├── static/                # Static assets
+│   ├── css/
+│   │   └── style.css      # Custom styles
+│   ├── js/
+│   │   ├── app.js         # Main JavaScript
+│   │   ├── maps.js        # Google Maps integration
+│   │   └── firebase-config.js  # Firebase configuration
+│   ├── images/            # App icons and images
+│   ├── manifest.json      # PWA manifest
+│   └── service-worker.js  # PWA service worker
+└── templates/             # HTML templates
+    ├── base.html          # Base template with common elements
+    ├── index.html         # Landing page
+    ├── login.html         # Authentication page
+    ├── dashboard.html     # User dashboard
+    ├── group.html         # Group management
+    ├── venues.html        # Venue recommendations
+    └── swipe.html         # Venue voting interface
+```
+
+## Setup Instructions
+
+### Prerequisites
+
+- Python 3.8+
+- Google Maps API key
+- Firebase project with Firestore and Authentication enabled
+
+### Installation
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/mid-where-ah.git
+   cd mid-where-ah
+   ```
+
+2. Create and activate a virtual environment:
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+4. Set up environment variables:
+   - Copy `.env.example` to `.env`
+   - Fill in your Google Maps API key and Firebase configuration
+
+5. Run the application:
+   ```
+   python app.py
+   ```
+
+6. Open your browser and navigate to `http://localhost:5000`
+
+## Firebase Setup
+
+1. Create a new Firebase project at [firebase.google.com](https://firebase.google.com)
+2. Enable Authentication with Email/Password and Google sign-in methods
+3. Create a Firestore database in production mode
+4. Add your web app to the Firebase project and copy the configuration
+5. Update the Firebase configuration in `.env` or directly in `static/js/firebase-config.js`
+
+## Google Maps API Setup
+
+1. Create a project in the [Google Cloud Platform Console](https://console.cloud.google.com)
+2. Enable the Maps JavaScript API and Places API
+3. Create an API key with appropriate restrictions
+4. Add the API key to your `.env` file
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
