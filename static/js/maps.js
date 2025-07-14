@@ -77,8 +77,14 @@ function calculateMidpoint(locations) {
     
     // Sum all latitudes and longitudes
     locations.forEach(location => {
-        totalLat += location.lat;
-        totalLng += location.lng;
+        // Handle both LatLng objects and plain objects
+        if (typeof location.lat === 'function') {
+            totalLat += location.lat();
+            totalLng += location.lng();
+        } else {
+            totalLat += location.lat;
+            totalLng += location.lng;
+        }
     });
     
     // Calculate average
@@ -164,16 +170,17 @@ function displayVenuesOnMap(venues) {
         
         // Add click listener to show info window
         marker.addListener('click', () => {
-            const content = `
-                <div class="info-window">
-                    <h5>${venue.name}</h5>
-                    <p>${venue.vicinity || venue.formatted_address}</p>
-                    <div class="rating">
-                        Rating: ${venue.rating} ⭐ (${venue.user_ratings_total || 0} reviews)
-                    </div>
-                    ${venue.photos ? `<img src="${venue.photos[0].getUrl({maxWidth: 200, maxHeight: 120})}" alt="${venue.name}">` : ''}
-                </div>
-            `;
+            let photoHtml = '';
+            if (venue.photos) {
+                photoHtml = '<img src="' + venue.photos[0].getUrl({maxWidth: 200, maxHeight: 120}) + '" alt="' + venue.name + '">';
+            }
+            
+            const content = '<div class="info-window">' +
+                '<h5>' + venue.name + '</h5>' +
+                '<p>' + (venue.vicinity || venue.formatted_address) + '</p>' +
+                '<div class="rating">Rating: ' + venue.rating + ' ⭐ (' + (venue.user_ratings_total || 0) + ' reviews)</div>' +
+                photoHtml +
+                '</div>';
             
             infoWindow.setContent(content);
             infoWindow.open(map, marker);
@@ -282,19 +289,28 @@ function initializeGroupMap() {
                         });
                         
                         // Reverse geocode to get address
-                        geocoder.geocode({ location: pos }, function(results, status) {
-                            if (status === 'OK' && results[0]) {
-                                document.getElementById('location-input').value = results[0].formatted_address;
-                            }
-                        });
+                        if (geocoder) {
+                            geocoder.geocode({ location: pos }, function(results, status) {
+                                if (status === 'OK' && results[0]) {
+                                    const locationInput = document.getElementById('location-input');
+                                    if (locationInput) {
+                                        locationInput.value = results[0].formatted_address;
+                                    }
+                                }
+                            });
+                        }
                     },
                     function(error) {
                         console.error('Geolocation error:', error);
-                        showNotification('Error getting your location. Please enter it manually.', 'danger');
+                        if (typeof showNotification === 'function') {
+                            showNotification('Error getting your location. Please enter it manually.', 'danger');
+                        }
                     }
                 );
             } else {
-                showNotification('Geolocation is not supported by your browser.', 'danger');
+                if (typeof showNotification === 'function') {
+                    showNotification('Geolocation is not supported by your browser.', 'danger');
+                }
             }
         });
     }
@@ -350,44 +366,20 @@ function clearMarkers() {
     markers = [];
 }
 
-// Calculate midpoint between multiple locations
-function calculateMidpoint(locations) {
-    if (!locations || locations.length === 0) {
-        return null;
-    }
-    
-    // If only one location, return it
-    if (locations.length === 1) {
-        return locations[0];
-    }
-    
-    // Calculate average of lat/lng
-    let totalLat = 0;
-    let totalLng = 0;
-    
-    for (let location of locations) {
-        totalLat += location.lat;
-        totalLng += location.lng;
-    }
-    
-    return {
-        lat: totalLat / locations.length,
-        lng: totalLng / locations.length
-    };
-}
-
 // Search for venues around the midpoint
 function searchVenues() {
     // Show loading state
-    document.getElementById('loading-venues')?.classList.remove('d-none');
-    document.getElementById('no-venues')?.classList.add('d-none');
-    if (document.getElementById('venues-list')) {
-        document.getElementById('venues-list').innerHTML = '';
-    }
+    const loadingElement = document.getElementById('loading-venues');
+    const noVenuesElement = document.getElementById('no-venues');
+    const venuesListElement = document.getElementById('venues-list');
+    
+    if (loadingElement) loadingElement.classList.remove('d-none');
+    if (noVenuesElement) noVenuesElement.classList.add('d-none');
+    if (venuesListElement) venuesListElement.innerHTML = '';
     
     // Get filter values
-    const venueType = document.getElementById('venue-type')?.value || 'restaurant';
-    const radius = parseInt(document.getElementById('radius')?.value || 1000);
+    const venueType = document.getElementById('venue-type') ? document.getElementById('venue-type').value : 'restaurant';
+    const radius = document.getElementById('radius') ? parseInt(document.getElementById('radius').value) : 1000;
     
     // Use midpoint or map center
     const searchLocation = midpoint || map.getCenter();
@@ -412,22 +404,26 @@ function searchVenues() {
     });
     
     // Perform search
-    placesService.nearbySearch(request, function(results, status) {
-        // Hide loading state
-        document.getElementById('loading-venues')?.classList.add('d-none');
-        
-        if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
-            // Update venue count
-            document.getElementById('venue-count').textContent = results.length;
+    if (placesService) {
+        placesService.nearbySearch(request, function(results, status) {
+            // Hide loading state
+            if (loadingElement) loadingElement.classList.add('d-none');
             
-            // Display results
-            displayVenueResults(results);
-        } else {
-            // Show no results message
-            document.getElementById('no-venues')?.classList.remove('d-none');
-            document.getElementById('venue-count').textContent = '0';
-        }
-    });
+            if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+                // Update venue count
+                const venueCountElement = document.getElementById('venue-count');
+                if (venueCountElement) venueCountElement.textContent = results.length;
+                
+                // Display results
+                displayVenueResults(results);
+            } else {
+                // Show no results message
+                if (noVenuesElement) noVenuesElement.classList.remove('d-none');
+                const venueCountElement = document.getElementById('venue-count');
+                if (venueCountElement) venueCountElement.textContent = '0';
+            }
+        });
+    }
 }
 
 // Display venue search results
@@ -452,30 +448,36 @@ function displayVenueResults(venues) {
         venueItem.querySelector('.venue-address').textContent = venue.vicinity;
         
         // Set rating if available
-        if (venue.rating) {
-            venueItem.querySelector('.venue-rating').textContent = venue.rating;
-        } else {
-            venueItem.querySelector('.venue-rating').textContent = 'N/A';
+        const ratingElement = venueItem.querySelector('.venue-rating');
+        if (ratingElement) {
+            ratingElement.textContent = venue.rating || 'N/A';
         }
         
         // Set price level if available
         const priceElement = venueItem.querySelector('.venue-price');
-        if (venue.price_level) {
-            priceElement.textContent = '$'.repeat(venue.price_level);
-        } else {
-            priceElement.textContent = 'N/A';
+        if (priceElement) {
+            if (venue.price_level) {
+                priceElement.textContent = '$'.repeat(venue.price_level);
+            } else {
+                priceElement.textContent = 'N/A';
+            }
         }
         
         // Set distance (approximate)
-        const distance = calculateDistance(midpoint, venue.geometry.location);
-        venueItem.querySelector('.venue-distance').textContent = `${distance.toFixed(1)} km away`;
+        const distanceElement = venueItem.querySelector('.venue-distance');
+        if (distanceElement && midpoint) {
+            const distance = calculateDistance(midpoint, venue.geometry.location);
+            distanceElement.textContent = distance.toFixed(1) + ' km away';
+        }
         
         // Set thumbnail if available
         const thumbnailElement = venueItem.querySelector('.venue-thumbnail');
-        if (venue.photos && venue.photos.length > 0) {
-            thumbnailElement.src = venue.photos[0].getUrl({ maxWidth: 100, maxHeight: 100 });
-        } else {
-            thumbnailElement.src = 'https://via.placeholder.com/80?text=No+Image';
+        if (thumbnailElement) {
+            if (venue.photos && venue.photos.length > 0) {
+                thumbnailElement.src = venue.photos[0].getUrl({ maxWidth: 100, maxHeight: 100 });
+            } else {
+                thumbnailElement.src = 'https://via.placeholder.com/80?text=No+Image';
+            }
         }
         
         // Add marker for venue
@@ -488,38 +490,52 @@ function displayVenueResults(venues) {
         });
         
         // Set up event listeners
-        venueItem.querySelector('.view-details-btn').addEventListener('click', function() {
-            showVenueDetails(venue, marker);
-        });
+        const detailsBtn = venueItem.querySelector('.view-details-btn');
+        if (detailsBtn) {
+            detailsBtn.addEventListener('click', function() {
+                showVenueDetails(venue, marker);
+            });
+        }
         
-        venueItem.querySelector('.add-to-voting-btn').addEventListener('click', function() {
-            addVenueToVoting(venue);
-        });
+        const addToVotingBtn = venueItem.querySelector('.btn-add-voting');
+        if (addToVotingBtn) {
+            addToVotingBtn.addEventListener('click', function() {
+                addVenueToVoting(venue);
+            });
+        }
         
         // Add to list
         venuesList.appendChild(venueItem);
     });
 }
 
-// Clear only venue markers (keep user location markers)
-function clearVenueMarkers() {
-    for (let i = markers.length - 1; i >= 0; i--) {
-        const icon = markers[i].getIcon();
-        if (icon && (icon.url === 'https://maps.google.com/mapfiles/ms/icons/red-dot.png' || 
-                    icon.url === 'https://maps.google.com/mapfiles/ms/icons/green-dot.png')) {
-            markers[i].setMap(null);
-            markers.splice(i, 1);
-        }
-    }
-}
-
 // Calculate distance between two points in km (haversine formula)
 function calculateDistance(point1, point2) {
     const R = 6371; // Earth's radius in km
-    const dLat = (point2.lat() - point1.lat) * Math.PI / 180;
-    const dLng = (point2.lng() - point1.lng) * Math.PI / 180;
+    
+    let lat1, lng1, lat2, lng2;
+    
+    // Handle different point formats
+    if (typeof point1.lat === 'function') {
+        lat1 = point1.lat();
+        lng1 = point1.lng();
+    } else {
+        lat1 = point1.lat;
+        lng1 = point1.lng;
+    }
+    
+    if (typeof point2.lat === 'function') {
+        lat2 = point2.lat();
+        lng2 = point2.lng();
+    } else {
+        lat2 = point2.lat;
+        lng2 = point2.lng;
+    }
+    
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(point1.lat * Math.PI / 180) * Math.cos(point2.lat() * Math.PI / 180) *
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
               Math.sin(dLng/2) * Math.sin(dLng/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
@@ -532,85 +548,105 @@ function showVenueDetails(venue, marker) {
     if (!modal) return;
     
     // Set venue data in modal
-    document.getElementById('venue-name').textContent = venue.name;
-    document.getElementById('venue-address').textContent = venue.vicinity;
+    const venueNameElement = document.getElementById('venue-name');
+    const venueAddressElement = document.getElementById('venue-address');
+    const venueRatingElement = document.getElementById('venue-rating');
+    const venuePriceElement = document.getElementById('venue-price');
+    const venueImageElement = document.getElementById('venue-image');
+    
+    if (venueNameElement) venueNameElement.textContent = venue.name;
+    if (venueAddressElement) venueAddressElement.textContent = venue.vicinity;
     
     // Set rating if available
-    if (venue.rating) {
-        document.getElementById('venue-rating').textContent = venue.rating;
-    } else {
-        document.getElementById('venue-rating').textContent = 'N/A';
+    if (venueRatingElement) {
+        venueRatingElement.textContent = venue.rating || 'N/A';
     }
     
     // Set price level if available
-    const priceElement = document.getElementById('venue-price');
-    if (venue.price_level) {
-        priceElement.textContent = '$'.repeat(venue.price_level);
-    } else {
-        priceElement.textContent = 'N/A';
+    if (venuePriceElement) {
+        if (venue.price_level) {
+            venuePriceElement.textContent = '$'.repeat(venue.price_level);
+        } else {
+            venuePriceElement.textContent = 'N/A';
+        }
     }
     
     // Set image if available
-    const imageElement = document.getElementById('venue-image');
-    if (venue.photos && venue.photos.length > 0) {
-        imageElement.src = venue.photos[0].getUrl({ maxWidth: 500, maxHeight: 300 });
-    } else {
-        imageElement.src = 'https://via.placeholder.com/500x300?text=No+Image';
+    if (venueImageElement) {
+        if (venue.photos && venue.photos.length > 0) {
+            venueImageElement.src = venue.photos[0].getUrl({ maxWidth: 500, maxHeight: 300 });
+        } else {
+            venueImageElement.src = 'https://via.placeholder.com/500x300?text=No+Image';
+        }
     }
     
     // Get additional details
-    placesService.getDetails({
-        placeId: venue.place_id,
-        fields: ['website', 'opening_hours', 'formatted_phone_number']
-    }, function(place, status) {
-        if (status === google.maps.places.PlacesServiceStatus.OK) {
-            // Set website if available
-            const websiteElement = document.getElementById('venue-website');
-            if (place.website) {
-                websiteElement.innerHTML = `<a href="${place.website}" target="_blank" class="text-decoration-none">Visit Website</a>`;
-            } else {
-                websiteElement.innerHTML = 'Website not available';
+    if (placesService) {
+        placesService.getDetails({
+            placeId: venue.place_id,
+            fields: ['website', 'opening_hours', 'formatted_phone_number']
+        }, function(place, status) {
+            if (status === google.maps.places.PlacesServiceStatus.OK) {
+                // Set website if available
+                const websiteElement = document.getElementById('venue-website');
+                if (websiteElement) {
+                    if (place.website) {
+                        websiteElement.innerHTML = '<a href="' + place.website + '" target="_blank" class="text-decoration-none">Visit Website</a>';
+                    } else {
+                        websiteElement.innerHTML = 'Website not available';
+                    }
+                }
+                
+                // Set hours if available
+                const hoursElement = document.getElementById('venue-hours');
+                if (hoursElement) {
+                    if (place.opening_hours) {
+                        let hoursHtml = '<strong>Hours:</strong><br>';
+                        place.opening_hours.weekday_text.forEach(function(day) {
+                            hoursHtml += day + '<br>';
+                        });
+                        hoursElement.innerHTML = hoursHtml;
+                    } else {
+                        hoursElement.innerHTML = '<strong>Hours:</strong> Not available';
+                    }
+                }
             }
-            
-            // Set hours if available
-            const hoursElement = document.getElementById('venue-hours');
-            if (place.opening_hours) {
-                let hoursHtml = '<strong>Hours:</strong><br>';
-                place.opening_hours.weekday_text.forEach(function(day) {
-                    hoursHtml += `${day}<br>`;
-                });
-                hoursElement.innerHTML = hoursHtml;
-            } else {
-                hoursElement.innerHTML = '<strong>Hours:</strong> Not available';
-            }
-        }
-    });
+        });
+    }
     
     // Initialize detail map
-    const detailMap = new google.maps.Map(document.getElementById('venue-detail-map'), {
-        center: venue.geometry.location,
-        zoom: 16,
-        mapTypeControl: false,
-        fullscreenControl: false,
-        streetViewControl: false
-    });
-    
-    // Add marker to detail map
-    new google.maps.Marker({
-        map: detailMap,
-        position: venue.geometry.location,
-        title: venue.name
-    });
+    const detailMapElement = document.getElementById('venue-detail-map');
+    if (detailMapElement) {
+        const detailMap = new google.maps.Map(detailMapElement, {
+            center: venue.geometry.location,
+            zoom: 16,
+            mapTypeControl: false,
+            fullscreenControl: false,
+            streetViewControl: false
+        });
+        
+        // Add marker to detail map
+        new google.maps.Marker({
+            map: detailMap,
+            position: venue.geometry.location,
+            title: venue.name
+        });
+    }
     
     // Show modal
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-    
-    // Set up add to voting button
-    document.getElementById('add-to-voting').addEventListener('click', function() {
-        addVenueToVoting(venue);
-        bsModal.hide();
-    });
+    if (typeof bootstrap !== 'undefined') {
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+        
+        // Set up add to voting button
+        const addToVotingBtn = document.getElementById('add-to-voting');
+        if (addToVotingBtn) {
+            addToVotingBtn.addEventListener('click', function() {
+                addVenueToVoting(venue);
+                bsModal.hide();
+            });
+        }
+    }
 }
 
 // Add venue to voting list
@@ -623,7 +659,60 @@ function addVenueToVoting(venue) {
     console.log('Adding venue to voting:', venue.name, 'for group:', groupId);
     
     // Show notification
-    showNotification(`Added ${venue.name} to voting options`, 'success');
+    if (typeof showNotification === 'function') {
+        showNotification('Added ' + venue.name + ' to voting options', 'success');
+    }
+}
+
+// Helper functions for geocoding
+function geocodeAddress(address, successCallback, errorCallback) {
+    if (!geocoder) {
+        errorCallback('Geocoder not initialized');
+        return;
+    }
+    
+    geocoder.geocode({ address: address }, function(results, status) {
+        if (status === 'OK' && results[0]) {
+            const location = results[0].geometry.location;
+            successCallback(
+                location.lat(),
+                location.lng(),
+                results[0].formatted_address,
+                results[0].place_id
+            );
+        } else {
+            errorCallback('Geocoding failed: ' + status);
+        }
+    });
+}
+
+function reverseGeocode(lat, lng, callback) {
+    if (!geocoder) {
+        callback('Geocoder not available');
+        return;
+    }
+    
+    const latlng = { lat: lat, lng: lng };
+    geocoder.geocode({ location: latlng }, function(results, status) {
+        if (status === 'OK' && results[0]) {
+            callback(results[0].formatted_address);
+        } else {
+            callback(lat + ', ' + lng);
+        }
+    });
+}
+
+// Initialize autocomplete for a specific input
+function initLocationAutocomplete(input) {
+    if (!input) return;
+    
+    const autocomplete = new google.maps.places.Autocomplete(input, {
+        componentRestrictions: { country: 'sg' },
+        fields: ['address_components', 'geometry', 'name', 'formatted_address'],
+        types: ['address']
+    });
+    
+    return autocomplete;
 }
 
 // Initialize map when Google Maps API is loaded

@@ -30,19 +30,19 @@ body {
   background-color: #f0f0f0; /* Fallback color */
 }
 
+/* Fixed header with location inputs */
 .location-input-card {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+  background: white;
   z-index: 10;
   border-radius: 0 0 20px 20px;
-  padding: 8px 16px 12px;
+  padding: 12px 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  max-height: 30vh;
-  overflow-y: auto;
+  max-height: 180px; /* Fixed height */
+  overflow: visible; /* Don't allow scrolling */
 }
 
 .app-header {
@@ -116,11 +116,17 @@ body {
 .location-item {
   display: flex;
   align-items: center;
-  background: white;
+  background: #f8f8f8;
   border-radius: 24px;
-  padding: 8px 12px;
+  padding: 10px 16px;
   margin-bottom: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.location-item:focus-within {
+  box-shadow: 0 0 0 2px var(--primary-color);
+  background: white;
 }
 
 .location-icon {
@@ -178,22 +184,40 @@ body {
   margin-right: 8px;
 }
 
-/* Venue Card */
-.venue-card {
+/* Floating Find Central Button */
+.find-central-btn {
   position: fixed;
-  bottom: 80px; /* Above bottom nav */
-  left: 16px;
-  right: 16px;
-  background: white;
-  border-radius: var(--border-radius);
-  padding: 16px;
-  box-shadow: var(--box-shadow);
+  bottom: 100px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  background: var(--primary-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   z-index: 9;
-  display: none; /* Hidden by default */
+  cursor: pointer;
+  transform: scale(0);
+  transition: transform 0.3s ease, background-color 0.2s ease;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.venue-card.active {
-  display: block;
+.find-central-btn.active {
+  transform: scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.find-central-btn:hover {
+  background: var(--secondary-color);
+}
+
+.find-central-btn i {
+  font-size: 24px;
 }
 
 .venue-header {
@@ -265,6 +289,34 @@ body {
 .venue-action-btn.secondary {
   background-color: #f0f0f0;
   color: var(--dark-color);
+}
+
+/* Floating find central location button */
+.find-central-btn {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #8e44ad;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    transform: scale(0);
+    transition: transform 0.3s ease;
+    cursor: pointer;
+}
+
+.find-central-btn.active {
+    transform: scale(1);
+}
+
+.find-central-btn i {
+    font-size: 24px;
 }
 
 /* Bottom Navigation */

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "mobile_base.html" %}
 
 {% block title %}MidWhereAh - Find Your Midpoint{% endblock %}
 
@@ -8,70 +8,42 @@
 {% endblock %}
 
 {% block content %}
+
+
 <!-- Full-screen map -->
 <div id="map"></div>
 
-<!-- Floating Location Input Card -->
+<!-- Fixed Location Input Header (NON-SCROLLABLE) -->
 <div class="location-input-card">
   <div class="app-header">
     <div class="app-logo">
       <i class="fas fa-map-marker-alt"></i>
       <span>MidWhereAh</span>
     </div>
-    <button class="menu-btn" id="menu-toggle">
-      <i class="fas fa-bars"></i>
-    </button>
+    <!-- Hamburger menu REMOVED as requested -->
   </div>
   
-  <!-- Location inputs container -->
+  <!-- Location inputs container - exactly two inputs -->
   <div class="locations-container">
     <div class="location-item">
       <div class="location-icon purple">
         <i class="fas fa-circle"></i>
       </div>
-      <input type="text" id="location-1" class="location-input" placeholder="Address 1">
-      <button class="user-btn">
-        <i class="fas fa-user-plus"></i>
-      </button>
+      <input type="text" id="location-1" class="location-input" placeholder="Enter first location">
     </div>
     
     <div class="location-item">
       <div class="location-icon purple">
         <i class="fas fa-circle"></i>
       </div>
-      <input type="text" id="location-2" class="location-input" placeholder="Address 2">
-      <button class="user-btn">
-        <i class="fas fa-user-plus"></i>
-      </button>
+      <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
     </div>
-    
-    <button class="add-location-btn" id="add-location">
-      <i class="fas fa-plus"></i>
-      <span>Add another location</span>
-    </button>
   </div>
 </div>
 
-<!-- Venue Card (Initially Hidden) -->
-<div class="venue-card" id="venue-card">
-  <div class="venue-header">
-    <h3 class="venue-name">P.S. Cafe</h3>
-    <div class="venue-rating">
-      <span class="stars">★★★★☆</span>
-      <span class="rating-value">4.5</span>
-    </div>
-  </div>
-  <div class="venue-details">
-    <p class="venue-description">The cafe for brunch or anytime afternoon meal, consider this place for your next meetup with friends.</p>
-    <div class="venue-meta">
-      <span class="venue-distance">250m</span>
-      <span class="venue-price">$$</span>
-    </div>
-  </div>
-  <div class="venue-actions">
-    <button class="venue-action-btn primary">Add to Voting</button>
-    <button class="venue-action-btn secondary">Details</button>
-  </div>
+<!-- Purple Arrow Floating Button (Shows after two locations are input) -->
+<div class="find-central-btn" id="find-central-btn">
+  <i class="fas fa-location-arrow"></i>
 </div>
 
 <!-- Bottom Navigation -->
@@ -99,7 +71,7 @@
   </div>
 </div>
 
-<!-- Slide-out Menu -->
+<!-- Slide-out Menu (Keep but no hamburger trigger) -->
 <div class="slide-menu" id="slide-menu">
   <div class="menu-header">
     <div class="user-info">
@@ -129,6 +101,9 @@
   </div>
 </div>
 <div class="menu-overlay" id="menu-overlay"></div>
+
+<!-- NO VENUE CARDS - Removed completely as requested -->
+
 {% endblock %}
 
 {% block scripts %}
