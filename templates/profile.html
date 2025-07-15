@@ -1,0 +1,36 @@
+{% extends "mobile_base.html" %}
+
+{% block title %}MidWhereAh - Find Your Midpoint{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+{% endblock %}
+
+{% block content %}
+<!-- Bottom Navigation -->
+<div class="bottom-navigation">
+  <div class="nav-item active" data-page="home">
+    <i class="fas fa-home"></i>
+    <span>Home</span>
+  </div>
+  <div class="nav-item" data-page="compass">
+    <i class="fas fa-compass"></i>
+    <span>Explore</span>
+  </div>
+  <div class="nav-item nav-item-center" data-page="create">
+    <div class="center-fab">
+      <i class="fas fa-plus"></i>
+    </div>
+  </div>
+  <div class="nav-item" data-page="groups">
+    <i class="fas fa-users"></i>
+    <span>Groups</span>
+  </div>
+  <div class="nav-item" data-page="profile">
+    <i class="fas fa-user"></i>
+    <span>Profile</span>
+  </div>
+</div>
+
+{% endblock %}

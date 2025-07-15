@@ -73,7 +73,7 @@ def dashboard():
 @app.route('/groups')
 def groups():
     # Redirected from bottom nav, shows all user groups
-    return render_template('dashboard.html')
+    return render_template('group-icon.html')
 
 @app.route('/group/<group_id>')
 def group(group_id):

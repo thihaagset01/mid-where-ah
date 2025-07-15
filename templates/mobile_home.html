@@ -66,61 +66,60 @@
 <div id="map"></div>
 
 <!-- Fixed Location Input Header (NON-SCROLLABLE) -->
-<div class="location-input-card">
-  <div class="app-header">
-    <div class="app-logo">
-      <i class="fas fa-map-marker-alt"></i>
-      <span>MidWhereAh</span>
-    </div>
-    <!-- Hamburger menu REMOVED as requested -->
+<div class= "group-header-container">
+  <div class="group-logo">
+    <a href="/">
+        <img src="static/images/logo.png" alt="Logo" style="cursor: pointer;" />
+    </a>
   </div>
-  
-  <!-- Location inputs container - exactly two inputs with transport mode selection -->
-  <div class="locations-container">
-    <!-- Location 1 with transport mode selector -->
-    <div class="location-container">
-      <div class="location-item">
-        <div class="d-flex align-items-center">
-          <div class="location-icon purple">
-            <i class="fas fa-circle"></i>
-          </div>
-          <input type="text" id="location-1" class="location-input" placeholder="Enter first location">
-        </div>
+  <div class="group-text">
+    <span>Mid-Where-Ah</span>
+  </div>
+</div>
+
+  <!-- Location 1 with transport mode selector -->
+<div class="location-container">
+  <div class="location-item">
+    <div class="d-flex align-items-center" style="z-index: 5;">
+      <div class="location-icon purple">
+        <i class="fas fa-circle"></i>
       </div>
-      <div class="transport-selector">
-        <button class="transport-btn active" data-mode="TRANSIT" data-person="1" title="Public Transport">
-          🚇
-        </button>
-        <button class="transport-btn" data-mode="DRIVING" data-person="1" title="Car/Taxi">
-          🚗
-        </button>
-        <button class="transport-btn" data-mode="WALKING" data-person="1" title="Walking">
-          🚶
-        </button>
+      <input type="text" id="location-1" class="location-input" placeholder="Enter first location">
+    </div>
+  </div>
+  <div class="transport-selector">
+    <button class="transport-btn active" data-mode="TRANSIT" data-person="1" title="Public Transport">
+      🚇
+    </button>
+    <button class="transport-btn" data-mode="DRIVING" data-person="1" title="Car/Taxi">
+      🚗
+    </button>
+    <button class="transport-btn" data-mode="WALKING" data-person="1" title="Walking">
+      🚶
+    </button>
+  </div>
+</div>
+    
+  <!-- Location 2 with transport mode selector -->
+  <div class="location-container">
+    <div class="location-item">
+      <div class="d-flex align-items-center" style="z-index: 5;">
+        <div class="location-icon purple">
+          <i class="fas fa-circle"></i>
+        </div>
+        <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
       </div>
     </div>
-    
-    <!-- Location 2 with transport mode selector -->
-    <div class="location-container">
-      <div class="location-item">
-        <div class="d-flex align-items-center">
-          <div class="location-icon purple">
-            <i class="fas fa-circle"></i>
-          </div>
-          <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
-        </div>
-      </div>
-      <div class="transport-selector">
-        <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
-          🚇
-        </button>
-        <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
-          🚗
-        </button>
-        <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
-          🚶
-        </button>
-      </div>
+    <div class="transport-selector">
+      <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
+        🚇
+      </button>
+      <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
+        🚗
+      </button>
+      <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
+        🚶
+      </button>
     </div>
   </div>
 </div>
