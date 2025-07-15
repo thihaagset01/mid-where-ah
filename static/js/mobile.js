@@ -2,6 +2,12 @@
 // Enhanced Social Fairness Algorithm - Prioritizing Travel Time Equity
 
 // Enhanced Social Fairness Midpoint Algorithm (Travel Time Equity Focus)
+
+window.userTransportModes = {
+    'location-1': 'TRANSIT', // Default to transit
+    'location-2': 'TRANSIT'
+};
+
 class EnhancedSocialMidpointCalculator {
     constructor() {
         this.maxIterations = 50;
@@ -10,7 +16,11 @@ class EnhancedSocialMidpointCalculator {
         this.radiusIncrementFactor = 1.4;
         this.maxSearchRadius = 5000;
         this.minVenuesRequired = 5;
-        this.maxTravelTimeMinutes = 60;
+        
+        // These will be adjusted based on distance
+        this.baseMaxTravelTimeMinutes = 60;
+        this.maxTravelTimeMinutes = 60; // Will be updated in calculateSocialMidpoint
+        
         this.maxAcceptableTimeDifference = 10;
         this.equityWeight = 0.9;
         this.totalTimeWeight = 0.1;
@@ -21,9 +31,35 @@ class EnhancedSocialMidpointCalculator {
         ];
     }
 
+    adjustParametersForDistance(startingLocations) {
+        const distance = this.calculateDistance(
+            { lat: startingLocations[0].lat(), lng: startingLocations[0].lng() },
+            { lat: startingLocations[1].lat(), lng: startingLocations[1].lng() }
+        );
+        
+        const distanceKm = distance / 1000;
+        
+        if (distanceKm > 30) {
+            // Extreme distance (like Sentosa → Yishun)
+            this.maxTravelTimeMinutes = 90;
+            console.log(`🌏 Extreme distance (${distanceKm.toFixed(1)}km): Allowing up to 90min travel time`);
+        } else if (distanceKm > 15) {
+            // Long distance
+            this.maxTravelTimeMinutes = 75;
+            console.log(`📏 Long distance (${distanceKm.toFixed(1)}km): Allowing up to 75min travel time`);
+        } else {
+            // Normal distance
+            this.maxTravelTimeMinutes = this.baseMaxTravelTimeMinutes;
+            console.log(`📍 Normal distance (${distanceKm.toFixed(1)}km): Allowing up to 60min travel time`);
+        }
+    }
+
     async calculateSocialMidpoint(startingLocations) {
         console.log('🎯 Starting Enhanced Social Fairness Algorithm (Equity Focus)...');
         console.log(`📍 Analyzing ${startingLocations.length} starting locations`);
+        
+        // NEW: Adjust parameters based on distance
+        this.adjustParametersForDistance(startingLocations);
         
         let currentSearchCenter = this.calculateGeometricMidpoint(startingLocations);
         let searchRadius = this.initialRadius;
@@ -599,52 +635,50 @@ class EnhancedSocialMidpointCalculator {
                 }
             });
         });
+
+        
     }
 
     async analyzeVenueTravelEquity(venues, startingLocations) {
-        console.log(`📊 Analyzing travel equity for ${venues.length} venues...`);
+        console.log(`📊 Analyzing travel equity for ${venues.length} venues with consistent transport modes...`);
         const directionsService = new google.maps.DirectionsService();
         const analysis = [];
-
+    
         for (let i = 0; i < venues.length; i++) {
             const venue = venues[i];
-            const travelTimes = [];
-            let allRoutesValid = true;
             
-            for (const startLocation of startingLocations) {
-                try {
-                    const time = await this.calculateOptimalTravelTime(
-                        directionsService, 
-                        startLocation, 
-                        venue.geometry.location
-                    );
-                    
-                    if (time > this.maxTravelTimeMinutes) {
-                        allRoutesValid = false;
-                        break;
-                    }
-                    
-                    travelTimes.push(time);
-                } catch (error) {
-                    console.warn(`Failed to calculate route to ${venue.name}:`, error);
-                    allRoutesValid = false;
-                    break;
-                }
-            }
-
-            if (!allRoutesValid || travelTimes.length !== startingLocations.length) {
+            // FIXED: Use the new method name for per-user transport modes
+            const modeResult = await this.findPerUserTransportMode(
+                directionsService, 
+                startingLocations, 
+                venue.geometry.location,
+                venue.name
+            );
+            
+            if (!modeResult) {
+                console.log(`❌ ${venue.name}: Cannot reach with selected transport modes`);
                 continue;
             }
-
+            
+            const { travelTimes, transportModes, mixedMode } = modeResult;
+            
             const maxTime = Math.max(...travelTimes);
             const minTime = Math.min(...travelTimes);
             const avgTime = travelTimes.reduce((a, b) => a + b, 0) / travelTimes.length;
             const timeVariance = this.calculateVariance(travelTimes);
             const timeRange = maxTime - minTime;
             
-            const equityScore = (timeVariance * this.equityWeight) + 
-                              (timeRange * 0.5) + 
-                              (avgTime * this.totalTimeWeight);
+            // Adjust equity scoring for mixed modes
+            let equityScore = (timeVariance * this.equityWeight) + 
+                             (timeRange * 0.5) + 
+                             (avgTime * this.totalTimeWeight);
+            
+            // Add penalty for extreme time differences in mixed mode scenarios
+            if (mixedMode && timeRange > 20) {
+                const mixedModePenalty = Math.pow(timeRange / 20, 1.5) * 10;
+                equityScore += mixedModePenalty;
+                console.log(`   ⚠️ ${venue.name}: Mixed mode with ${timeRange.toFixed(1)}min range, added ${mixedModePenalty.toFixed(1)} penalty`);
+            }
             
             analysis.push({
                 name: venue.name,
@@ -661,47 +695,92 @@ class EnhancedSocialMidpointCalculator {
                 equityScore: equityScore,
                 rating: venue.rating,
                 types: venue.types,
-                venue: venue
+                venue: venue,
+                // NEW: Track individual transport modes
+                transportModes: transportModes,
+                mixedMode: mixedMode
             });
         }
-
+    
         analysis.sort((a, b) => a.equityScore - b.equityScore);
         
-        console.log(`   ✅ Successfully analyzed ${analysis.length} venues for travel equity`);
+        console.log(`   ✅ Successfully analyzed ${analysis.length} venues with user-selected transport modes`);
         
         analysis.slice(0, 3).forEach((venue, idx) => {
-            console.log(`   ${idx + 1}. ${venue.name}: equity=${venue.equityScore.toFixed(2)}, variance=${venue.timeVariance.toFixed(1)}min², range=${venue.timeRange.toFixed(1)}min, times=[${venue.travelTimes.map(t => t.toFixed(1)).join(', ')}]min`);
+            const modeText = venue.mixedMode ? 
+                `${venue.transportModes[0]}/${venue.transportModes[1]}` : 
+                venue.transportModes[0];
+            console.log(`   ${idx + 1}. ${venue.name} [${modeText}]: equity=${venue.equityScore.toFixed(2)}, variance=${venue.timeVariance.toFixed(1)}min², range=${venue.timeRange.toFixed(1)}min, times=[${venue.travelTimes.map(t => t.toFixed(1)).join(', ')}]min`);
         });
         
         return analysis;
     }
 
-    async calculateOptimalTravelTime(directionsService, origin, destination) {
-        const transportModes = [
-            { mode: google.maps.TravelMode.TRANSIT, multiplier: 1.0 },
-            { mode: google.maps.TravelMode.WALKING, multiplier: 1.0 },
-            { mode: google.maps.TravelMode.DRIVING, multiplier: 1.3 }
+    // NEW METHOD: Find a transport mode that works for everyone
+    async findPerUserTransportMode(directionsService, startingLocations, destination, venueName) {
+        console.log(`🚌 Calculating travel times using each person's preferred transport mode for ${venueName}...`);
+        
+        const userModes = [
+            window.userTransportModes['location-1'] || 'TRANSIT',
+            window.userTransportModes['location-2'] || 'TRANSIT'
         ];
         
-        for (const transport of transportModes) {
+        console.log(`   Person 1 prefers: ${userModes[0]}`);
+        console.log(`   Person 2 prefers: ${userModes[1]}`);
+        
+        const travelTimes = [];
+        const actualModes = [];
+        
+        // Calculate travel time for each person using their preferred mode
+        for (let personIdx = 0; personIdx < startingLocations.length; personIdx++) {
+            const preferredMode = userModes[personIdx];
+            const googleMapsMode = this.convertToGoogleMapsMode(preferredMode);
+            
             try {
-                const time = await this.getTravelTime(directionsService, origin, destination, transport.mode);
-                if (time && time < this.maxTravelTimeMinutes) {
-                    return time * transport.multiplier;
+                const time = await this.getTravelTime(
+                    directionsService,
+                    startingLocations[personIdx],
+                    destination,
+                    googleMapsMode
+                );
+                
+                if (!time) {
+                    console.log(`     ❌ Person ${personIdx + 1}: ${preferredMode} route failed`);
+                    return null;
                 }
+                
+                // Apply mode-specific multipliers and limits
+                const modeConfig = this.getTransportModeConfig(preferredMode);
+                const adjustedTime = time * modeConfig.multiplier;
+                
+                if (adjustedTime > modeConfig.maxTime) {
+                    console.log(`     ❌ Person ${personIdx + 1}: ${preferredMode} ${adjustedTime.toFixed(1)}min > ${modeConfig.maxTime}min limit`);
+                    return null;
+                }
+                
+                console.log(`     ✅ Person ${personIdx + 1}: ${preferredMode} ${adjustedTime.toFixed(1)}min`);
+                travelTimes.push(adjustedTime);
+                actualModes.push(preferredMode);
+                
             } catch (error) {
-                continue;
+                console.log(`     ❌ Person ${personIdx + 1}: ${preferredMode} error - ${error.message}`);
+                return null;
             }
         }
         
-        console.warn('All transport modes failed, using distance estimate');
-        const distance = this.calculateDistance(
-            { lat: origin.lat(), lng: origin.lng() },
-            { lat: destination.lat(), lng: destination.lng() }
-        );
+        const maxTime = Math.max(...travelTimes);
+        const minTime = Math.min(...travelTimes);
+        const range = maxTime - minTime;
         
-        return Math.max(5, distance / 200);
+        console.log(`   ✅ Mixed modes work! Person 1: ${actualModes[0]} ${travelTimes[0].toFixed(1)}min, Person 2: ${actualModes[1]} ${travelTimes[1].toFixed(1)}min (range: ${range.toFixed(1)}min)`);
+        
+        return {
+            travelTimes: travelTimes,
+            transportModes: actualModes, // Array of modes used
+            mixedMode: actualModes[0] !== actualModes[1]
+        };
     }
+
 
     async getTravelTime(directionsService, origin, destination, travelMode) {
         return new Promise((resolve, reject) => {
@@ -729,10 +808,23 @@ class EnhancedSocialMidpointCalculator {
         });
     }
 
+    // ADD this to your findMostEquitableVenue method (around line 680):
+
     findMostEquitableVenue(analysis) {
         if (analysis.length === 0) return null;
         
         const best = analysis[0];
+        
+        // NEW: Store the transport mode globally so showRoutes can use it
+        if (best.transportMode === 'DRIVING') {
+            window.lastUsedTransportMode = google.maps.TravelMode.DRIVING;
+        } else if (best.transportMode === 'WALKING') {
+            window.lastUsedTransportMode = google.maps.TravelMode.WALKING;
+        } else if (best.transportMode === 'TRANSIT') {
+            window.lastUsedTransportMode = google.maps.TravelMode.TRANSIT;
+        }
+        
+        console.log(`🚗 Storing transport mode for display: ${best.transportMode}`);
         
         if (best.maxTravelTime > this.maxTravelTimeMinutes || 
             best.timeRange > this.maxAcceptableTimeDifference) {
@@ -760,6 +852,25 @@ class EnhancedSocialMidpointCalculator {
                 Math.sin(deltaLng/2) * Math.sin(deltaLng/2);
         return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * R;
     }
+    convertToGoogleMapsMode(uiMode) {
+        switch (uiMode) {
+            case 'TRANSIT': return google.maps.TravelMode.TRANSIT;
+            case 'DRIVING': return google.maps.TravelMode.DRIVING;
+            case 'WALKING': return google.maps.TravelMode.WALKING;
+            default: return google.maps.TravelMode.TRANSIT;
+        }
+    }
+    
+    getTransportModeConfig(mode) {
+        const baseConfigs = {
+            'TRANSIT': { multiplier: 1.0, maxTime: this.maxTravelTimeMinutes },
+            'WALKING': { multiplier: 1.0, maxTime: 45 }, // Walking has shorter limit
+            'DRIVING': { multiplier: 1.3, maxTime: this.maxTravelTimeMinutes } // Driving penalty for traffic
+        };
+        
+        return baseConfigs[mode] || baseConfigs['TRANSIT'];
+    }
+
 }
 
 // Replace the existing calculateSocialMidpoint function
@@ -1296,57 +1407,90 @@ function showRoutes() {
     window.routeRenderers = [];
 
     const directionsService = new google.maps.DirectionsService();
-
     const colors = ['#2196F3', '#FF9800'];
-
     const markers = [location1Marker, location2Marker];
 
-    markers.forEach((marker, index) => {
-        const tryRoute = (travelMode) => {
-            const request = {
-                origin: marker.getPosition(),
-                destination: midpoint,
-                travelMode: travelMode
-            };
+    // Use each person's selected transport mode
+    const userModes = [
+        window.userTransportModes['location-1'] || 'TRANSIT',
+        window.userTransportModes['location-2'] || 'TRANSIT'
+    ];
 
-            if (travelMode === google.maps.TravelMode.TRANSIT) {
-                request.transitOptions = {
-                    modes: [google.maps.TransitMode.BUS, google.maps.TransitMode.RAIL],
-                    routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
-                };
-            }
-            
-            directionsService.route(request, function(result, status) {
-                if (status === google.maps.DirectionsStatus.OK) {
-                    const routeRenderer = new google.maps.DirectionsRenderer({
-                        suppressMarkers: true,
-                        polylineOptions: {
-                            strokeColor: colors[index],
-                            strokeOpacity: 0.8,
-                            strokeWeight: 5
-                        },
-                        map: window.midwhereahMap
-                    });
-                    
-                    routeRenderer.setDirections(result);
-                    
-                    window.routeRenderers.push(routeRenderer);
-                    
-                    const duration = result.routes[0].legs[0].duration.text;
-                    const travelModeText = travelMode === google.maps.TravelMode.TRANSIT ? 'Transit' : 'Walking';
-                    console.log(`Route ${index + 1} (${travelModeText}): ${duration}`);
-                } else if (travelMode === google.maps.TravelMode.TRANSIT) {
-                    console.log(`Transit failed for route ${index + 1}, trying walking...`);
-                    tryRoute(google.maps.TravelMode.WALKING);
-                } else {
-                    console.warn(`All route calculations failed for location ${index + 1}:`, status);
-                }
-            });
+    console.log(`🚗 Showing routes: Person 1 via ${userModes[0]}, Person 2 via ${userModes[1]}`);
+
+    markers.forEach((marker, index) => {
+        const selectedMode = userModes[index];
+        const googleMapsMode = selectedMode === 'TRANSIT' ? google.maps.TravelMode.TRANSIT :
+                              selectedMode === 'DRIVING' ? google.maps.TravelMode.DRIVING :
+                              google.maps.TravelMode.WALKING;
+        
+        const request = {
+            origin: marker.getPosition(),
+            destination: midpoint,
+            travelMode: googleMapsMode
         };
 
-        tryRoute(google.maps.TravelMode.TRANSIT);
+        if (googleMapsMode === google.maps.TravelMode.TRANSIT) {
+            request.transitOptions = {
+                modes: [google.maps.TransitMode.BUS, google.maps.TransitMode.RAIL],
+                routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
+            };
+        }
+        
+        directionsService.route(request, function(result, status) {
+            if (status === google.maps.DirectionsStatus.OK) {
+                const routeRenderer = new google.maps.DirectionsRenderer({
+                    suppressMarkers: true,
+                    polylineOptions: {
+                        strokeColor: colors[index],
+                        strokeOpacity: 0.8,
+                        strokeWeight: 5
+                    },
+                    map: window.midwhereahMap
+                });
+                
+                routeRenderer.setDirections(result);
+                window.routeRenderers.push(routeRenderer);
+                
+                const duration = result.routes[0].legs[0].duration.text;
+                console.log(`Route ${index + 1} (${selectedMode}): ${duration}`);
+            } else {
+                console.warn(`Route calculation failed for location ${index + 1}:`, status);
+            }
+        });
     });
 }
+
+
+// STEP 2: Setup transport mode selection (add to your DOMContentLoaded section)
+function setupTransportModeSelection() {
+    const transportButtons = document.querySelectorAll('.transport-btn');
+    
+    transportButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const mode = this.getAttribute('data-mode');
+            const person = this.getAttribute('data-person');
+            const locationId = `location-${person}`;
+            
+            // Update active state for this person's buttons
+            const personButtons = document.querySelectorAll(`[data-person="${person}"]`);
+            personButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Store preference
+            window.userTransportModes[locationId] = mode;
+            
+            console.log(`🚗 Person ${person} selected: ${mode}`);
+            
+            // Recalculate if both locations are set
+            setTimeout(() => {
+                checkBothLocationsAndShowButton();
+            }, 100);
+        });
+    });
+}
+
+
 
 document.addEventListener('DOMContentLoaded', function() {
     setupMobileMenu();
@@ -1355,7 +1499,8 @@ document.addEventListener('DOMContentLoaded', function() {
     setupUserInfo();
     setupVenueCard();
     setupFindCentralButton();
-
+    setupTransportModeSelection();
+    
     const location1 = document.getElementById('location-1');
     const location2 = document.getElementById('location-2');
 

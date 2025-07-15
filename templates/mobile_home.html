@@ -5,11 +5,63 @@
 {% block head %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+
+<!-- Additional CSS for transport mode selection -->
+<style>
+/* Transport Mode Selection Styles */
+.transport-selector {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 6px;
+}
+
+.transport-btn {
+    background: #f0f0f0;
+    border: 2px solid #ddd;
+    border-radius: 20px;
+    padding: 6px 10px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 32px;
+}
+
+.transport-btn:hover {
+    background: #e0e0e0;
+    border-color: #bbb;
+}
+
+.transport-btn.active {
+    background: #8B5DB8;
+    border-color: #8B5DB8;
+    color: white;
+}
+
+.location-container {
+    margin-bottom: 12px;
+}
+
+.location-item {
+    background: #f8f8f8;
+    border-radius: 24px;
+    padding: 10px 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+.location-item:focus-within {
+    box-shadow: 0 0 0 2px #8B5DB8;
+    background: white;
+}
+</style>
 {% endblock %}
 
 {% block content %}
-
-
 <!-- Full-screen map -->
 <div id="map"></div>
 
@@ -23,20 +75,52 @@
     <!-- Hamburger menu REMOVED as requested -->
   </div>
   
-  <!-- Location inputs container - exactly two inputs -->
+  <!-- Location inputs container - exactly two inputs with transport mode selection -->
   <div class="locations-container">
-    <div class="location-item">
-      <div class="location-icon purple">
-        <i class="fas fa-circle"></i>
+    <!-- Location 1 with transport mode selector -->
+    <div class="location-container">
+      <div class="location-item">
+        <div class="d-flex align-items-center">
+          <div class="location-icon purple">
+            <i class="fas fa-circle"></i>
+          </div>
+          <input type="text" id="location-1" class="location-input" placeholder="Enter first location">
+        </div>
       </div>
-      <input type="text" id="location-1" class="location-input" placeholder="Enter first location">
+      <div class="transport-selector">
+        <button class="transport-btn active" data-mode="TRANSIT" data-person="1" title="Public Transport">
+          🚇
+        </button>
+        <button class="transport-btn" data-mode="DRIVING" data-person="1" title="Car/Taxi">
+          🚗
+        </button>
+        <button class="transport-btn" data-mode="WALKING" data-person="1" title="Walking">
+          🚶
+        </button>
+      </div>
     </div>
     
-    <div class="location-item">
-      <div class="location-icon purple">
-        <i class="fas fa-circle"></i>
+    <!-- Location 2 with transport mode selector -->
+    <div class="location-container">
+      <div class="location-item">
+        <div class="d-flex align-items-center">
+          <div class="location-icon purple">
+            <i class="fas fa-circle"></i>
+          </div>
+          <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
+        </div>
       </div>
-      <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
+      <div class="transport-selector">
+        <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
+          🚇
+        </button>
+        <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
+          🚗
+        </button>
+        <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
+          🚶
+        </button>
+      </div>
     </div>
   </div>
 </div>
