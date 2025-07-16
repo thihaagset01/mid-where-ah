@@ -73,12 +73,12 @@ def dashboard():
 @app.route('/groups')
 def groups():
     # Redirected from bottom nav, shows all user groups
-    return render_template('group-icon.html')
+    return render_template('group.html')
 
-@app.route('/group/<group_id>')
-def group(group_id):
+@app.route('/group_chat')
+def group_chat():
     # In a real app, we would fetch group data from Firestore
-    return render_template('group.html', group_id=group_id)
+    return render_template('group_chat.html')
 
 @app.route('/venues/<group_id>')
 def venues(group_id):

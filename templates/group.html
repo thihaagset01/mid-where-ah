@@ -1,211 +1,139 @@
-{% extends "base.html" %}
+{% extends "mobile_base.html" %}
 
-{% block title %}Group Details{% endblock %}
+{% block title %}MidWhereAh - Find Your Midpoint{% endblock %}
 
 {% block head %}
-<!-- Google Maps API -->
-<script src="https://maps.googleapis.com/maps/api/js?key={{ config.GOOGLE_MAPS_API_KEY }}&libraries=places" defer></script>
-<script src="{{ url_for('static', filename='js/maps.js') }}" defer></script>
-{% endblock %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
 
-{% block content %}
-<div class="row mb-4">
-    <div class="col">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active" aria-current="page"><span id="group-name">Group</span></li>
-            </ol>
-        </nav>
+<div class="group-header-container">
+  <div class="group-logo">
+    <a href="/">
+        <img src="static/images/logo.png" alt="Logo" style="cursor: pointer;" />
+    </a>
+  </div>
+  <div class="group-text">
+    <span>Mid-Where-Ah</span>
+  </div>
+</div>
+<div class="group-col bottom-container center">
+  <!-- Bottom Navigation -->
+  <div class="bottom-navigation">
+    <div class="nav-item" data-page="home">
+      <i class="fas fa-home"></i>
+      <span>Home</span>
     </div>
+    <div class="nav-item" data-page="compass">    
+      <i class="fas fa-compass"></i>
+      <span>Explore</span>
+    </div>
+    <div class="nav-item nav-item-center" data-page="create">
+      <div class="center-fab">
+        <i class="fas fa-plus"></i>
+      </div>
+    </div>
+    <div class="nav-item active" data-page="groups">
+      <i class="fas fa-users"></i>
+      <span>Groups</span>
+    </div>
+    <div class="nav-item" data-page="profile">
+      <i class="fas fa-user"></i>
+      <span>Profile</span>
+    </div>
+  </div>
+  </div>
+
+<!-- Bento grid for groups -->
+<div class="group groupbg group-col" style="align-items: center;">
+  <div class="group-text">
+    <span style = "font-size:50px;">Groups</span>
+  </div>
+  <div class="search-bar-container">
+      <input type="text" class="search-input" placeholder="Search...">
+      <button class="search-button">🔍</button>
+  </div>
+  <div class="bento-grid">
+    <a href="/group_chat" class="bento-item">
+      <img src="static/images/group-placeholder.png" class="group-icon">
+      <span style = "color: white;">Group 1</span>
+    </a>
+    <a href="/" class="bento-item">
+      <img src="static/images/group-placeholder.png" class="group-icon">
+      <span style = "color: white;">Group 2</span>
+    </a>
+    <a href="/" class="bento-item">
+      <img src="static/images/group-placeholder.png" class="group-icon">
+      <span style = "color: white;">Group 3</span>
+    </a>
+        <a href="/" class="bento-item">
+      <img src="static/images/group-placeholder.png" class="group-icon">
+      <span style = "color: white;">Group 4</span>
+    </a>
+        <a href="/" class="bento-item">
+      <img src="static/images/group-placeholder.png" class="group-icon">
+      <span style = "color: white;">Group 5</span>
+    </a>
+        <a href="/" class="bento-item">
+      <img src="static/images/group-placeholder.png" class="group-icon">
+      <span style = "color: white;">Group 6</span>
+    </a>
+        <a href="/" class="bento-item">
+      <img src="static/images/group-placeholder.png" class="group-icon">
+      <span style = "color: white;">Group 7</span>
+    </a>
+  </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-8">
-        <h1 id="group-name-header">Group Name</h1>
-        <p class="text-muted" id="group-description">Group description loading...</p>
-        
-        <div class="d-flex flex-wrap gap-2 mb-4">
-            <button class="btn btn-primary" id="find-venues-btn">
-                <i class="fas fa-search me-2"></i>Find Venues
-            </button>
-            <button class="btn btn-outline-primary" id="invite-btn" data-bs-toggle="modal" data-bs-target="#inviteModal">
-                <i class="fas fa-user-plus me-2"></i>Invite People
-            </button>
-            <button class="btn btn-outline-secondary" id="share-group-btn">
-                <i class="fas fa-share-alt me-2"></i>Share Group
-            </button>
-        </div>
-    </div>
-</div>
-
-<div class="row g-4">
-    <!-- Map Section -->
-    <div class="col-lg-8">
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Group Map</h5>
-            </div>
-            <div class="card-body p-0">
-                <div id="map" style="height: 400px;"></div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Members Section -->
-    <div class="col-lg-4">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Members</h5>
-                <span class="badge bg-primary" id="member-count">0</span>
-            </div>
-            <div class="card-body p-0">
-                <ul class="list-group list-group-flush" id="members-list">
-                    <li class="list-group-item text-center py-4">
-                        <div class="spinner-border spinner-border-sm text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mb-0 mt-2">Loading members...</p>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Location Input Section -->
-<div class="row mt-4">
-    <div class="col-lg-8">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Your Location</h5>
-            </div>
-            <div class="card-body">
-                <form id="location-form">
-                    <div class="mb-3">
-                        <label for="location-input" class="form-label">Enter your starting location</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="location-input" placeholder="Search for an address" required>
-                            <button class="btn btn-outline-secondary" type="button" id="use-current-location">
-                                <i class="fas fa-map-marker-alt"></i>
-                            </button>
-                        </div>
-                        <div class="form-text">Or use the button to detect your current location</div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="save-location">
-                            <label class="form-check-label" for="save-location">
-                                Save as favorite location
-                            </label>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Update My Location</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Invite Modal -->
-<div class="modal fade" id="inviteModal" tabindex="-1" aria-labelledby="inviteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="inviteModalLabel">Invite People</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-4">
-                    <label class="form-label">Share this code with friends</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="invite-code" readonly>
-                        <button class="btn btn-outline-primary" type="button" id="copy-code-btn">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    <label class="form-label">Or invite via email</label>
-                    <form id="invite-form">
-                        <div class="mb-3">
-                            <input type="email" class="form-control" id="invite-email" placeholder="Enter email address" required>
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">Send Invite</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Member Template (hidden, used by JavaScript) -->
-<template id="member-item-template">
-    <li class="list-group-item d-flex align-items-center">
-        <div class="avatar me-3">
-            <img src="" alt="User Avatar" class="rounded-circle" width="40" height="40">
-        </div>
-        <div>
-            <h6 class="mb-0 member-name">Member Name</h6>
-            <small class="text-muted member-status">Status</small>
-        </div>
-    </li>
-</template>
-
-<!-- Toast for notifications -->
-<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 5">
-    <div id="notification-toast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-            <div class="toast-body" id="notification-message">
-                Notification message here
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
+<!-- Load mobile.js and maps.js first -->
+<script src="{{ url_for('static', filename='js/maps.js') }}"></script>
+<script src="{{ url_for('static', filename='js/group.js') }}"></script>
+
+<!-- Load Google Maps API following official best practices -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Check authentication and redirect if not logged in
-        // This will be implemented in app.js
-        
-        // Get group ID from URL
-        const groupId = '{{ group_id }}';
-        
-        // Load group data
-        // This will be implemented in app.js
-        
-        // Form submission handler for location
-        document.getElementById('location-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            // Location update logic will be implemented in app.js
-        });
-        
-        // Current location detection
-        document.getElementById('use-current-location').addEventListener('click', function() {
-            // Geolocation logic will be implemented in app.js and maps.js
-        });
-        
-        // Invite form submission
-        document.getElementById('invite-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            // Invite logic will be implemented in app.js
-        });
-        
-        // Copy invite code
-        document.getElementById('copy-code-btn').addEventListener('click', function() {
-            // Copy logic will be implemented in app.js
-        });
-        
-        // Find venues button
-        document.getElementById('find-venues-btn').addEventListener('click', function() {
-            window.location.href = `/venues/${groupId}`;
-        });
-    });
+  // Make sure initMap is accessible globally
+  window.initMap = initMap;
+  
+  // Add debugging to check map container
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('Map container:', document.getElementById('map'));
+    console.log('Map container dimensions:', 
+      document.getElementById('map').offsetWidth, 
+      document.getElementById('map').offsetHeight);
+  });
+  
+  // Load the Google Maps JavaScript API
+  (g=>{
+    var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;
+    b=b[c]||(b[c]={});
+    var d=b.maps||(b.maps={});
+    r=new Set,e=new URLSearchParams;
+    u=()=>h||(h=new Promise(async(f,n)=>{
+      await (a=m.createElement("script"));
+      e.set("libraries",[...r]+"");
+      for(k in g)e.set(k.replace(/[A-Z]/g,t=>"-"+t[0].toLowerCase()),g[k]);
+      e.set("callback",c+".maps."+q);
+      a.src=`https://maps.googleapis.com/maps/api/js?`+e;
+      d[q]=f;
+      a.onerror=()=>h=n(Error(p+" could not load."));
+      a.nonce=m.querySelector("script[nonce]")?.nonce||"";
+      m.head.append(a);
+    }));
+    d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));
+  })({key: "{{ google_maps_api_key }}"});
+  
+  // Add a fallback to ensure map initialization
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      if (!window.midwhereahMap) {
+        console.log('Map not initialized after timeout, trying again...');
+        if (typeof initMap === 'function') {
+          initMap();
+        }
+      }
+    }, 1000);
+  });
 </script>
 {% endblock %}

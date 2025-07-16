@@ -43,7 +43,8 @@
 }
 
 .location-container {
-    margin-bottom: 12px;
+  margin-bottom: 12px;
+  /* outline: 2px dotted black; */
 }
 
 .location-item {
@@ -75,6 +76,9 @@
   <div class="group-text">
     <span>Mid-Where-Ah</span>
   </div>
+</div>
+
+<div class="group group-col center" style="width: 90%; max-width: 600px; margin-top: 80px;">
     <!-- Location 1 with transport mode selector -->
   <div class="location-container">
     <div class="location-item">
@@ -99,26 +103,25 @@
   </div>
       
     <!-- Location 2 with transport mode selector -->
-    <div class="location-container">
-      <div class="location-item">
-        <div class="d-flex align-items-center" style="z-index: 15;">
-          <div class="location-icon purple">
-            <i class="fas fa-circle"></i>
-          </div>
-          <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
+  <div class="location-container">
+    <div class="location-item">
+      <div class="d-flex align-items-center" style="z-index: 15;">
+        <div class="location-icon purple">
+          <i class="fas fa-circle"></i>
         </div>
+        <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
       </div>
-      <div class="transport-selector">
-        <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
-          🚇
-        </button>
-        <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
-          🚗
-        </button>
-        <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
-          🚶
-        </button>
-      </div>
+    </div>
+    <div class="transport-selector">
+      <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
+        🚇
+      </button>
+      <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
+        🚗
+      </button>
+      <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
+        🚶
+      </button>
     </div>
   </div>
 </div>
@@ -129,29 +132,30 @@
 <div class="find-central-btn" id="find-central-btn">
   <i class="fas fa-location-arrow"></i>
 </div>
-
-<!-- Bottom Navigation -->
-<div class="bottom-navigation">
-  <div class="nav-item active" data-page="home">
-    <i class="fas fa-home"></i>
-    <span>Home</span>
-  </div>
-  <div class="nav-item" data-page="compass">
-    <i class="fas fa-compass"></i>
-    <span>Explore</span>
-  </div>
-  <div class="nav-item nav-item-center" data-page="create">
-    <div class="center-fab">
-      <i class="fas fa-plus"></i>
+<div class = "group-col bottom-container center">
+  <!-- Bottom Navigation -->
+  <div class="bottom-navigation">
+    <div class="nav-item active" data-page="home">
+      <i class="fas fa-home"></i>
+      <span>Home</span>
     </div>
-  </div>
-  <div class="nav-item" data-page="groups">
-    <i class="fas fa-users"></i>
-    <span>Groups</span>
-  </div>
-  <div class="nav-item" data-page="profile">
-    <i class="fas fa-user"></i>
-    <span>Profile</span>
+    <div class="nav-item" data-page="compass">
+      <i class="fas fa-compass"></i>
+      <span>Explore</span>
+    </div>
+    <div class="nav-item nav-item-center" data-page="create">
+      <div class="center-fab">
+        <i class="fas fa-plus"></i>
+      </div>
+    </div>
+    <div class="nav-item" data-page="groups">
+      <i class="fas fa-users"></i>
+      <span>Groups</span>
+    </div>
+    <div class="nav-item" data-page="profile">
+      <i class="fas fa-user"></i>
+      <span>Profile</span>
+    </div>
   </div>
 </div>
 
