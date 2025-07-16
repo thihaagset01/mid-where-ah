@@ -1387,7 +1387,7 @@ function setupBottomNavigation() {
                 case 'home':
                     break;
                 case 'groups':
-                    window.location.href = '/dashboard';
+                    window.location.href = '/groups';
                     break;
                 case 'profile':
                     break;
