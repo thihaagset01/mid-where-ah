@@ -40,17 +40,17 @@ class EnhancedSocialMidpointCalculator {
         const distanceKm = distance / 1000;
         
         if (distanceKm > 30) {
-            // Extreme distance (like Sentosa → Yishun)
             this.maxTravelTimeMinutes = 90;
-            console.log(`🌏 Extreme distance (${distanceKm.toFixed(1)}km): Allowing up to 90min travel time`);
+            this.maxAcceptableTimeDifference = 20; // Scale with distance!
+            console.log(`🌏 Extreme distance (${distanceKm.toFixed(1)}km): Allowing up to 90min travel, 20min range`);
         } else if (distanceKm > 15) {
-            // Long distance
             this.maxTravelTimeMinutes = 75;
-            console.log(`📏 Long distance (${distanceKm.toFixed(1)}km): Allowing up to 75min travel time`);
+            this.maxAcceptableTimeDifference = 15; // Scale with distance!
+            console.log(`📏 Long distance (${distanceKm.toFixed(1)}km): Allowing up to 75min travel, 15min range`);
         } else {
-            // Normal distance
             this.maxTravelTimeMinutes = this.baseMaxTravelTimeMinutes;
-            console.log(`📍 Normal distance (${distanceKm.toFixed(1)}km): Allowing up to 60min travel time`);
+            this.maxAcceptableTimeDifference = 10; // Normal distance
+            console.log(`📍 Normal distance (${distanceKm.toFixed(1)}km): Allowing up to 60min travel, 10min range`);
         }
     }
 
@@ -437,7 +437,7 @@ class EnhancedSocialMidpointCalculator {
                 resolve([]);
                 return;
             }
-
+    
             console.log(`   Searching for MRT stations within ${radius}m...`);
             
             window.placesService.nearbySearch({
@@ -450,40 +450,78 @@ class EnhancedSocialMidpointCalculator {
                 console.log(`   Raw results count: ${results ? results.length : 0}`);
                 
                 if (status === google.maps.places.PlacesServiceStatus.OK) {
-                    // Log all results for debugging
-                    if (results.length > 0) {
-                        console.log('   All found places:');
-                        results.forEach((place, i) => {
-                            console.log(`     ${i + 1}. ${place.name} (${place.types.join(', ')})`);
-                        });
-                    }
-                    
+                    // Enhanced Singapore MRT station detection
                     const stations = results.filter(place => {
                         const name = place.name.toLowerCase();
                         const types = place.types.join(' ').toLowerCase();
                         
-                        // More inclusive filtering for MRT stations
-                        const isMRTStation = name.includes('mrt') || 
-                                           name.includes('station') ||
-                                           name.includes('interchange') ||
-                                           types.includes('subway_station') ||
-                                           types.includes('transit_station') ||
-                                           // Singapore specific station patterns
-                                           name.match(/\w+\s+(mrt|station)/) ||
-                                           // Common Singapore station names
-                                           ['outram', 'raffles', 'city hall', 'dhoby', 'somerset', 'orchard'].some(keyword => name.includes(keyword));
+                        // Singapore-specific MRT station patterns
+                        const isMRTStation = 
+                            // Explicit MRT mentions
+                            name.includes('mrt') || 
+                            name.includes('station') ||
+                            name.includes('interchange') ||
+                            
+                            // Google Places types
+                            types.includes('subway_station') ||
+                            types.includes('transit_station') ||
+                            
+                            // Major interchange stations (even without MRT in name)
+                            ['dhoby ghaut', 'raffles place', 'city hall', 'bugis', 'outram park', 
+                             'paya lebar', 'jurong east', 'bishan', 'tampines', 'ang mo kio',
+                             'serangoon', 'marina bay', 'bayfront', 'promenade', 'esplanade'].some(station => 
+                                name.includes(station.replace(' ', '')) || name.includes(station)
+                            ) ||
+                            
+                            // Line-specific patterns (for stations that don't say "MRT")
+                            name.match(/\b(ns|ew|cc|ne|dt|te|ce|cp)\d+\b/i) || // Station codes
+                            
+                            // Common Singapore station naming patterns
+                            name.match(/\w+\s+(mrt|station)/) ||
+                            
+                            // Shopping malls that are MRT stations
+                            ['vivocity', 'marina square', 'citylink', 'raffles city'].some(mall => 
+                                name.includes(mall.replace(' ', ''))
+                            );
                         
-                        if (isMRTStation) {
+                        // Exclude false positives
+                        const isFalsePositive = 
+                            name.includes('bus') && !name.includes('mrt') ||
+                            name.includes('taxi') ||
+                            name.includes('parking') ||
+                            name.includes('hotel') ||
+                            name.includes('restaurant') ||
+                            name.includes('mall') && !name.includes('mrt') && !name.includes('station');
+                        
+                        if (isMRTStation && !isFalsePositive) {
                             console.log(`     ✅ Accepted: ${place.name}`);
+                            return true;
                         } else {
-                            console.log(`     ❌ Rejected: ${place.name} (not recognized as MRT station)`);
+                            console.log(`     ❌ Rejected: ${place.name} (${isFalsePositive ? 'false positive' : 'not MRT station'})`);
+                            return false;
                         }
-                        
-                        return isMRTStation;
                     });
                     
-                    // Sort by distance from center
+                    // Enhanced sorting: prioritize interchange stations, then by distance
                     stations.sort((a, b) => {
+                        const aName = a.name.toLowerCase();
+                        const bName = b.name.toLowerCase();
+                        
+                        // Major interchanges get priority
+                        const majorInterchanges = [
+                            'dhoby ghaut', 'raffles place', 'city hall', 'bugis', 'outram park',
+                            'paya lebar', 'jurong east', 'bishan', 'serangoon', 'bayfront'
+                        ];
+                        
+                        const aIsInterchange = majorInterchanges.some(station => aName.includes(station.replace(' ', ''))) ||
+                                              aName.includes('interchange');
+                        const bIsInterchange = majorInterchanges.some(station => bName.includes(station.replace(' ', ''))) ||
+                                              bName.includes('interchange');
+                        
+                        if (aIsInterchange && !bIsInterchange) return -1;
+                        if (!aIsInterchange && bIsInterchange) return 1;
+                        
+                        // If both or neither are interchanges, sort by distance
                         const distA = self.calculateDistance(center, {
                             lat: a.geometry.location.lat(),
                             lng: a.geometry.location.lng()
@@ -495,9 +533,9 @@ class EnhancedSocialMidpointCalculator {
                         return distA - distB;
                     });
                     
-                    console.log(`   Found ${stations.length} MRT stations after filtering`);
+                    console.log(`   Found ${stations.length} MRT stations after enhanced filtering`);
                     if (stations.length > 0) {
-                        console.log(`   Closest stations: ${stations.slice(0, 3).map(s => s.name).join(', ')}`);
+                        console.log(`   Priority stations: ${stations.slice(0, 3).map(s => s.name).join(', ')}`);
                     }
                     resolve(stations);
                 } else {
@@ -507,7 +545,7 @@ class EnhancedSocialMidpointCalculator {
             });
         });
     }
-
+    
     showRadiusCircle(center, radius, existingCircle) {
         if (existingCircle) existingCircle.setMap(null);
         
@@ -639,15 +677,39 @@ class EnhancedSocialMidpointCalculator {
         
     }
 
+    // 2. Rebalance the equity scoring weights
+    calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange) {
+        const timeVariance = this.calculateVariance(travelTimes);
+        
+        // Normalize values to prevent one metric from dominating
+        const normalizedVariance = timeVariance / 100; // Typical variance 0-100
+        const normalizedRange = timeRange / 60; // Typical range 0-60min  
+        const normalizedAvgTime = avgTime / this.maxTravelTimeMinutes; // 0-1 scale
+        
+        // More balanced weights
+        let equityScore = (normalizedVariance * 0.5) + 
+                        (normalizedRange * 0.3) + 
+                        (normalizedAvgTime * 0.4); // Favor efficient locations
+        
+        // Mixed mode penalty (but less harsh)
+        if (mixedMode && timeRange > this.maxAcceptableTimeDifference * 0.8) {
+            const mixedModePenalty = Math.pow(timeRange / this.maxAcceptableTimeDifference, 1.2) * 0.2;
+            equityScore += mixedModePenalty;
+            console.log(`   ⚠️ Mixed mode penalty: +${mixedModePenalty.toFixed(2)}`);
+        }
+        
+        return equityScore;
+    }
+
+    // 3. Update the analysis method to use new scoring
     async analyzeVenueTravelEquity(venues, startingLocations) {
-        console.log(`📊 Analyzing travel equity for ${venues.length} venues with consistent transport modes...`);
+        console.log(`📊 Analyzing travel equity for ${venues.length} venues...`);
         const directionsService = new google.maps.DirectionsService();
         const analysis = [];
-    
+
         for (let i = 0; i < venues.length; i++) {
             const venue = venues[i];
             
-            // FIXED: Use the new method name for per-user transport modes
             const modeResult = await this.findPerUserTransportMode(
                 directionsService, 
                 startingLocations, 
@@ -668,17 +730,8 @@ class EnhancedSocialMidpointCalculator {
             const timeVariance = this.calculateVariance(travelTimes);
             const timeRange = maxTime - minTime;
             
-            // Adjust equity scoring for mixed modes
-            let equityScore = (timeVariance * this.equityWeight) + 
-                             (timeRange * 0.5) + 
-                             (avgTime * this.totalTimeWeight);
-            
-            // Add penalty for extreme time differences in mixed mode scenarios
-            if (mixedMode && timeRange > 20) {
-                const mixedModePenalty = Math.pow(timeRange / 20, 1.5) * 10;
-                equityScore += mixedModePenalty;
-                console.log(`   ⚠️ ${venue.name}: Mixed mode with ${timeRange.toFixed(1)}min range, added ${mixedModePenalty.toFixed(1)} penalty`);
-            }
+            // Use the new balanced scoring system
+            const equityScore = this.calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange);
             
             analysis.push({
                 name: venue.name,
@@ -696,21 +749,20 @@ class EnhancedSocialMidpointCalculator {
                 rating: venue.rating,
                 types: venue.types,
                 venue: venue,
-                // NEW: Track individual transport modes
                 transportModes: transportModes,
                 mixedMode: mixedMode
             });
         }
-    
+
         analysis.sort((a, b) => a.equityScore - b.equityScore);
         
-        console.log(`   ✅ Successfully analyzed ${analysis.length} venues with user-selected transport modes`);
+        console.log(`   ✅ Successfully analyzed ${analysis.length} venues`);
         
         analysis.slice(0, 3).forEach((venue, idx) => {
             const modeText = venue.mixedMode ? 
                 `${venue.transportModes[0]}/${venue.transportModes[1]}` : 
                 venue.transportModes[0];
-            console.log(`   ${idx + 1}. ${venue.name} [${modeText}]: equity=${venue.equityScore.toFixed(2)}, variance=${venue.timeVariance.toFixed(1)}min², range=${venue.timeRange.toFixed(1)}min, times=[${venue.travelTimes.map(t => t.toFixed(1)).join(', ')}]min`);
+            console.log(`   ${idx + 1}. ${venue.name} [${modeText}]: equity=${venue.equityScore.toFixed(2)}, variance=${venue.timeVariance.toFixed(1)}min², range=${venue.timeRange.toFixed(1)}min, avg=${venue.avgTravelTime.toFixed(1)}min`);
         });
         
         return analysis;
@@ -808,28 +860,104 @@ class EnhancedSocialMidpointCalculator {
         });
     }
 
-    // ADD this to your findMostEquitableVenue method (around line 680):
-
+    findParetoOptimalVenues(analysis) {
+        console.log('🎯 Finding Pareto optimal venues (mathematically fair solutions)...');
+        
+        if (analysis.length === 0) return [];
+        
+        // Create points for Pareto analysis: [person1_time, person2_time, venue_data]
+        const points = analysis.map(venue => ({
+            person1Time: venue.travelTimes[0],
+            person2Time: venue.travelTimes[1],
+            venue: venue
+        }));
+        
+        // Find Pareto front: points where no other point dominates
+        const paretoFront = [];
+        
+        for (let i = 0; i < points.length; i++) {
+            const currentPoint = points[i];
+            let isDominated = false;
+            
+            // Check if any other point dominates this one
+            for (let j = 0; j < points.length; j++) {
+                if (i === j) continue;
+                
+                const otherPoint = points[j];
+                
+                // Point A dominates point B if A is better in all objectives
+                const dominatesInTime1 = otherPoint.person1Time <= currentPoint.person1Time;
+                const dominatesInTime2 = otherPoint.person2Time <= currentPoint.person2Time;
+                const strictlyBetterInOne = otherPoint.person1Time < currentPoint.person1Time || 
+                                           otherPoint.person2Time < currentPoint.person2Time;
+                
+                if (dominatesInTime1 && dominatesInTime2 && strictlyBetterInOne) {
+                    isDominated = true;
+                    console.log(`   ${currentPoint.venue.name} dominated by ${otherPoint.venue.name}`);
+                    break;
+                }
+            }
+            
+            if (!isDominated) {
+                paretoFront.push(currentPoint);
+            }
+        }
+        
+        console.log(`   🏆 Found ${paretoFront.length} Pareto optimal venues from ${analysis.length} candidates`);
+        
+        // Sort Pareto front by "closeness to ideal" (equal travel times + minimal total time)
+        paretoFront.sort((a, b) => {
+            const idealDistance_a = Math.sqrt(
+                Math.pow(a.person1Time - a.person2Time, 2) + // Fairness: prefer equal times
+                Math.pow((a.person1Time + a.person2Time) / 2 - 30, 2) // Efficiency: prefer ~30min total
+            );
+            
+            const idealDistance_b = Math.sqrt(
+                Math.pow(b.person1Time - b.person2Time, 2) + 
+                Math.pow((b.person1Time + b.person2Time) / 2 - 30, 2)
+            );
+            
+            return idealDistance_a - idealDistance_b;
+        });
+        
+        // Log the Pareto front for debugging
+        console.log('   📊 Pareto optimal solutions:');
+        paretoFront.slice(0, 5).forEach((point, idx) => {
+            const venue = point.venue;
+            const fairnessGap = Math.abs(point.person1Time - point.person2Time);
+            console.log(`   ${idx + 1}. ${venue.name}: [${point.person1Time.toFixed(1)}min, ${point.person2Time.toFixed(1)}min] gap=${fairnessGap.toFixed(1)}min`);
+        });
+        
+        return paretoFront.map(point => point.venue);
+    }
+    
+    /**
+     * Enhanced version of findMostEquitableVenue using Pareto optimization
+     */
     findMostEquitableVenue(analysis) {
         if (analysis.length === 0) return null;
         
-        const best = analysis[0];
+        const paretoOptimal = this.findParetoOptimalVenues(analysis);
         
-        // NEW: Store the transport mode globally so showRoutes can use it
-        if (best.transportMode === 'DRIVING') {
-            window.lastUsedTransportMode = google.maps.TravelMode.DRIVING;
-        } else if (best.transportMode === 'WALKING') {
-            window.lastUsedTransportMode = google.maps.TravelMode.WALKING;
-        } else if (best.transportMode === 'TRANSIT') {
-            window.lastUsedTransportMode = google.maps.TravelMode.TRANSIT;
+        if (paretoOptimal.length === 0) {
+            console.warn('No Pareto optimal venues found, falling back to best single venue');
+            return analysis[0];
         }
         
-        console.log(`🚗 Storing transport mode for display: ${best.transportMode}`);
+        const best = paretoOptimal[0];
         
-        if (best.maxTravelTime > this.maxTravelTimeMinutes || 
-            best.timeRange > this.maxAcceptableTimeDifference) {
-            console.warn(`Best venue still has poor equity: max=${best.maxTravelTime.toFixed(1)}min, range=${best.timeRange.toFixed(1)}min (target: ≤${this.maxAcceptableTimeDifference}min)`);
-        }
+        console.log(`🎯 Selected Pareto optimal venue: ${best.name}`);
+        console.log(`   Travel times: [${best.travelTimes.map(t => t.toFixed(1)).join(', ')}] minutes`);
+        console.log(`   Fairness gap: ${Math.abs(best.travelTimes[0] - best.travelTimes[1]).toFixed(1)} minutes`);
+        console.log(`   Average time: ${best.avgTravelTime.toFixed(1)} minutes`);
+        
+        // 🔥 NEW: Store the algorithm's calculated times globally
+        window.algorithmCalculatedTimes = {
+            venue: best,
+            travelTimes: best.travelTimes,
+            transportModes: best.transportModes,
+            mixedMode: best.mixedMode
+        };
         
         return best;
     }
@@ -1401,6 +1529,7 @@ function showRoutes() {
 
     if (!midpoint || !location1Marker || !location2Marker) return;
 
+    // Clear existing routes
     if (window.routeRenderers) {
         window.routeRenderers.forEach(renderer => renderer.setMap(null));
     }
@@ -1410,18 +1539,30 @@ function showRoutes() {
     const colors = ['#2196F3', '#FF9800'];
     const markers = [location1Marker, location2Marker];
 
-    // Use each person's selected transport mode
-    const userModes = [
-        window.userTransportModes['location-1'] || 'TRANSIT',
-        window.userTransportModes['location-2'] || 'TRANSIT'
-    ];
+    // 🔥 NEW: Use algorithm's calculated data if available
+    if (window.algorithmCalculatedTimes) {
+        const algoData = window.algorithmCalculatedTimes;
+        console.log(`🎯 Displaying routes with algorithm's calculated times:`);
+        console.log(`   Person 1 (${algoData.transportModes[0]}): ${algoData.travelTimes[0].toFixed(1)}min`);
+        console.log(`   Person 2 (${algoData.transportModes[1]}): ${algoData.travelTimes[1].toFixed(1)}min`);
+        console.log(`   Gap: ${Math.abs(algoData.travelTimes[0] - algoData.travelTimes[1]).toFixed(1)}min`);
+        
+        // Display routes but show algorithm's times in console/UI
+        showRoutesWithAlgorithmTimes(markers, midpoint, directionsService, colors, algoData);
+    } else {
+        // Fallback to old behavior if no algorithm data
+        console.log(`🚗 Showing routes: Standard calculation (no algorithm data available)`);
+        showRoutesLegacy(markers, midpoint, directionsService, colors);
+    }
+}
 
-    console.log(`🚗 Showing routes: Person 1 via ${userModes[0]}, Person 2 via ${userModes[1]}`);
-
+function showRoutesWithAlgorithmTimes(markers, midpoint, directionsService, colors, algoData) {
     markers.forEach((marker, index) => {
-        const selectedMode = userModes[index];
-        const googleMapsMode = selectedMode === 'TRANSIT' ? google.maps.TravelMode.TRANSIT :
-                              selectedMode === 'DRIVING' ? google.maps.TravelMode.DRIVING :
+        const algorithmMode = algoData.transportModes[index];
+        const algorithmTime = algoData.travelTimes[index];
+        
+        const googleMapsMode = algorithmMode === 'TRANSIT' ? google.maps.TravelMode.TRANSIT :
+                              algorithmMode === 'DRIVING' ? google.maps.TravelMode.DRIVING :
                               google.maps.TravelMode.WALKING;
         
         const request = {
@@ -1452,8 +1593,16 @@ function showRoutes() {
                 routeRenderer.setDirections(result);
                 window.routeRenderers.push(routeRenderer);
                 
-                const duration = result.routes[0].legs[0].duration.text;
-                console.log(`Route ${index + 1} (${selectedMode}): ${duration}`);
+                const actualDuration = result.routes[0].legs[0].duration.text;
+                const actualMinutes = result.routes[0].legs[0].duration.value / 60;
+                
+                console.log(`Route ${index + 1} (${algorithmMode}):`);
+                console.log(`   Algorithm calculated: ${algorithmTime.toFixed(1)}min`);
+                console.log(`   Google Maps says: ${actualDuration} (${actualMinutes.toFixed(1)}min)`);
+                console.log(`   Difference: ${Math.abs(algorithmTime - actualMinutes).toFixed(1)}min`);
+                
+                // 🔥 NEW: Show the ALGORITHM'S time to user, not Google's recalculation
+                console.log(`   📊 Displaying algorithm time: ${algorithmTime.toFixed(0)}min`);
             } else {
                 console.warn(`Route calculation failed for location ${index + 1}:`, status);
             }
