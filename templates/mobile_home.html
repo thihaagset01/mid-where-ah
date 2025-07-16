@@ -75,56 +75,57 @@
   <div class="group-text">
     <span>Mid-Where-Ah</span>
   </div>
-</div>
-
-  <!-- Location 1 with transport mode selector -->
-<div class="location-container">
-  <div class="location-item">
-    <div class="d-flex align-items-center" style="z-index: 5;">
-      <div class="location-icon purple">
-        <i class="fas fa-circle"></i>
-      </div>
-      <input type="text" id="location-1" class="location-input" placeholder="Enter first location">
-    </div>
-  </div>
-  <div class="transport-selector">
-    <button class="transport-btn active" data-mode="TRANSIT" data-person="1" title="Public Transport">
-      🚇
-    </button>
-    <button class="transport-btn" data-mode="DRIVING" data-person="1" title="Car/Taxi">
-      🚗
-    </button>
-    <button class="transport-btn" data-mode="WALKING" data-person="1" title="Walking">
-      🚶
-    </button>
-  </div>
-</div>
-    
-  <!-- Location 2 with transport mode selector -->
+    <!-- Location 1 with transport mode selector -->
   <div class="location-container">
     <div class="location-item">
-      <div class="d-flex align-items-center" style="z-index: 5;">
+      <div class="d-flex align-items-center" style="z-index: 15;">
         <div class="location-icon purple">
           <i class="fas fa-circle"></i>
         </div>
-        <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
+        <input type="text" id="location-1" class="location-input" placeholder="Enter first location">
       </div>
     </div>
     <div class="transport-selector">
-      <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
+      <button class="transport-btn active" data-mode="TRANSIT" data-person="1" title="Public Transport">
         🚇
       </button>
-      <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
+      <button class="transport-btn" data-mode="DRIVING" data-person="1" title="Car/Taxi">
         🚗
       </button>
-      <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
+      <button class="transport-btn" data-mode="WALKING" data-person="1" title="Walking">
         🚶
       </button>
     </div>
   </div>
+      
+    <!-- Location 2 with transport mode selector -->
+    <div class="location-container">
+      <div class="location-item">
+        <div class="d-flex align-items-center" style="z-index: 15;">
+          <div class="location-icon purple">
+            <i class="fas fa-circle"></i>
+          </div>
+          <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
+        </div>
+      </div>
+      <div class="transport-selector">
+        <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
+          🚇
+        </button>
+        <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
+          🚗
+        </button>
+        <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
+          🚶
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- Purple Arrow Floating Button (Shows after two locations are input) -->
+
+
+<!-- Purple Arrow Floating Button (Shows after two locations are input)-->
 <div class="find-central-btn" id="find-central-btn">
   <i class="fas fa-location-arrow"></i>
 </div>

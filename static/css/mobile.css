@@ -30,25 +30,7 @@ body {
   background-color: #f0f0f0;
 }
 
-/* Fixed header with location inputs */
-.location-input-card {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  width: 100vw;
-  /* background: linear-gradient(to bottom, #6b5584, #ffffff); */
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  border-radius: 0 0 24px 24px;
-  padding: 16px 20px;
-  /* box-shadow: 0 8px 32px rgba(238, 238, 238, 0.12); */
-  max-height: 220px; /* Accommodate transport selectors */
-  overflow: visible;
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
+
 .group-header-container {
   position: fixed;
   top: 0;
@@ -155,14 +137,6 @@ body {
   background: transparent;
   font-size: 16px;
   outline: none;
-}
-
-.locations-container {
-  margin-top: 16px;
-}
-
-.location-container {
-  margin-bottom: 16px;
 }
 
 .location-item {
@@ -547,10 +521,7 @@ body {
     margin-top: 16px;
   }
 }
-/* Transport Mode Selection Styles */
-.location-container {
-  margin-bottom: 16px;
-}
+
 
 .transport-selector {
   display: flex;
