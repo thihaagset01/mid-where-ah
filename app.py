@@ -57,8 +57,12 @@ def inject_config():
     )
 
 # Routes
+@app.route('/profile')
+def profile():
+    return render_template('profile.html')
 @app.route('/')
 def index():
+    print('activated')
     return render_template('mobile_home.html')
 
 @app.route('/login')

@@ -8,29 +8,69 @@
 {% endblock %}
 
 {% block content %}
-<!-- Bottom Navigation -->
-<div class="bottom-navigation">
-  <div class="nav-item active" data-page="home">
-    <i class="fas fa-home"></i>
-    <span>Home</span>
-  </div>
-  <div class="nav-item" data-page="compass">
-    <i class="fas fa-compass"></i>
-    <span>Explore</span>
-  </div>
-  <div class="nav-item nav-item-center" data-page="create">
-    <div class="center-fab">
-      <i class="fas fa-plus"></i>
+<div class="group group-col" style="margin-top: 0; padding-bottom: 200px; background: linear-gradient(to bottom, #6b5584, #ffffff);">
+  <div class= 'bento-grid'>
+    <div class="bento-item" style="justify-content: center; outline: none; pointer-events: none;">
+      <span style="font-size: 50px;">NAME</span>
     </div>
-  </div>
-  <div class="nav-item" data-page="groups">
-    <i class="fas fa-users"></i>
-    <span>Groups</span>
-  </div>
-  <div class="nav-item" data-page="profile">
-    <i class="fas fa-user"></i>
-    <span>Profile</span>
+    
+    
+    <a href="/edit_image" class="bento-item" style="justify-content: center; outline: none;">
+      <img src="static/images/profile_photo-placeholder.png" alt = "profile picture" style="width: 30%;">
+    </a>
+
+    <a href="/" class="bento-item" style="outline: none; background-color: #6b5584; padding: 10px;">
+      <img src="static/images/icon-192x192.svg" class="group-icon" >
+      <span style = "color: rgb(0, 0, 0);">Address</span>
+    </a>
+    <a href="/" class="bento-item" style="outline: none; background-color: #6b5584; padding: 10px;">
+      <img src="static/images/icon-192x192.svg" class="group-icon" >
+      <span style = "color: rgb(0, 0, 0);">Transport Mode</span>
+    </a>
+    <a href="/" class="bento-item" style="outline: none; background-color: #6b5584; padding: 10px;">
+      <img src="static/images/icon-192x192.svg" class="group-icon" >
+      <span style = "color: rgb(0, 0, 0);">Settings</span>
+    </a>
+    <a href="/" class="bento-item" style="outline: none; background-color: #6b5584; padding: 10px;">
+      <img src="static/images/icon-192x192.svg" class="group-icon" >
+      <span style = "color: rgb(0, 0, 0);">Logout</span>
+    </a>
   </div>
 </div>
+<!-- Bottom Navigation -->
+<div class="group-col bottom-container center">
+  <div class="bottom-navigation">
+    <div class="nav-item" data-page="home">
+      <i class="fas fa-home"></i>
+      <span>Home</span>
+    </div>
+    <div class="nav-item" data-page="compass">
+      <i class="fas fa-compass"></i>
+      <span>Explore</span>
+    </div>
+    <div class="nav-item nav-item-center" data-page="create">
+      <div class="center-fab">
+        <i class="fas fa-plus"></i>
+      </div>
+    </div>
+    <div class="nav-item" data-page="groups">
+      <i class="fas fa-users"></i>
+      <span>Groups</span>
+    </div>
+    <div class="nav-item active" data-page="profile">
+      <i class="fas fa-user"></i>
+      <span>Profile</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<!-- Load mobile.js and maps.js first -->
+<script src="{{ url_for('static', filename='js/maps.js') }}"></script>
+<script src="{{ url_for('static', filename='js/group.js') }}"></script>
+
+<!-- Load Google Maps API following official best practices -->
 
 {% endblock %}

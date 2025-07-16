@@ -42,7 +42,6 @@ function setupAuthObserver() {
             // User is signed out
             currentUser = null;
             console.log('User is signed out');
-            
             // Update UI for unauthenticated user
             updateUIForUnauthenticatedUser();
             

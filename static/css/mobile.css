@@ -683,8 +683,6 @@ a {
 
 .group {
   margin-top: 72px;
-
-  z-index: 5;
   display: flex;
   height: auto;
   padding-top: 15px;
@@ -721,6 +719,7 @@ a {
 .bento-item {
   /* background: #ffffff; */
   outline: 2px solid white;
+  height:fit-content;
   min-height:100px;
   width: min(75%, 600px);
   border-radius: 1rem;
@@ -774,7 +773,7 @@ a {
   background-color: #5a4573;
 }
 .group-icon{
-  width:100px;
+  width:15%;
 }
 
 .inline-left{

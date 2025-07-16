@@ -1390,6 +1390,7 @@ function setupBottomNavigation() {
                     window.location.href = '/groups';
                     break;
                 case 'profile':
+                    window.location.href = '/profile';
                     break;
                 case 'compass':
                     break;
