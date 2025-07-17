@@ -29,6 +29,13 @@ function setupBottomNavigation() {
         });
     });
 }
+
+function showCreateGroupModal(){
+    const menu = document.getElementById('dropdown-menu');
+    menu.classList.toggle('hidden');
+    const text_bar = document.getElementById('text-bar');
+    text_bar.classList.toggle('hidden');
+}
 document.addEventListener('DOMContentLoaded', function () {
     setupBottomNavigation();
 });

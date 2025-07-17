@@ -1402,8 +1402,9 @@ function setupBottomNavigation() {
     });
 }
 
-function showCreateGroupModal() {
-    alert('Create new group feature coming soon!');
+function showCreateGroupModal(){
+    const menu = document.getElementById('dropdown-menu');
+    menu.classList.toggle('hidden');
 }
 
 function setupUserInfo() {
