@@ -59,9 +59,9 @@ def inject_config():
 # MAIN ROUTES - Proper separation
 @app.route('/')
 def index():
-    """Landing page - Bootstrap-based marketing page"""
-    print('Landing page activated')
-    return render_template('index.html')  # This should use base.html
+    """Landing page - Now redirects to login page"""
+    print('Redirecting to login page')
+    return redirect(url_for('login'))
 
 @app.route('/app')
 def mobile_interface():
