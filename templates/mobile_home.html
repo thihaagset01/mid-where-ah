@@ -4,187 +4,18 @@
 
 {% block head %}
 {{ super() }}
-<!-- Additional CSS for transport mode selection -->
-<style>
-/* Transport Mode Selection Styles */
-.transport-selector {
-    display: flex;
-    gap: 6px;
-    justify-content: center;
-    margin-top: 6px;
-}
-
-.transport-btn {
-    background: #f0f0f0;
-    border: 2px solid #ddd;
-    border-radius: 20px;
-    padding: 6px 10px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 40px;
-    height: 32px;
-}
-
-.transport-btn:hover {
-    background: #e0e0e0;
-    border-color: #bbb;
-}
-
-.transport-btn.active {
-    background: #8B5DB8;
-    border-color: #8B5DB8;
-    color: white;
-}
-
-.location-container {
-  margin-bottom: 12px;
-}
-
-.location-item {
-    background: #f8f8f8;
-    border-radius: 24px;
-    padding: 10px 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    transition: all 0.3s ease;
-}
-
-.location-item:focus-within {
-    box-shadow: 0 0 0 2px #8B5DB8;
-    background: white;
-}
-
-.location-input {
-    border: none;
-    background: none;
-    flex: 1;
-    font-size: 16px;
-    outline: none;
-    padding: 8px;
-}
-
-.location-icon {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 24px;
-    height: 24px;
-    margin-right: 8px;
-}
-
-/* Add Person Button Styles */
-.add-person-container {
-    margin-top: 15px;
-    text-align: center;
-}
-
-.add-person-container button {
-    background: rgba(139, 93, 184, 0.1);
-    border: 2px dashed #8B5DB8;
-    border-radius: 8px;
-    padding: 8px 16px;
-    color: #8B5DB8;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.add-person-container button:hover:not(:disabled) {
-    background: rgba(139, 93, 184, 0.2);
-    border-style: solid;
-    transform: translateY(-1px);
-}
-
-.add-person-container button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background: #f5f5f5;
-    border-color: #ccc;
-    color: #999;
-}
-
-.person-count-display {
-    font-size: 12px;
-    color: #666;
-    margin-top: 5px;
-}
-
-/* Remove person button */
-.remove-person-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 1px solid #ff4444;
-    background: #ffffff;
-    color: #ff4444;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-
-.remove-person-btn:hover {
-    background: #ff4444;
-    color: #ffffff;
-    transform: scale(1.1);
-}
-
-/* Enhanced Find Central Button */
-.find-central-btn {
-    position: fixed;
-    bottom: 100px;
-    right: 20px;
-    width: 60px;
-    height: 60px;
-    background: #8B5DB8;
-    border: none;
-    border-radius: 50%;
-    display: none; /* Start hidden */
-    align-items: center;
-    justify-content: center;
-    color: white;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    z-index: 9;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    opacity: 0.5;
-    transform: scale(0.8);
-    pointer-events: none;
-}
-
-.find-central-btn.active {
-    display: flex;
-    opacity: 1;
-    transform: scale(1);
-    pointer-events: auto;
-}
-
-.find-central-btn:hover {
-    background: #6a4c93;
-    transform: scale(1.1);
-}
-
-.find-central-btn i {
-    font-size: 24px;
-}
-</style>
+<!-- NO CONFLICTING CSS - Using only the clean CSS from mobile.css -->
 {% endblock %}
 
 {% block content %}
 <!-- Full-screen map -->
 <div id="map"></div>
 
-<!-- Fixed Location Input Header (NON-SCROLLABLE) -->
+<!-- Fixed Location Input Header -->
 <div class="group-header-container">
   <div class="group-logo">
     <a href="/">
-        <img src="static/images/logo.png" alt="Logo" style="cursor: pointer;" />
+        <img src="static/images/logo.png" alt="Logo" />
     </a>
   </div>
   <div class="group-text">
@@ -192,19 +23,18 @@
   </div>
 </div>
 
-<div class="group group-col center" style="width: 90%; max-width: 600px; margin-top: 80px;" id="locations-container">
-    <!-- Location 1 with transport mode selector -->
+<!-- FIXED: Compact location inputs container -->
+<div class="group group-col center" id="locations-container">
+    <!-- Location 1 -->
     <div class="location-container" data-person-id="1">
         <div class="location-item">
-            <div class="d-flex align-items-center justify-content-between" style="z-index: 15;">
-                <div class="location-icon" style="color: #FF6B6B;" data-person-color="#FF6B6B">
-                    <i class="fas fa-circle"></i>
-                </div>
-                <input type="text" id="location-1" class="location-input" placeholder="Enter first location" autocomplete="off">
-                <button class="btn btn-sm btn-outline-danger remove-person-btn" style="display: none; margin-left: 8px;" title="Remove Person">
-                    <i class="fas fa-times"></i>
-                </button>
+            <div class="location-icon" style="color: #FF6B6B;" data-person-color="#FF6B6B">
+                <i class="fas fa-circle"></i>
             </div>
+            <input type="text" id="location-1" class="location-input" placeholder="Enter first location" autocomplete="off">
+            <button class="remove-person-btn" style="display: none;" title="Remove Person">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
         <div class="transport-selector">
             <button class="transport-btn active" data-mode="TRANSIT" data-person="1" title="Public Transport">
@@ -219,18 +49,16 @@
         </div>
     </div>
       
-    <!-- Location 2 with transport mode selector -->
+    <!-- Location 2 -->
     <div class="location-container" data-person-id="2">
         <div class="location-item">
-            <div class="d-flex align-items-center justify-content-between" style="z-index: 15;">
-                <div class="location-icon" style="color: #4ECDC4;" data-person-color="#4ECDC4">
-                    <i class="fas fa-circle"></i>
-                </div>
-                <input type="text" id="location-2" class="location-input" placeholder="Enter second location" autocomplete="off">
-                <button class="btn btn-sm btn-outline-danger remove-person-btn" style="display: none; margin-left: 8px;" title="Remove Person">
-                    <i class="fas fa-times"></i>
-                </button>
+            <div class="location-icon" style="color: #4ECDC4;" data-person-color="#4ECDC4">
+                <i class="fas fa-circle"></i>
             </div>
+            <input type="text" id="location-2" class="location-input" placeholder="Enter second location" autocomplete="off">
+            <button class="remove-person-btn" style="display: none;" title="Remove Person">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
         <div class="transport-selector">
             <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
@@ -244,65 +72,25 @@
             </button>
         </div>
     </div>
+
+    <!-- FIXED: Add Person Button inside container -->
+    <div class="add-person-container">
+        <button id="add-person-btn">
+            <i class="fas fa-plus"></i>Add Person
+        </button>
+        <div class="person-count-display">
+            <span id="person-count">2</span> people
+        </div>
+    </div>
 </div>
 
-<!-- Add Person Button - THIS WAS MISSING! -->
-<div class="add-person-container center" style="margin-top: 15px;">
-  <button class="btn btn-outline-primary btn-sm" id="add-person-btn" style="display: inline-block;">
-    <i class="fas fa-plus me-1"></i>Add Person
-  </button>
-  <div class="person-count-display" style="margin-top: 5px; font-size: 12px; color: #666;">
-    <span id="person-count">2</span> people
-  </div>
-</div>
-
-<!-- Purple Arrow Floating Button (Shows after locations are input)-->
+<!-- Find Central Button -->
 <div class="find-central-btn" id="find-central-btn">
   <i class="fas fa-location-arrow"></i>
 </div>
 
-<!-- Location Input Template for dynamic additions -->
-<template id="location-input-template">
-  <div class="location-container" data-person-id="">
-    <div class="location-item">
-      <div class="d-flex align-items-center justify-content-between" style="z-index: 15;">
-        <div class="location-icon" data-person-color="">
-          <i class="fas fa-circle"></i>
-        </div>
-        <input type="text" class="location-input" placeholder="Enter location" autocomplete="off">
-        <button class="btn btn-sm btn-outline-danger remove-person-btn" style="display: inline-block; margin-left: 8px;" title="Remove Person">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-    </div>
-    <div class="transport-selector">
-      <button class="transport-btn active" data-mode="TRANSIT" title="Public Transport">
-        🚇
-      </button>
-      <button class="transport-btn" data-mode="DRIVING" title="Car/Taxi">
-        🚗
-      </button>
-      <button class="transport-btn" data-mode="WALKING" title="Walking">
-        🚶
-      </button>
-    </div>
-  </div>
-</template>
-
-<!-- Loading Indicator Template -->
-<template id="loading-indicator-template">
-  <div class="loading-indicator" style="text-align: center; padding: 20px; color: #8B5DB8;">
-    <div class="spinner-border spinner-border-sm" role="status">
-      <span class="visually-hidden">Loading...</span>
-    </div>
-    <div style="margin-top: 8px; font-size: 14px;">
-      Calculating optimal meeting point for <span class="person-count-text">X</span> people...
-    </div>
-  </div>
-</template>
-
-<div class="group-col bottom-container center">
-  <!-- Bottom Navigation -->
+<!-- Bottom Navigation -->
+<div class="bottom-container">
   <div class="bottom-navigation">
     <div class="nav-item active" data-page="home">
       <i class="fas fa-home"></i>
@@ -326,45 +114,44 @@
       <span>Profile</span>
     </div>
   </div>
+  
+  <!-- Create popup -->
   <div class="nav-create-popup hidden" id="dropdown-menu">
-    <div class="nav-item pop-icon center pop1" data-page="profile">
-      <i class="fas fa-user" style="color: #8B5DB8;"></i>
+    <div class="pop-icon pop1">
+      <i class="fas fa-user"></i>
     </div>
-    <div class="nav-item pop-icon center pop2" data-page="profile">
-      <i class="fa-regular fa-calendar-plus" style="color: #8B5DB8;"></i>
+    <div class="pop-icon pop2">
+      <i class="fa-regular fa-calendar-plus"></i>
     </div>
-    <div class="nav-item pop-icon center pop3" data-page="profile">
-      <i class="fa-regular fa-circle-up" style="color: #8B5DB8;"></i>
+    <div class="pop-icon pop3">
+      <i class="fa-regular fa-circle-up"></i>
     </div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<!-- Load maps.js and mobile.js -->
+<!-- Load JavaScript -->
 <script src="{{ url_for('static', filename='js/maps.js') }}"></script>
 <script src="{{ url_for('static', filename='js/mobile.js') }}"></script>
 
-<!-- Load Google Maps API following official best practices -->
+<!-- Google Maps API -->
 <script>
-  // Make sure initMap is accessible globally
   window.initMap = initMap;
   
-  // Add debugging to check map container
   document.addEventListener('DOMContentLoaded', function() {
     console.log('Map container:', document.getElementById('map'));
     console.log('Map container dimensions:', 
       document.getElementById('map').offsetWidth, 
       document.getElementById('map').offsetHeight);
       
-    // Initialize the hybrid location manager
     if (window.hybridLocationManager) {
       console.log('Initializing hybrid location manager...');
       window.hybridLocationManager.initialize();
     }
   });
   
-  // Load the Google Maps JavaScript API
+  // Load Google Maps API
   (g=>{
     var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;
     b=b[c]||(b[c]={});
@@ -384,7 +171,6 @@
     d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));
   })({key: "{{ google_maps_api_key }}"});
   
-  // Add a fallback to ensure map initialization
   window.addEventListener('load', function() {
     setTimeout(function() {
       if (!window.midwhereahMap) {

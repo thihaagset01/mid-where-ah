@@ -1,7 +1,13 @@
+// COMPLETELY CLEAN MOBILE.JS - Remove all duplicates and conflicts
+
 // Enhanced global variables for multiple locations
 window.userTransportModes = new Map();
 window.locationData = new Map();
 window.nextPersonId = 1;
+
+// Initialize arrays to prevent errors
+window.directionsRenderers = window.directionsRenderers || [];
+window.locationMarkers = window.locationMarkers || {};
 
 // Debounce function
 function debounce(func, wait) {
@@ -16,46 +22,75 @@ function debounce(func, wait) {
     };
 }
 
-// Error notification
+// CLEAN Error notification - only one version
 function showErrorNotification(message) {
     console.error('Error:', message);
     
-    let notification = document.getElementById('error-notification');
-    if (!notification) {
-        notification = document.createElement('div');
-        notification.id = 'error-notification';
-        notification.style.cssText = `
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            background-color: #f44336; color: white; padding: 12px 24px;
-            border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 9999; max-width: 80%; text-align: center;
-        `;
-        document.body.appendChild(notification);
+    // Remove existing notification
+    const existing = document.getElementById('error-notification');
+    if (existing) {
+        existing.remove();
     }
     
-    notification.textContent = message;
-    notification.style.display = 'block';
+    // Create new notification
+    const notification = document.createElement('div');
+    notification.id = 'error-notification';
+    notification.style.cssText = `
+        position: fixed; 
+        top: 80px; 
+        left: 50%; 
+        transform: translateX(-50%);
+        background: rgba(244, 67, 54, 0.95); 
+        color: white; 
+        padding: 12px 20px;
+        border-radius: 8px; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 9999; 
+        max-width: 90%; 
+        text-align: center;
+        font-size: 14px;
+        backdrop-filter: blur(10px);
+    `;
     
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 3 seconds
     setTimeout(() => {
-        notification.style.display = 'none';
+        if (notification.parentNode) {
+            notification.remove();
+        }
     }, 3000);
 }
 
-// Routes display function
+// CLEAN Routes display function
 function showRoutesLegacy(midpoint, locationArray) {
-    if (!window.midwhereahMap || !midpoint || !locationArray || locationArray.length < 2) {
+    if (!ensureMapInitialization()) {
+        showErrorNotification('Map not ready for route display');
+        return;
+    }
+    
+    if (!midpoint || !locationArray || locationArray.length < 2) {
         showErrorNotification('Cannot display routes: Missing map, midpoint, or locations');
         return;
     }
     
+    console.log(`🛣️ Displaying ${locationArray.length} routes to midpoint`);
+    
     // Clear existing routes
     if (window.directionsRenderers) {
-        window.directionsRenderers.forEach(renderer => renderer.setMap(null));
+        window.directionsRenderers.forEach(renderer => {
+            if (renderer && renderer.setMap) {
+                renderer.setMap(null);
+            }
+        });
     }
     window.directionsRenderers = [];
     
     const directionsService = new google.maps.DirectionsService();
     const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
+    
+    let routesDisplayed = 0;
     
     locationArray.forEach((location, index) => {
         const renderer = new google.maps.DirectionsRenderer({
@@ -75,22 +110,41 @@ function showRoutesLegacy(midpoint, locationArray) {
                               travelMode === 'DRIVING' ? google.maps.TravelMode.DRIVING :
                               google.maps.TravelMode.WALKING;
         
-        directionsService.route({
+        const request = {
             origin: location.position,
             destination: midpoint,
             travelMode: googleMapsMode
-        }, (result, status) => {
+        };
+        
+        // Add transit options if using public transport
+        if (googleMapsMode === google.maps.TravelMode.TRANSIT) {
+            request.transitOptions = {
+                modes: [google.maps.TransitMode.BUS, google.maps.TransitMode.RAIL],
+                routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
+            };
+        }
+        
+        directionsService.route(request, (result, status) => {
             if (status === google.maps.DirectionsStatus.OK) {
                 renderer.setDirections(result);
-                console.log(`🛣️ Route displayed for location ${index + 1} using ${travelMode}`);
+                routesDisplayed++;
+                
+                const duration = result.routes[0].legs[0].duration;
+                console.log(`🛣️ Route ${index + 1} displayed: ${duration.text} via ${travelMode}`);
+                
+                // Show success notification when all routes are displayed
+                if (routesDisplayed === locationArray.length) {
+                    console.log(`✅ All ${routesDisplayed} routes displayed successfully`);
+                }
             } else {
-                console.error(`❌ Directions request failed: ${status}`);
-                showErrorNotification(`Could not display route for location ${index + 1}: ${status}`);
+                console.error(`❌ Route ${index + 1} failed: ${status}`);
+                showErrorNotification(`Could not display route ${index + 1}: ${status}`);
             }
         });
     });
 }
 
+// CLEAN HybridLocationManager - single version with add person cooldown
 class HybridLocationManager {
     constructor() {
         this.minLocations = 2;
@@ -102,6 +156,7 @@ class HybridLocationManager {
         ];
         this.initialized = false;
         this.lastLocationStatus = '';
+        this.isAdding = false; // PREVENT DOUBLE ADDITIONS
         
         // Debounced location check
         this.debouncedLocationCheck = debounce(this.checkAllLocationsAndShowButton.bind(this), 300);
@@ -122,7 +177,7 @@ class HybridLocationManager {
             this.createInitialInputs();
         }
         
-        this.setupAddPersonButton();
+        // REMOVED: Don't setup add person button here - it's handled in main init
         this.initialized = true;
         
         console.log('✅ HybridLocationManager initialized');
@@ -155,7 +210,7 @@ class HybridLocationManager {
                 this.setupTransportButtonsForContainer(container, personId, inputId);
             }
             
-            // FIXED: Set up input event listeners properly
+            // Set up input event listeners properly
             this.setupInputEventListeners(input);
             
             // Set up autocomplete when Google Maps is ready
@@ -172,8 +227,6 @@ class HybridLocationManager {
         input.addEventListener('input', () => {
             console.log(`Input changed: ${input.id} = "${input.value}"`);
             this.debouncedLocationCheck();
-            
-            // FIXED: Also trigger geocoding for better UX
             this.handleLocationInput(input);
         });
         
@@ -203,7 +256,6 @@ class HybridLocationManager {
         }
     }
 
-    // NEW: Fallback geocoding when autocomplete fails
     geocodeLocation(input) {
         const value = input.value.trim();
         
@@ -279,7 +331,6 @@ class HybridLocationManager {
             container = document.createElement('div');
             container.id = 'locations-container';
             container.className = 'group group-col center';
-            container.style.cssText = 'width: 90%; max-width: 600px; margin-top: 80px;';
             
             // Insert after header or at body
             const header = document.querySelector('.group-header-container');
@@ -296,11 +347,21 @@ class HybridLocationManager {
         }
     }
 
+    // CLEAN addLocationInput with cooldown protection
     addLocationInput(personName = null) {
+        // PREVENT RAPID ADDITIONS
+        if (this.isAdding) {
+            console.log('🚫 Already adding a person, please wait');
+            return null;
+        }
+        
         if (this.getLocationCount() >= this.maxLocations) {
             showErrorNotification(`Maximum ${this.maxLocations} people allowed`);
             return null;
         }
+
+        this.isAdding = true; // Set flag to prevent rapid additions
+        console.log('🚀 Starting to add location input...');
 
         const personId = ++this.personCounter;
         let container = document.getElementById('locations-container');
@@ -321,7 +382,7 @@ class HybridLocationManager {
 
         // Create location input HTML dynamically
         const locationElement = document.createElement('div');
-        locationElement.className = 'location-container mb-3';
+        locationElement.className = 'location-container';
         locationElement.setAttribute('data-person-id', personId);
 
         const inputId = `location-${personId}`;
@@ -337,9 +398,11 @@ class HybridLocationManager {
                     <input type="text" 
                            class="location-input" 
                            id="${inputId}" 
-                           placeholder="${personName ? `${personName}'s location` : `Person ${personId}'s location`}" 
+                           placeholder="${personName ? `${personName}'s location` : `Address ${personId}`}" 
                            autocomplete="off">
-                    <button class="btn btn-sm btn-outline-danger remove-person-btn" style="display: none; margin-left: 8px;" title="Remove Person">
+                    <button class="btn btn-sm btn-outline-danger remove-person-btn" 
+                            style="display: ${this.getLocationCount() >= this.minLocations ? 'inline-flex' : 'none'}; margin-left: 8px;" 
+                            title="Remove Person">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -363,29 +426,34 @@ class HybridLocationManager {
         // Get references to the created elements
         const input = locationElement.querySelector('.location-input');
         const removeBtn = locationElement.querySelector('.remove-person-btn');
-
-        // Setup remove button
-        if (this.getLocationCount() >= this.minLocations) {
-            removeBtn.style.display = 'inline-block';
-        }
         
+        // Setup remove button
         removeBtn.addEventListener('click', () => {
             this.removeLocationInput(personId);
         });
 
         // Setup transport mode buttons
         this.setupTransportButtonsForContainer(locationElement, personId, inputId);
-
-        // Initialize autocomplete for new input
+        
+        // Setup input listeners
+        this.setupInputEventListeners(input);
+        
+        // Initialize autocomplete
         this.initializeAutocompleteForInput(input);
-
-        // Initialize transport mode for this person (default to TRANSIT)
+        
+        // Initialize transport mode
         window.userTransportModes.set(inputId, 'TRANSIT');
-
-        // Update UI state
+        
+        // Update UI
         this.updateUIState();
-
+        
         console.log(`➕ Added location input for Person ${personId} (${inputId})`);
+        
+        // Reset adding flag after a short delay
+        setTimeout(() => {
+            this.isAdding = false;
+            console.log('🔓 Add person cooldown released');
+        }, 300);
 
         return { personId, inputId, input, color: personColor };
     }
@@ -448,14 +516,12 @@ class HybridLocationManager {
         }
 
         // Show/hide remove buttons (only for dynamically added inputs beyond minimum)
-        removeBtns.forEach((btn, index) => {
-            // Only show remove buttons if we have more than minimum locations
-            // AND it's not one of the first 2 static inputs (if they exist)
+        removeBtns.forEach((btn) => {
             const container = btn.closest('.location-container');
             const personId = parseInt(container.getAttribute('data-person-id') || '0');
             const shouldShow = count > this.minLocations && personId > 2; // Only for person 3+
             
-            btn.style.display = shouldShow ? 'inline-block' : 'none';
+            btn.style.display = shouldShow ? 'inline-flex' : 'none';
         });
 
         // Update find button state - use debounced version
@@ -464,13 +530,11 @@ class HybridLocationManager {
         console.log(`📊 UI updated: ${count} people, add button: ${count < this.maxLocations ? 'visible' : 'hidden'}`);
     }
 
-    // FIXED: Better location checking logic
     checkAllLocationsAndShowButton() {
         const inputs = document.querySelectorAll('.location-input');
         const findBtn = document.getElementById('find-central-btn');
         
         if (!findBtn) {
-            console.log('Find central button not found');
             return;
         }
 
@@ -507,54 +571,12 @@ class HybridLocationManager {
             findBtn.style.display = 'flex';
             findBtn.classList.add('active');
             findBtn.title = `Find optimal meeting point for ${validLocations} people`;
-            
-            // FIXED: Make sure the button is properly visible
             findBtn.style.opacity = '1';
             findBtn.style.transform = 'scale(1)';
             findBtn.style.pointerEvents = 'auto';
         } else {
             findBtn.style.display = 'none';
             findBtn.classList.remove('active');
-        }
-    }
-
-    // ADD this new method to the class:
-    getValidLocationInputs() {
-        const locations = [];
-        
-        // First try to get from stored location data (autocomplete selections)
-        const storedLocations = this.getAllLocationData();
-        if (storedLocations.length >= 2) {
-            return storedLocations;
-        }
-        
-        // Fallback: Check if we have markers on the map (from manual geocoding)
-        if (window.locationMarkers) {
-            Object.keys(window.locationMarkers).forEach(inputId => {
-                const marker = window.locationMarkers[inputId];
-                const input = document.getElementById(inputId);
-                
-                if (marker && input && input.value.trim()) {
-                    locations.push({
-                        id: inputId,
-                        position: marker.getPosition(),
-                        transportMode: window.userTransportModes.get(inputId) || 'TRANSIT',
-                        address: input.value.trim(),
-                        color: this.getColorForInput(inputId)
-                    });
-                }
-            });
-        }
-        
-        return locations;
-    }
-
-    setupAddPersonButton() {
-        const addPersonBtn = document.getElementById('add-person-btn');
-        if (addPersonBtn) {
-            addPersonBtn.addEventListener('click', () => {
-                this.addLocationInput();
-            });
         }
     }
 
@@ -590,7 +612,7 @@ class HybridLocationManager {
                     const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
                     
                     addLocationMarker(place.geometry.location, input.id, personColor);
-                    this.debouncedLocationCheck(); // Use debounced version
+                    this.debouncedLocationCheck();
                     
                     console.log(`📍 Location set for ${input.id}: ${place.formatted_address || place.name}`);
                 });
@@ -609,7 +631,6 @@ class HybridLocationManager {
         }
     }
 
-    // IMPROVED: Get all valid location data with fallbacks
     getAllLocationData() {
         const locations = [];
         
@@ -677,17 +698,9 @@ class HybridLocationManager {
 
         console.log(`🚌 Updated transport mode for ${inputId}: ${mode}`);
     }
-
-    getPersonCount() {
-        return this.getLocationCount();
-    }
-
-    getValidLocationCount() {
-        return this.getAllLocationData().length;
-    }
 }
 
-// Enhanced marker function
+// CLEAN Enhanced marker function
 function addLocationMarker(location, inputId, color = '#8B5DB8') {
     if (!window.locationMarkers) {
         window.locationMarkers = {};
@@ -725,7 +738,10 @@ function addLocationMarker(location, inputId, color = '#8B5DB8') {
     }, 100);
 }
 
-// CLEANED Calculator class - remove duplicates
+// SINGLE calculateMidpoint function
+// COMPLETE EnhancedSocialMidpointCalculator - Add this to your clean mobile.js
+// Replace the simplified calculateSocialMidpoint function with this full version
+
 class EnhancedSocialMidpointCalculator {
     constructor() {
         this.maxIterations = 50;
@@ -789,7 +805,6 @@ class EnhancedSocialMidpointCalculator {
         }
     }
 
-    // KEEP ONLY ONE VERSION of each calculation method
     calculateGeometricMidpoint(locations) {
         let totalLat = 0, totalLng = 0;
         locations.forEach(location => {
@@ -849,12 +864,12 @@ class EnhancedSocialMidpointCalculator {
 
     async calculateSocialMidpoint(startingLocations) {
         const groupSize = startingLocations.length;
-        console.log(`🎯 Starting Enhanced Social Fairness Algorithm for ${groupSize} people...`);
+        console.log(`🚀 Starting Enhanced Social Fairness Algorithm for ${groupSize} people...`);
         
         if (groupSize < 2) {
             throw new Error('Need at least 2 locations for midpoint calculation');
         }
-    
+
         this.adjustParametersForGroupSize(groupSize);
         this.adjustParametersForDistance(startingLocations);
         
@@ -871,7 +886,7 @@ class EnhancedSocialMidpointCalculator {
             
             radiusCircle = this.showRadiusCircle(currentSearchCenter, searchRadius, radiusCircle);
             
-            // RESTORED: Actually search for venues instead of just using geometric midpoint
+            // 🔥 ACTUAL VENUE SEARCH
             const socialVenues = await this.findSocialVenues(currentSearchCenter, searchRadius);
             
             if (socialVenues.length < this.minVenuesRequired) {
@@ -882,7 +897,7 @@ class EnhancedSocialMidpointCalculator {
             
             console.log(`✅ Found ${socialVenues.length} venues to analyze`);
             
-            // RESTORED: Analyze venues for travel equity
+            // 🔥 VENUE ANALYSIS FOR TRAVEL EQUITY
             const venueAnalysis = await this.analyzeVenueTravelEquity(socialVenues, startingLocations);
             
             if (venueAnalysis.length === 0) {
@@ -891,7 +906,7 @@ class EnhancedSocialMidpointCalculator {
                 continue;
             }
             
-            // RESTORED: Find the most equitable venue
+            // 🔥 FIND MOST EQUITABLE VENUE
             const currentBestVenue = this.findMostEquitableVenue(venueAnalysis);
             
             if (currentBestVenue && currentBestVenue.equityScore < bestScore) {
@@ -946,7 +961,7 @@ class EnhancedSocialMidpointCalculator {
                 resolve([]);
                 return;
             }
-    
+
             window.placesService.nearbySearch({
                 location: new google.maps.LatLng(center.lat, center.lng),
                 radius: radius,
@@ -991,11 +1006,12 @@ class EnhancedSocialMidpointCalculator {
             });
         });
     }
+
     async analyzeVenueTravelEquity(venues, startingLocations) {
         console.log(`📊 Analyzing travel equity for ${venues.length} venues...`);
         const directionsService = new google.maps.DirectionsService();
         const analysis = [];
-    
+
         for (let i = 0; i < venues.length; i++) {
             const venue = venues[i];
             
@@ -1041,7 +1057,7 @@ class EnhancedSocialMidpointCalculator {
                 mixedMode: mixedMode
             });
         }
-    
+
         analysis.sort((a, b) => a.equityScore - b.equityScore);
         
         console.log(`   ✅ Successfully analyzed ${analysis.length} venues`);
@@ -1055,7 +1071,7 @@ class EnhancedSocialMidpointCalculator {
         
         return analysis;
     }
-    
+
     async calculateTravelTimesForVenue(directionsService, startingLocations, destination, venueName) {
         console.log(`🚌 Calculating travel times for ${venueName}...`);
         
@@ -1099,7 +1115,7 @@ class EnhancedSocialMidpointCalculator {
             mixedMode: actualModes[0] !== actualModes[1]
         };
     }
-    
+
     async getTravelTime(directionsService, origin, destination, travelMode) {
         return new Promise((resolve, reject) => {
             const request = {
@@ -1125,7 +1141,7 @@ class EnhancedSocialMidpointCalculator {
             });
         });
     }
-    
+
     findMostEquitableVenue(analysis) {
         if (analysis.length === 0) return null;
         
@@ -1138,7 +1154,7 @@ class EnhancedSocialMidpointCalculator {
         
         return best;
     }
-    
+
     calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange) {
         const timeVariance = this.calculateVariance(travelTimes);
         
@@ -1157,7 +1173,7 @@ class EnhancedSocialMidpointCalculator {
         
         return equityScore;
     }
-    
+
     convertToGoogleMapsMode(uiMode) {
         switch (uiMode) {
             case 'TRANSIT': return google.maps.TravelMode.TRANSIT;
@@ -1166,9 +1182,9 @@ class EnhancedSocialMidpointCalculator {
             default: return google.maps.TravelMode.TRANSIT;
         }
     }
-    
 }
 
+// REPLACE the simplified calculateSocialMidpoint function with this full version:
 async function calculateSocialMidpoint(locations) {
     if (!locations || !Array.isArray(locations) || locations.length < 2) {
         throw new Error('Invalid locations provided for midpoint calculation');
@@ -1188,6 +1204,7 @@ async function calculateSocialMidpoint(locations) {
             throw new Error('Not enough valid locations for calculation');
         }
         
+        // 🔥 USE THE FULL RECOMMENDATION ENGINE
         const calculator = new EnhancedSocialMidpointCalculator();
         const result = await calculator.calculateSocialMidpoint(validLocations);
         
@@ -1204,32 +1221,6 @@ async function calculateSocialMidpoint(locations) {
     }
 }
 
-// KEEP ONLY ONE VERSION of calculateMidpoint
-function calculateMidpoint(locations) {
-    if (!locations || locations.length < 2) {
-        console.warn('calculateMidpoint: Need at least 2 locations');
-        return null;
-    }
-
-    let totalLat = 0;
-    let totalLng = 0;
-
-    locations.forEach(location => {
-        if (typeof location.lat === 'function') {
-            totalLat += location.lat();
-            totalLng += location.lng();
-        } else {
-            totalLat += location.lat;
-            totalLng += location.lng;
-        }
-    });
-
-    const avgLat = totalLat / locations.length;
-    const avgLng = totalLng / locations.length;
-
-    return new google.maps.LatLng(avgLat, avgLng);
-}
-
 function calculateMidpointFromMarkers() {
     const markers = Object.values(window.locationMarkers || {}).filter(marker => marker);
     
@@ -1240,7 +1231,7 @@ function calculateMidpointFromMarkers() {
     }
 }
 
-// Initialize map with Singapore as default center
+// CLEAN Map initialization
 async function initMap() {
     console.log('initMap called');
 
@@ -1270,9 +1261,14 @@ async function initMap() {
             center: singapore,
             zoom: 10,
             mapTypeControl: false,
-            fullscreenControl: false,
+            fullscreenControl: false,    // ✅ Already disabled
             streetViewControl: false,
-            zoomControl: false
+            zoomControl: false,
+            // Additional controls to ensure clean interface
+            gestureHandling: 'greedy',   // Allow smooth touch gestures
+            clickableIcons: false,       // Disable POI clicks for cleaner UX
+            disableDefaultUI: false,     // Keep some default UI but customize
+            keyboardShortcuts: false,    // Disable keyboard shortcuts
         });
         
         window.midwhereahMap = map;
@@ -1285,7 +1281,7 @@ async function initMap() {
         
         window.placesService = new google.maps.places.PlacesService(map);
         
-        console.log("Google Maps initialized successfully");
+        console.log("Google Maps initialized successfully - No fullscreen control");
         
         // Initialize hybrid location manager after map is ready
         if (window.hybridLocationManager) {
@@ -1427,49 +1423,17 @@ function setupMapMarkers() {
     }
 }
 
-function calculateMidpointFromMarkers() {
-    // Get all active markers
-    const markers = Object.values(window.locationMarkers || {}).filter(marker => marker);
-    
-    if (markers.length >= 2) {
-        const locations = markers.map(marker => marker.getPosition());
-        window.calculatedMidpoint = calculateMidpoint(locations);
-        console.log('Geometric midpoint calculated:', window.calculatedMidpoint);
-    }
-}
-
-function calculateMidpoint(locations) {
-    if (!locations || locations.length < 2) {
-        console.warn('calculateMidpoint: Need at least 2 locations');
-        return null;
-    }
-
-    let totalLat = 0;
-    let totalLng = 0;
-
-    locations.forEach(location => {
-        if (typeof location.lat === 'function') {
-            totalLat += location.lat();
-            totalLng += location.lng();
-        } else {
-            totalLat += location.lat;
-            totalLng += location.lng;
-        }
-    });
-
-    const avgLat = totalLat / locations.length;
-    const avgLng = totalLng / locations.length;
-
-    return new google.maps.LatLng(avgLat, avgLng);
-}
-
 function setupMobileMenu() {
     console.log('Mobile menu disabled - no hamburger menu');
 }
 
-
 function setupLocationInputs() {
     console.log('📍 Setting up location inputs...');
+    
+    // Initialize window.directionsRenderers if not already done
+    if (!window.directionsRenderers) {
+        window.directionsRenderers = [];
+    }
     
     // Initialize the hybrid location manager if not already done
     if (window.hybridLocationManager && !window.hybridLocationManager.initialized) {
@@ -1478,7 +1442,9 @@ function setupLocationInputs() {
     } else if (window.hybridLocationManager) {
         console.log('Hybrid location manager already initialized');
     } else {
-        console.warn('HybridLocationManager not found!');
+        console.warn('HybridLocationManager not found! Creating new instance...');
+        window.hybridLocationManager = new HybridLocationManager();
+        window.hybridLocationManager.initialize();
     }
 }
 
@@ -1554,13 +1520,13 @@ function setupVenueCard() {
     console.log('Venue cards disabled');
 }
 
-// Fix for the Find Central Button in mobile.js
-// Replace the existing setupFindCentralButton function with this:
-
-// FIXED: Enhanced setupFindCentralButton
+// CLEAN setupFindCentralButton - single version
 function setupFindCentralButton() {
     const findCentralBtn = document.getElementById('find-central-btn');
-    if (!findCentralBtn) return;
+    if (!findCentralBtn) {
+        console.error('Find central button not found!');
+        return;
+    }
 
     findCentralBtn.addEventListener('click', async function() {
         console.log('🔥 Find central button clicked - Starting Enhanced Social Fairness Algorithm!');
@@ -1576,13 +1542,16 @@ function setupFindCentralButton() {
         
         console.log(`📍 Processing ${allLocationData.length} locations for midpoint calculation`);
         
+        // Clear existing midpoint marker
         if (window.midpointMarker) {
             window.midpointMarker.setMap(null);
         }
         
+        // Show loading state
         const originalButtonContent = findCentralBtn.innerHTML;
         findCentralBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         findCentralBtn.style.pointerEvents = 'none';
+        findCentralBtn.classList.add('processing');
         
         try {
             // Extract positions from location data
@@ -1603,8 +1572,10 @@ function setupFindCentralButton() {
             }
         }
         
+        // Restore button state
         findCentralBtn.innerHTML = originalButtonContent;
         findCentralBtn.style.pointerEvents = 'auto';
+        findCentralBtn.classList.remove('processing');
         
         if (!window.calculatedMidpoint) {
             console.warn('No midpoint calculated');
@@ -1612,7 +1583,7 @@ function setupFindCentralButton() {
             return;
         }
         
-        // Create midpoint marker
+        // Create enhanced midpoint marker
         window.midpointMarker = new google.maps.Marker({
             position: window.calculatedMidpoint,
             map: window.midwhereahMap,
@@ -1628,37 +1599,37 @@ function setupFindCentralButton() {
             animation: google.maps.Animation.BOUNCE
         });
         
+        // Stop bounce animation after 2 seconds
         setTimeout(() => {
             if (window.midpointMarker) {
                 window.midpointMarker.setAnimation(null);
             }
         }, 2000);
         
-        // Center map on midpoint
+        // Center map on midpoint with appropriate zoom
         window.midwhereahMap.panTo(window.calculatedMidpoint);
         window.midwhereahMap.setZoom(14);
         
-        // Show routes (you'll need to implement this for multiple locations)
-        // showRoutes();
+        // Show routes with proper error handling
+        try {
+            showRoutes();
+            console.log('✅ Routes displayed successfully');
+        } catch (error) {
+            console.error('❌ Failed to display routes:', error);
+            showErrorNotification('Routes could not be displayed');
+        }
         
-        findCentralBtn.classList.add('used');
-        findCentralBtn.innerHTML = '<i class="fas fa-check"></i> Found!';
+        // Update button to success state
+        findCentralBtn.classList.add('success');
+        findCentralBtn.innerHTML = '<i class="fas fa-check"></i>';
         
+        // Reset button after 3 seconds
         setTimeout(() => {
-            findCentralBtn.classList.remove('active', 'used');
+            findCentralBtn.classList.remove('active', 'success');
             findCentralBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
         }, 3000);
     });
 }
-
-
-function getColorForInputId(inputId) {
-    const input = document.getElementById(inputId);
-    const container = input?.closest('.location-container');
-    const colorElement = container?.querySelector('.location-icon');
-    return colorElement?.getAttribute('data-person-color') || '#8B5DB8';
-}
-
 
 function showRoutes() {
     const midpoint = window.calculatedMidpoint;
@@ -1668,7 +1639,7 @@ function showRoutes() {
         return;
     }
     
-    // Get all location data
+    // Get all location data using the hybrid manager
     const allLocationData = window.hybridLocationManager ? 
         window.hybridLocationManager.getAllLocationData() : [];
     
@@ -1679,7 +1650,7 @@ function showRoutes() {
     
     console.log(`🗺️ Showing routes for ${allLocationData.length} locations to midpoint`);
     
-    // Use the fixed showRoutesLegacy function with proper parameters
+    // Call showRoutesLegacy with correct parameters
     showRoutesLegacy(midpoint, allLocationData);
 }
 
@@ -1702,77 +1673,108 @@ function setupTransportModeSelection() {
     });
 }
 
-
-
-function geocodeAndCreateMarkers() {
-    // This is handled automatically by the autocomplete listeners
-    console.log('Geocoding handled by autocomplete listeners');
+function ensureMapInitialization() {
+    if (!window.midwhereahMap) {
+        console.warn('Map not initialized, attempting to initialize...');
+        if (typeof initMap === 'function') {
+            initMap();
+        }
+        return false;
+    }
+    return true;
 }
 
+// CLEAN ADD PERSON BUTTON SETUP - Single version with cooldown
+let addPersonCooldown = false;
+
+function setupAddPersonButton() {
+    const addPersonBtn = document.getElementById('add-person-btn');
+    if (!addPersonBtn) {
+        console.log('❌ Add person button not found');
+        return;
+    }
+    
+    console.log('✅ Add person button found');
+    
+    // Remove any existing listeners to prevent duplicates
+    addPersonBtn.replaceWith(addPersonBtn.cloneNode(true));
+    const newBtn = document.getElementById('add-person-btn');
+    
+    // Add single event listener with debouncing
+    newBtn.addEventListener('click', function(event) {
+        // Prevent double-clicks
+        if (addPersonCooldown) {
+            console.log('🚫 Button cooldown active');
+            return;
+        }
+        
+        event.preventDefault();
+        event.stopPropagation();
+        
+        console.log('Add person button clicked');
+        
+        // Set cooldown
+        addPersonCooldown = true;
+        newBtn.disabled = true;
+        newBtn.style.opacity = '0.6';
+        
+        // Add person
+        if (window.hybridLocationManager) {
+            try {
+                const result = window.hybridLocationManager.addLocationInput();
+                if (result) {
+                    console.log(`✅ Added person ${result.personId}`);
+                }
+            } catch (error) {
+                console.error('Error adding person:', error);
+            }
+        }
+        
+        // Reset after 600ms
+        setTimeout(() => {
+            addPersonCooldown = false;
+            newBtn.disabled = false;
+            newBtn.style.opacity = '1';
+        }, 600);
+    });
+}
+
+// MAIN INITIALIZATION - Single DOMContentLoaded handler
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Initializing MidWhereAh mobile interface...');
     
+    // Initialize basic functions
     setupMobileMenu();
     setupBottomNavigation();
     setupUserInfo();
     setupVenueCard();
-    setupFindCentralButton();
     setupTransportModeSelection();
     
-    // ENHANCED: Initialize location inputs through HybridLocationManager
+    // Initialize location manager
+    if (!window.hybridLocationManager) {
+        window.hybridLocationManager = new HybridLocationManager();
+    }
+    
     setupLocationInputs();
     
-    // Set up add person button if it exists
-    const addPersonBtn = document.getElementById('add-person-btn');
-    if (addPersonBtn) {
-        console.log('✅ Add person button found');
-        addPersonBtn.addEventListener('click', () => {
-            console.log('Add person button clicked');
-            if (window.hybridLocationManager) {
-                window.hybridLocationManager.addLocationInput();
-            }
-        });
-    } else {
-        console.log('❌ Add person button NOT found');
-    }
-    
-    // Check for find central button
-    const findBtn = document.getElementById('find-central-btn');
-    if (findBtn) {
-        console.log('✅ Find central button found');
-    } else {
-        console.log('❌ Find central button NOT found');
-    }
+    // Setup buttons with delay to ensure DOM is ready
+    setTimeout(() => {
+        setupFindCentralButton();
+        setupAddPersonButton(); // Use the clean function
+        
+        // Verify find button
+        const findBtn = document.getElementById('find-central-btn');
+        if (findBtn) {
+            console.log('✅ Find central button found');
+        } else {
+            console.log('❌ Find central button NOT found');
+        }
+    }, 300);
     
     console.log('✅ MidWhereAh mobile interface initialized');
 });
 
-// Backwards compatibility function (delegates to HybridLocationManager)
-function checkBothLocationsAndShowButton() {
-    if (window.hybridLocationManager) {
-        window.hybridLocationManager.debouncedLocationCheck();
-    } else {
-        console.warn('HybridLocationManager not available, using fallback logic');
-        // Fallback to old logic if needed
-        const location1 = document.getElementById('location-1');
-        const location2 = document.getElementById('location-2');
-        const findCentralBtn = document.getElementById('find-central-btn');
-
-        if (!location1 || !location2 || !findCentralBtn) return;
-
-        const hasValue1 = location1.value.trim() !== '';
-        const hasValue2 = location2.value.trim() !== '';
-
-        if (hasValue1 && hasValue2) {
-            findCentralBtn.classList.add('active');
-            findCentralBtn.style.display = 'flex';
-        } else {
-            findCentralBtn.classList.remove('active');
-            findCentralBtn.style.display = 'none';
-        }
-    }
-}
-
-
+// Initialize hybrid location manager
 window.hybridLocationManager = new HybridLocationManager();
 console.log('✅ HybridLocationManager initialized');
+
