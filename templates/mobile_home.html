@@ -3,9 +3,7 @@
 {% block title %}MidWhereAh - Find Your Midpoint{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
-
+{{ super() }}
 <!-- Additional CSS for transport mode selection -->
 <style>
 /* Transport Mode Selection Styles */
@@ -44,7 +42,6 @@
 
 .location-container {
   margin-bottom: 12px;
-  /* outline: 2px dotted black; */
 }
 
 .location-item {
@@ -59,6 +56,123 @@
     box-shadow: 0 0 0 2px #8B5DB8;
     background: white;
 }
+
+.location-input {
+    border: none;
+    background: none;
+    flex: 1;
+    font-size: 16px;
+    outline: none;
+    padding: 8px;
+}
+
+.location-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+}
+
+/* Add Person Button Styles */
+.add-person-container {
+    margin-top: 15px;
+    text-align: center;
+}
+
+.add-person-container button {
+    background: rgba(139, 93, 184, 0.1);
+    border: 2px dashed #8B5DB8;
+    border-radius: 8px;
+    padding: 8px 16px;
+    color: #8B5DB8;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.add-person-container button:hover:not(:disabled) {
+    background: rgba(139, 93, 184, 0.2);
+    border-style: solid;
+    transform: translateY(-1px);
+}
+
+.add-person-container button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f5f5f5;
+    border-color: #ccc;
+    color: #999;
+}
+
+.person-count-display {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Remove person button */
+.remove-person-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid #ff4444;
+    background: #ffffff;
+    color: #ff4444;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.remove-person-btn:hover {
+    background: #ff4444;
+    color: #ffffff;
+    transform: scale(1.1);
+}
+
+/* Enhanced Find Central Button */
+.find-central-btn {
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    background: #8B5DB8;
+    border: none;
+    border-radius: 50%;
+    display: none; /* Start hidden */
+    align-items: center;
+    justify-content: center;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 9;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    opacity: 0.5;
+    transform: scale(0.8);
+    pointer-events: none;
+}
+
+.find-central-btn.active {
+    display: flex;
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+}
+
+.find-central-btn:hover {
+    background: #6a4c93;
+    transform: scale(1.1);
+}
+
+.find-central-btn i {
+    font-size: 24px;
+}
 </style>
 {% endblock %}
 
@@ -67,7 +181,7 @@
 <div id="map"></div>
 
 <!-- Fixed Location Input Header (NON-SCROLLABLE) -->
-<div class= "group-header-container">
+<div class="group-header-container">
   <div class="group-logo">
     <a href="/">
         <img src="static/images/logo.png" alt="Logo" style="cursor: pointer;" />
@@ -78,61 +192,116 @@
   </div>
 </div>
 
-<div class="group group-col center" style="width: 90%; max-width: 600px; margin-top: 80px;">
+<div class="group group-col center" style="width: 90%; max-width: 600px; margin-top: 80px;" id="locations-container">
     <!-- Location 1 with transport mode selector -->
-  <div class="location-container">
-    <div class="location-item">
-      <div class="d-flex align-items-center" style="z-index: 15;">
-        <div class="location-icon purple">
-          <i class="fas fa-circle"></i>
+    <div class="location-container" data-person-id="1">
+        <div class="location-item">
+            <div class="d-flex align-items-center justify-content-between" style="z-index: 15;">
+                <div class="location-icon" style="color: #FF6B6B;" data-person-color="#FF6B6B">
+                    <i class="fas fa-circle"></i>
+                </div>
+                <input type="text" id="location-1" class="location-input" placeholder="Enter first location" autocomplete="off">
+                <button class="btn btn-sm btn-outline-danger remove-person-btn" style="display: none; margin-left: 8px;" title="Remove Person">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         </div>
-        <input type="text" id="location-1" class="location-input" placeholder="Enter first location">
-      </div>
+        <div class="transport-selector">
+            <button class="transport-btn active" data-mode="TRANSIT" data-person="1" title="Public Transport">
+                🚇
+            </button>
+            <button class="transport-btn" data-mode="DRIVING" data-person="1" title="Car/Taxi">
+                🚗
+            </button>
+            <button class="transport-btn" data-mode="WALKING" data-person="1" title="Walking">
+                🚶
+            </button>
+        </div>
     </div>
-    <div class="transport-selector">
-      <button class="transport-btn active" data-mode="TRANSIT" data-person="1" title="Public Transport">
-        🚇
-      </button>
-      <button class="transport-btn" data-mode="DRIVING" data-person="1" title="Car/Taxi">
-        🚗
-      </button>
-      <button class="transport-btn" data-mode="WALKING" data-person="1" title="Walking">
-        🚶
-      </button>
-    </div>
-  </div>
       
     <!-- Location 2 with transport mode selector -->
-  <div class="location-container">
-    <div class="location-item">
-      <div class="d-flex align-items-center" style="z-index: 15;">
-        <div class="location-icon purple">
-          <i class="fas fa-circle"></i>
+    <div class="location-container" data-person-id="2">
+        <div class="location-item">
+            <div class="d-flex align-items-center justify-content-between" style="z-index: 15;">
+                <div class="location-icon" style="color: #4ECDC4;" data-person-color="#4ECDC4">
+                    <i class="fas fa-circle"></i>
+                </div>
+                <input type="text" id="location-2" class="location-input" placeholder="Enter second location" autocomplete="off">
+                <button class="btn btn-sm btn-outline-danger remove-person-btn" style="display: none; margin-left: 8px;" title="Remove Person">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         </div>
-        <input type="text" id="location-2" class="location-input" placeholder="Enter second location">
-      </div>
+        <div class="transport-selector">
+            <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
+                🚇
+            </button>
+            <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
+                🚗
+            </button>
+            <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
+                🚶
+            </button>
+        </div>
     </div>
-    <div class="transport-selector">
-      <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
-        🚇
-      </button>
-      <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
-        🚗
-      </button>
-      <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
-        🚶
-      </button>
-    </div>
+</div>
+
+<!-- Add Person Button - THIS WAS MISSING! -->
+<div class="add-person-container center" style="margin-top: 15px;">
+  <button class="btn btn-outline-primary btn-sm" id="add-person-btn" style="display: inline-block;">
+    <i class="fas fa-plus me-1"></i>Add Person
+  </button>
+  <div class="person-count-display" style="margin-top: 5px; font-size: 12px; color: #666;">
+    <span id="person-count">2</span> people
   </div>
 </div>
 
-
-
-<!-- Purple Arrow Floating Button (Shows after two locations are input)-->
+<!-- Purple Arrow Floating Button (Shows after locations are input)-->
 <div class="find-central-btn" id="find-central-btn">
   <i class="fas fa-location-arrow"></i>
 </div>
-<div class = "group-col bottom-container center">
+
+<!-- Location Input Template for dynamic additions -->
+<template id="location-input-template">
+  <div class="location-container" data-person-id="">
+    <div class="location-item">
+      <div class="d-flex align-items-center justify-content-between" style="z-index: 15;">
+        <div class="location-icon" data-person-color="">
+          <i class="fas fa-circle"></i>
+        </div>
+        <input type="text" class="location-input" placeholder="Enter location" autocomplete="off">
+        <button class="btn btn-sm btn-outline-danger remove-person-btn" style="display: inline-block; margin-left: 8px;" title="Remove Person">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+    <div class="transport-selector">
+      <button class="transport-btn active" data-mode="TRANSIT" title="Public Transport">
+        🚇
+      </button>
+      <button class="transport-btn" data-mode="DRIVING" title="Car/Taxi">
+        🚗
+      </button>
+      <button class="transport-btn" data-mode="WALKING" title="Walking">
+        🚶
+      </button>
+    </div>
+  </div>
+</template>
+
+<!-- Loading Indicator Template -->
+<template id="loading-indicator-template">
+  <div class="loading-indicator" style="text-align: center; padding: 20px; color: #8B5DB8;">
+    <div class="spinner-border spinner-border-sm" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <div style="margin-top: 8px; font-size: 14px;">
+      Calculating optimal meeting point for <span class="person-count-text">X</span> people...
+    </div>
+  </div>
+</template>
+
+<div class="group-col bottom-container center">
   <!-- Bottom Navigation -->
   <div class="bottom-navigation">
     <div class="nav-item active" data-page="home">
@@ -169,44 +338,10 @@
     </div>
   </div>
 </div>
-
-<!-- Slide-out Menu (Keep but no hamburger trigger) -->
-<div class="slide-menu" id="slide-menu">
-  <div class="menu-header">
-    <div class="user-info">
-      <div class="user-avatar">TA</div>
-      <div class="user-details">
-        <h3>Thiha Aung Set</h3>
-        <p>Signed in</p>
-      </div>
-    </div>
-    <button class="menu-close" id="menu-close">
-      <i class="fas fa-times"></i>
-    </button>
-  </div>
-  <div class="menu-items">
-    <a href="/dashboard" class="menu-item">
-      <i class="fas fa-users"></i>
-      <span>My Groups</span>
-    </a>
-    <a href="/settings" class="menu-item">
-      <i class="fas fa-cog"></i>
-      <span>Settings</span>
-    </a>
-    <a href="#" class="menu-item" id="logout-menu">
-      <i class="fas fa-sign-out-alt"></i>
-      <span>Logout</span>
-    </a>
-  </div>
-</div>
-<div class="menu-overlay" id="menu-overlay"></div>
-
-<!-- NO VENUE CARDS - Removed completely as requested -->
-
 {% endblock %}
 
 {% block scripts %}
-<!-- Load mobile.js and maps.js first -->
+<!-- Load maps.js and mobile.js -->
 <script src="{{ url_for('static', filename='js/maps.js') }}"></script>
 <script src="{{ url_for('static', filename='js/mobile.js') }}"></script>
 
@@ -221,6 +356,12 @@
     console.log('Map container dimensions:', 
       document.getElementById('map').offsetWidth, 
       document.getElementById('map').offsetHeight);
+      
+    // Initialize the hybrid location manager
+    if (window.hybridLocationManager) {
+      console.log('Initializing hybrid location manager...');
+      window.hybridLocationManager.initialize();
+    }
   });
   
   // Load the Google Maps JavaScript API

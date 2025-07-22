@@ -1,13 +1,731 @@
-// Mobile-first JavaScript functionality for MidWhereAh
-// Enhanced Social Fairness Algorithm - Prioritizing Travel Time Equity
+// Enhanced global variables for multiple locations
+window.userTransportModes = new Map();
+window.locationData = new Map();
+window.nextPersonId = 1;
 
-// Enhanced Social Fairness Midpoint Algorithm (Travel Time Equity Focus)
+// Debounce function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
 
-window.userTransportModes = {
-    'location-1': 'TRANSIT', // Default to transit
-    'location-2': 'TRANSIT'
-};
+// Error notification
+function showErrorNotification(message) {
+    console.error('Error:', message);
+    
+    let notification = document.getElementById('error-notification');
+    if (!notification) {
+        notification = document.createElement('div');
+        notification.id = 'error-notification';
+        notification.style.cssText = `
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background-color: #f44336; color: white; padding: 12px 24px;
+            border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 9999; max-width: 80%; text-align: center;
+        `;
+        document.body.appendChild(notification);
+    }
+    
+    notification.textContent = message;
+    notification.style.display = 'block';
+    
+    setTimeout(() => {
+        notification.style.display = 'none';
+    }, 3000);
+}
 
+// Routes display function
+function showRoutesLegacy(midpoint, locationArray) {
+    if (!window.midwhereahMap || !midpoint || !locationArray || locationArray.length < 2) {
+        showErrorNotification('Cannot display routes: Missing map, midpoint, or locations');
+        return;
+    }
+    
+    // Clear existing routes
+    if (window.directionsRenderers) {
+        window.directionsRenderers.forEach(renderer => renderer.setMap(null));
+    }
+    window.directionsRenderers = [];
+    
+    const directionsService = new google.maps.DirectionsService();
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
+    
+    locationArray.forEach((location, index) => {
+        const renderer = new google.maps.DirectionsRenderer({
+            map: window.midwhereahMap,
+            suppressMarkers: true,
+            polylineOptions: {
+                strokeColor: colors[index % colors.length],
+                strokeWeight: 4,
+                strokeOpacity: 0.7
+            }
+        });
+        
+        window.directionsRenderers.push(renderer);
+        
+        const travelMode = location.transportMode || 'TRANSIT';
+        const googleMapsMode = travelMode === 'TRANSIT' ? google.maps.TravelMode.TRANSIT :
+                              travelMode === 'DRIVING' ? google.maps.TravelMode.DRIVING :
+                              google.maps.TravelMode.WALKING;
+        
+        directionsService.route({
+            origin: location.position,
+            destination: midpoint,
+            travelMode: googleMapsMode
+        }, (result, status) => {
+            if (status === google.maps.DirectionsStatus.OK) {
+                renderer.setDirections(result);
+                console.log(`🛣️ Route displayed for location ${index + 1} using ${travelMode}`);
+            } else {
+                console.error(`❌ Directions request failed: ${status}`);
+                showErrorNotification(`Could not display route for location ${index + 1}: ${status}`);
+            }
+        });
+    });
+}
+
+class HybridLocationManager {
+    constructor() {
+        this.minLocations = 2;
+        this.maxLocations = 8;
+        this.personCounter = 0;
+        this.colors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
+            '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
+        ];
+        this.initialized = false;
+        this.lastLocationStatus = '';
+        
+        // Debounced location check
+        this.debouncedLocationCheck = debounce(this.checkAllLocationsAndShowButton.bind(this), 300);
+    }
+
+    initialize() {
+        if (this.initialized) return;
+        
+        console.log('🔧 Initializing HybridLocationManager...');
+        
+        const existingInputs = document.querySelectorAll('.location-input');
+        
+        if (existingInputs.length > 0) {
+            console.log(`📍 Found ${existingInputs.length} existing location inputs, using hybrid mode`);
+            this.setupExistingInputs(existingInputs);
+        } else {
+            console.log('📍 No existing inputs found, creating new dynamic system');
+            this.createInitialInputs();
+        }
+        
+        this.setupAddPersonButton();
+        this.initialized = true;
+        
+        console.log('✅ HybridLocationManager initialized');
+    }
+
+    setupExistingInputs(inputs) {
+        inputs.forEach((input, index) => {
+            const personId = index + 1;
+            this.personCounter = Math.max(this.personCounter, personId);
+            
+            const inputId = input.id || `location-${personId}`;
+            input.id = inputId;
+            
+            // Initialize transport mode (default to TRANSIT)
+            window.userTransportModes.set(inputId, 'TRANSIT');
+            
+            // Set person color
+            const colorIndex = (personId - 1) % this.colors.length;
+            const personColor = this.colors[colorIndex];
+            
+            // Update location icon color if it exists
+            const container = input.closest('.location-container');
+            if (container) {
+                const locationIcon = container.querySelector('.location-icon');
+                if (locationIcon) {
+                    locationIcon.style.color = personColor;
+                    locationIcon.setAttribute('data-person-color', personColor);
+                }
+                
+                this.setupTransportButtonsForContainer(container, personId, inputId);
+            }
+            
+            // FIXED: Set up input event listeners properly
+            this.setupInputEventListeners(input);
+            
+            // Set up autocomplete when Google Maps is ready
+            this.initializeAutocompleteForInput(input);
+            
+            console.log(`📍 Set up existing input: ${inputId} (Person ${personId})`);
+        });
+        
+        this.updateUIState();
+    }
+
+    setupInputEventListeners(input) {
+        // Add input event listener with debouncing
+        input.addEventListener('input', () => {
+            console.log(`Input changed: ${input.id} = "${input.value}"`);
+            this.debouncedLocationCheck();
+            
+            // FIXED: Also trigger geocoding for better UX
+            this.handleLocationInput(input);
+        });
+        
+        // Add paste event listener
+        input.addEventListener('paste', () => {
+            setTimeout(() => {
+                console.log(`Paste detected: ${input.id} = "${input.value}"`);
+                this.debouncedLocationCheck();
+                this.handleLocationInput(input);
+            }, 100);
+        });
+    }
+
+    handleLocationInput(input) {
+        const value = input.value.trim();
+        
+        if (value.length >= 3) {
+            // Clear any existing timeout
+            if (input.geocodeTimeout) {
+                clearTimeout(input.geocodeTimeout);
+            }
+            
+            // Set up geocoding with delay (in case autocomplete doesn't work)
+            input.geocodeTimeout = setTimeout(() => {
+                this.geocodeLocation(input);
+            }, 2000); // Wait 2 seconds for autocomplete to work first
+        }
+    }
+
+    // NEW: Fallback geocoding when autocomplete fails
+    geocodeLocation(input) {
+        const value = input.value.trim();
+        
+        // Don't geocode if we already have data from autocomplete
+        if (window.locationData.has(input.id)) {
+            return;
+        }
+        
+        if (!window.geocoder && window.google && window.google.maps) {
+            window.geocoder = new google.maps.Geocoder();
+        }
+        
+        if (!window.geocoder) {
+            console.warn('Geocoder not available yet');
+            return;
+        }
+        
+        console.log(`🔍 Fallback geocoding for ${input.id}: "${value}"`);
+        
+        window.geocoder.geocode({ 
+            address: value + ', Singapore',
+            componentRestrictions: { country: 'SG' }
+        }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+                const place = results[0];
+                
+                // Store location data
+                window.locationData.set(input.id, {
+                    place: place,
+                    position: place.geometry.location,
+                    transportMode: window.userTransportModes.get(input.id) || 'TRANSIT',
+                    address: place.formatted_address || place.address_components[0].short_name
+                });
+                
+                // Get person color for marker
+                const container = input.closest('.location-container');
+                const colorElement = container?.querySelector('.location-icon');
+                const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+                
+                addLocationMarker(place.geometry.location, input.id, personColor);
+                
+                console.log(`✅ Geocoded ${input.id}: ${place.formatted_address}`);
+                this.debouncedLocationCheck();
+            } else {
+                console.warn(`Geocoding failed for ${input.id}:`, status);
+            }
+        });
+    }
+
+    setupTransportButtonsForContainer(container, personId, inputId) {
+        const transportBtns = container.querySelectorAll('.transport-btn');
+        transportBtns.forEach(btn => {
+            btn.setAttribute('data-person', personId);
+            
+            btn.addEventListener('click', (e) => {
+                const mode = btn.getAttribute('data-mode');
+                this.updateTransportMode(inputId, mode);
+                
+                // Update UI state
+                const personButtons = container.querySelectorAll('.transport-btn');
+                personButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                console.log(`🚌 Person ${personId} selected: ${mode}`);
+            });
+        });
+    }
+
+    createInitialInputs() {
+        // Create container if it doesn't exist
+        let container = document.getElementById('locations-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'locations-container';
+            container.className = 'group group-col center';
+            container.style.cssText = 'width: 90%; max-width: 600px; margin-top: 80px;';
+            
+            // Insert after header or at body
+            const header = document.querySelector('.group-header-container');
+            if (header) {
+                header.parentNode.insertBefore(container, header.nextSibling);
+            } else {
+                document.body.appendChild(container);
+            }
+        }
+        
+        // Create 2 initial location inputs
+        for (let i = 0; i < 2; i++) {
+            this.addLocationInput();
+        }
+    }
+
+    addLocationInput(personName = null) {
+        if (this.getLocationCount() >= this.maxLocations) {
+            showErrorNotification(`Maximum ${this.maxLocations} people allowed`);
+            return null;
+        }
+
+        const personId = ++this.personCounter;
+        let container = document.getElementById('locations-container');
+        
+        if (!container) {
+            // Try to find existing container or create one
+            const existingContainer = document.querySelector('.group.group-col.center');
+            if (existingContainer) {
+                container = existingContainer;
+                container.id = 'locations-container';
+            } else {
+                container = document.createElement('div');
+                container.id = 'locations-container';
+                container.className = 'group group-col center';
+                document.body.appendChild(container);
+            }
+        }
+
+        // Create location input HTML dynamically
+        const locationElement = document.createElement('div');
+        locationElement.className = 'location-container mb-3';
+        locationElement.setAttribute('data-person-id', personId);
+
+        const inputId = `location-${personId}`;
+        const colorIndex = (personId - 1) % this.colors.length;
+        const personColor = this.colors[colorIndex];
+
+        locationElement.innerHTML = `
+            <div class="location-item">
+                <div class="d-flex align-items-center justify-content-between" style="z-index: 15;">
+                    <div class="location-icon" style="color: ${personColor};" data-person-color="${personColor}">
+                        <i class="fas fa-circle"></i>
+                    </div>
+                    <input type="text" 
+                           class="location-input" 
+                           id="${inputId}" 
+                           placeholder="${personName ? `${personName}'s location` : `Person ${personId}'s location`}" 
+                           autocomplete="off">
+                    <button class="btn btn-sm btn-outline-danger remove-person-btn" style="display: none; margin-left: 8px;" title="Remove Person">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="transport-selector">
+                <button class="transport-btn active" data-mode="TRANSIT" data-person="${personId}" title="Public Transport">
+                    🚇
+                </button>
+                <button class="transport-btn" data-mode="DRIVING" data-person="${personId}" title="Car/Taxi">
+                    🚗
+                </button>
+                <button class="transport-btn" data-mode="WALKING" data-person="${personId}" title="Walking">
+                    🚶
+                </button>
+            </div>
+        `;
+
+        // Add to container
+        container.appendChild(locationElement);
+
+        // Get references to the created elements
+        const input = locationElement.querySelector('.location-input');
+        const removeBtn = locationElement.querySelector('.remove-person-btn');
+
+        // Setup remove button
+        if (this.getLocationCount() >= this.minLocations) {
+            removeBtn.style.display = 'inline-block';
+        }
+        
+        removeBtn.addEventListener('click', () => {
+            this.removeLocationInput(personId);
+        });
+
+        // Setup transport mode buttons
+        this.setupTransportButtonsForContainer(locationElement, personId, inputId);
+
+        // Initialize autocomplete for new input
+        this.initializeAutocompleteForInput(input);
+
+        // Initialize transport mode for this person (default to TRANSIT)
+        window.userTransportModes.set(inputId, 'TRANSIT');
+
+        // Update UI state
+        this.updateUIState();
+
+        console.log(`➕ Added location input for Person ${personId} (${inputId})`);
+
+        return { personId, inputId, input, color: personColor };
+    }
+
+    removeLocationInput(personId) {
+        const container = document.querySelector(`[data-person-id="${personId}"]`);
+        if (!container) return;
+
+        const inputId = `location-${personId}`;
+
+        console.log(`➖ Removing location input for Person ${personId} (${inputId})`);
+
+        // Remove from data structures
+        window.userTransportModes.delete(inputId);
+        window.locationData.delete(inputId);
+        
+        // Remove marker from map
+        if (window.locationMarkers && window.locationMarkers[inputId]) {
+            window.locationMarkers[inputId].setMap(null);
+            delete window.locationMarkers[inputId];
+        }
+
+        // Remove DOM element with animation
+        container.style.transition = 'opacity 0.3s, transform 0.3s';
+        container.style.opacity = '0';
+        container.style.transform = 'translateX(-100%)';
+        
+        setTimeout(() => {
+            container.remove();
+            this.updateUIState();
+        }, 300);
+    }
+
+    getLocationCount() {
+        return document.querySelectorAll('.location-input').length;
+    }
+
+    updateUIState() {
+        const count = this.getLocationCount();
+        const addBtn = document.getElementById('add-person-btn');
+        const findBtn = document.getElementById('find-central-btn');
+        const removeBtns = document.querySelectorAll('.remove-person-btn');
+        const personCountSpan = document.getElementById('person-count');
+
+        // Update person count display
+        if (personCountSpan) {
+            personCountSpan.textContent = count;
+        }
+
+        // Show/hide add button
+        if (addBtn) {
+            addBtn.style.display = count < this.maxLocations ? 'inline-block' : 'none';
+            if (count >= this.maxLocations) {
+                addBtn.innerHTML = '<i class="fas fa-users me-1"></i>Max reached';
+                addBtn.disabled = true;
+            } else {
+                addBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Person';
+                addBtn.disabled = false;
+            }
+        }
+
+        // Show/hide remove buttons (only for dynamically added inputs beyond minimum)
+        removeBtns.forEach((btn, index) => {
+            // Only show remove buttons if we have more than minimum locations
+            // AND it's not one of the first 2 static inputs (if they exist)
+            const container = btn.closest('.location-container');
+            const personId = parseInt(container.getAttribute('data-person-id') || '0');
+            const shouldShow = count > this.minLocations && personId > 2; // Only for person 3+
+            
+            btn.style.display = shouldShow ? 'inline-block' : 'none';
+        });
+
+        // Update find button state - use debounced version
+        this.debouncedLocationCheck();
+
+        console.log(`📊 UI updated: ${count} people, add button: ${count < this.maxLocations ? 'visible' : 'hidden'}`);
+    }
+
+    // FIXED: Better location checking logic
+    checkAllLocationsAndShowButton() {
+        const inputs = document.querySelectorAll('.location-input');
+        const findBtn = document.getElementById('find-central-btn');
+        
+        if (!findBtn) {
+            console.log('Find central button not found');
+            return;
+        }
+
+        let validLocations = 0;
+        let totalInputs = inputs.length;
+
+        inputs.forEach(input => {
+            const hasText = input.value.trim().length >= 3;
+            const hasLocationData = window.locationData.has(input.id);
+            const hasMarker = window.locationMarkers && window.locationMarkers[input.id];
+            
+            // Count as valid if we have text AND (location data OR marker)
+            if (hasText && (hasLocationData || hasMarker)) {
+                validLocations++;
+                input.classList.add('is-valid');
+                input.classList.remove('is-invalid');
+            } else if (hasText) {
+                // Has text but no location data yet - show as pending
+                input.classList.add('is-invalid');
+                input.classList.remove('is-valid');
+            } else {
+                input.classList.remove('is-valid', 'is-invalid');
+            }
+        });
+
+        // Only log if the count has actually changed
+        const currentStatus = `${validLocations}/${totalInputs}`;
+        if (this.lastLocationStatus !== currentStatus) {
+            console.log(`🔍 Location check: ${currentStatus} valid locations`);
+            this.lastLocationStatus = currentStatus;
+        }
+
+        if (validLocations >= this.minLocations) {
+            findBtn.style.display = 'flex';
+            findBtn.classList.add('active');
+            findBtn.title = `Find optimal meeting point for ${validLocations} people`;
+            
+            // FIXED: Make sure the button is properly visible
+            findBtn.style.opacity = '1';
+            findBtn.style.transform = 'scale(1)';
+            findBtn.style.pointerEvents = 'auto';
+        } else {
+            findBtn.style.display = 'none';
+            findBtn.classList.remove('active');
+        }
+    }
+
+    // ADD this new method to the class:
+    getValidLocationInputs() {
+        const locations = [];
+        
+        // First try to get from stored location data (autocomplete selections)
+        const storedLocations = this.getAllLocationData();
+        if (storedLocations.length >= 2) {
+            return storedLocations;
+        }
+        
+        // Fallback: Check if we have markers on the map (from manual geocoding)
+        if (window.locationMarkers) {
+            Object.keys(window.locationMarkers).forEach(inputId => {
+                const marker = window.locationMarkers[inputId];
+                const input = document.getElementById(inputId);
+                
+                if (marker && input && input.value.trim()) {
+                    locations.push({
+                        id: inputId,
+                        position: marker.getPosition(),
+                        transportMode: window.userTransportModes.get(inputId) || 'TRANSIT',
+                        address: input.value.trim(),
+                        color: this.getColorForInput(inputId)
+                    });
+                }
+            });
+        }
+        
+        return locations;
+    }
+
+    setupAddPersonButton() {
+        const addPersonBtn = document.getElementById('add-person-btn');
+        if (addPersonBtn) {
+            addPersonBtn.addEventListener('click', () => {
+                this.addLocationInput();
+            });
+        }
+    }
+
+    initializeAutocompleteForInput(input) {
+        try {
+            if (google.maps.places && google.maps.places.Autocomplete) {
+                const autocomplete = new google.maps.places.Autocomplete(input, {
+                    componentRestrictions: { country: "sg" },
+                    fields: ["address_components", "geometry", "name", "formatted_address"],
+                    types: ["address"]
+                });
+                
+                input.autocomplete = autocomplete;
+                
+                autocomplete.addListener('place_changed', () => {
+                    const place = autocomplete.getPlace();
+                    if (!place.geometry) {
+                        console.warn("No details available for: '" + place.name + "'");
+                        return;
+                    }
+                    
+                    // Store location data
+                    window.locationData.set(input.id, {
+                        place: place,
+                        position: place.geometry.location,
+                        transportMode: window.userTransportModes.get(input.id) || 'TRANSIT',
+                        address: place.formatted_address || place.name
+                    });
+                    
+                    // Get person color for marker
+                    const container = input.closest('.location-container');
+                    const colorElement = container?.querySelector('.location-icon');
+                    const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+                    
+                    addLocationMarker(place.geometry.location, input.id, personColor);
+                    this.debouncedLocationCheck(); // Use debounced version
+                    
+                    console.log(`📍 Location set for ${input.id}: ${place.formatted_address || place.name}`);
+                });
+            } else {
+                console.warn('Google Maps Places API not available yet. Will retry initialization later.');
+                
+                // Retry after a delay
+                setTimeout(() => {
+                    if (google.maps.places && google.maps.places.Autocomplete) {
+                        this.initializeAutocompleteForInput(input);
+                    }
+                }, 1000);
+            }
+        } catch (error) {
+            console.error('Error initializing autocomplete:', error);
+        }
+    }
+
+    // IMPROVED: Get all valid location data with fallbacks
+    getAllLocationData() {
+        const locations = [];
+        
+        // First try to get from stored location data (autocomplete selections)
+        window.locationData.forEach((data, inputId) => {
+            if (data.position) {
+                locations.push({
+                    id: inputId,
+                    position: data.position,
+                    transportMode: data.transportMode,
+                    place: data.place,
+                    address: data.address,
+                    color: this.getColorForInput(inputId)
+                });
+            }
+        });
+        
+        // If we don't have enough from locationData, check markers as fallback
+        if (locations.length < this.minLocations && window.locationMarkers) {
+            Object.keys(window.locationMarkers).forEach(inputId => {
+                // Don't duplicate if we already have this from locationData
+                if (locations.some(loc => loc.id === inputId)) return;
+                
+                const marker = window.locationMarkers[inputId];
+                const input = document.getElementById(inputId);
+                
+                if (marker && input && input.value.trim()) {
+                    locations.push({
+                        id: inputId,
+                        position: marker.getPosition(),
+                        transportMode: window.userTransportModes.get(inputId) || 'TRANSIT',
+                        address: input.value.trim(),
+                        color: this.getColorForInput(inputId)
+                    });
+                }
+            });
+        }
+        
+        // Sort by input ID to maintain consistent order
+        locations.sort((a, b) => {
+            const idA = parseInt(a.id.split('-')[1] || '0');
+            const idB = parseInt(b.id.split('-')[1] || '0');
+            return idA - idB;
+        });
+        
+        return locations;
+    }
+
+    getColorForInput(inputId) {
+        const input = document.getElementById(inputId);
+        const container = input?.closest('.location-container');
+        const colorElement = container?.querySelector('.location-icon');
+        return colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+    }
+
+    updateTransportMode(inputId, mode) {
+        window.userTransportModes.set(inputId, mode);
+        
+        // Update stored location data
+        const locationData = window.locationData.get(inputId);
+        if (locationData) {
+            locationData.transportMode = mode;
+            window.locationData.set(inputId, locationData);
+        }
+
+        console.log(`🚌 Updated transport mode for ${inputId}: ${mode}`);
+    }
+
+    getPersonCount() {
+        return this.getLocationCount();
+    }
+
+    getValidLocationCount() {
+        return this.getAllLocationData().length;
+    }
+}
+
+// Enhanced marker function
+function addLocationMarker(location, inputId, color = '#8B5DB8') {
+    if (!window.locationMarkers) {
+        window.locationMarkers = {};
+    }
+    
+    if (window.locationMarkers[inputId]) {
+        window.locationMarkers[inputId].setMap(null);
+    }
+
+    const markerIcon = {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: color,
+        fillOpacity: 0.8,
+        strokeColor: '#ffffff',
+        strokeWeight: 2,
+        scale: 8
+    };
+
+    const marker = new google.maps.Marker({
+        position: location,
+        map: window.midwhereahMap,
+        title: document.getElementById(inputId) ? document.getElementById(inputId).value : 'Location',
+        icon: markerIcon,
+        animation: google.maps.Animation.DROP
+    });
+
+    window.locationMarkers[inputId] = marker;
+
+    if (window.midwhereahMap) {
+        window.midwhereahMap.panTo(location);
+    }
+
+    setTimeout(() => {
+        calculateMidpointFromMarkers();
+    }, 100);
+}
+
+// CLEANED Calculator class - remove duplicates
 class EnhancedSocialMidpointCalculator {
     constructor() {
         this.maxIterations = 50;
@@ -16,19 +734,36 @@ class EnhancedSocialMidpointCalculator {
         this.radiusIncrementFactor = 1.4;
         this.maxSearchRadius = 5000;
         this.minVenuesRequired = 5;
-        
-        // These will be adjusted based on distance
         this.baseMaxTravelTimeMinutes = 60;
-        this.maxTravelTimeMinutes = 60; // Will be updated in calculateSocialMidpoint
-        
+        this.maxTravelTimeMinutes = 60;
         this.maxAcceptableTimeDifference = 10;
         this.equityWeight = 0.9;
         this.totalTimeWeight = 0.1;
-        
         this.socialPlaceTypes = [
             'restaurant', 'cafe', 'shopping_mall', 'food', 
             'establishment', 'store', 'meal_takeaway', 'bakery'
         ];
+    }
+
+    adjustParametersForGroupSize(groupSize) {
+        console.log(`⚙️ Adjusting parameters for group size: ${groupSize} people`);
+        
+        if (groupSize <= 2) {
+            this.maxAcceptableTimeDifference = 10;
+            this.equityWeight = 0.9;
+            this.totalTimeWeight = 0.1;
+            console.log(`   📏 Small group: 10min max difference, high equity focus`);
+        } else if (groupSize <= 4) {
+            this.maxAcceptableTimeDifference = 15;
+            this.equityWeight = 0.8;
+            this.totalTimeWeight = 0.2;
+            console.log(`   📏 Medium group: 15min max difference, balanced approach`);
+        } else {
+            this.maxAcceptableTimeDifference = 20;
+            this.equityWeight = 0.7;
+            this.totalTimeWeight = 0.3;
+            console.log(`   📏 Large group: 20min max difference, efficiency focus`);
+        }
     }
 
     adjustParametersForDistance(startingLocations) {
@@ -41,511 +776,60 @@ class EnhancedSocialMidpointCalculator {
         
         if (distanceKm > 30) {
             this.maxTravelTimeMinutes = 90;
-            this.maxAcceptableTimeDifference = 20; // Scale with distance!
+            this.maxAcceptableTimeDifference = 20;
             console.log(`🌏 Extreme distance (${distanceKm.toFixed(1)}km): Allowing up to 90min travel, 20min range`);
         } else if (distanceKm > 15) {
             this.maxTravelTimeMinutes = 75;
-            this.maxAcceptableTimeDifference = 15; // Scale with distance!
+            this.maxAcceptableTimeDifference = 15;
             console.log(`📏 Long distance (${distanceKm.toFixed(1)}km): Allowing up to 75min travel, 15min range`);
         } else {
             this.maxTravelTimeMinutes = this.baseMaxTravelTimeMinutes;
-            this.maxAcceptableTimeDifference = 10; // Normal distance
+            this.maxAcceptableTimeDifference = 10;
             console.log(`📍 Normal distance (${distanceKm.toFixed(1)}km): Allowing up to 60min travel, 10min range`);
         }
     }
 
-    async calculateSocialMidpoint(startingLocations) {
-        console.log('🎯 Starting Enhanced Social Fairness Algorithm (Equity Focus)...');
-        console.log(`📍 Analyzing ${startingLocations.length} starting locations`);
-        
-        // NEW: Adjust parameters based on distance
-        this.adjustParametersForDistance(startingLocations);
-        
-        let currentSearchCenter = this.calculateGeometricMidpoint(startingLocations);
-        let searchRadius = this.initialRadius;
-        let bestMidpoint = null;
-        let bestScore = Infinity;
-        let radiusCircle = null;
-        let iteration = 0;
-        
-        while (iteration < this.maxIterations && searchRadius <= this.maxSearchRadius) {
-            iteration++;
-            console.log(`🔍 Iteration ${iteration}: Searching ${searchRadius}m radius around current center`);
-            
-            radiusCircle = this.showRadiusCircle(currentSearchCenter, searchRadius, radiusCircle);
-            
-            const socialVenues = await this.findSocialVenues(currentSearchCenter, searchRadius);
-            
-            if (socialVenues.length < this.minVenuesRequired) {
-                console.log(`❌ Only ${socialVenues.length} venues found, need ${this.minVenuesRequired}. Expanding search...`);
-                searchRadius *= this.radiusIncrementFactor;
-                continue;
-            }
-            
-            console.log(`✅ Found ${socialVenues.length} venues to analyze`);
-            
-            const venueAnalysis = await this.analyzeVenueTravelEquity(socialVenues, startingLocations);
-            
-            if (venueAnalysis.length === 0) {
-                console.log(`❌ No accessible venues found. Expanding search...`);
-                searchRadius *= this.radiusIncrementFactor;
-                continue;
-            }
-            
-            const currentBestVenue = this.findMostEquitableVenue(venueAnalysis);
-            
-            if (currentBestVenue && currentBestVenue.equityScore < bestScore) {
-                bestScore = currentBestVenue.equityScore;
-                bestMidpoint = currentBestVenue.location;
-                
-                console.log(`⭐ New best venue: ${currentBestVenue.name}`);
-                console.log(`   Max travel time: ${currentBestVenue.maxTravelTime.toFixed(1)}min`);
-                console.log(`   Avg travel time: ${currentBestVenue.avgTravelTime.toFixed(1)}min`);
-                console.log(`   Time variance: ${currentBestVenue.timeVariance.toFixed(1)}min²`);
-                console.log(`   Equity score: ${currentBestVenue.equityScore.toFixed(2)}`);
-                
-                // NEW: Check if routes to this venue pass through a common MRT station
-                const commonMRTStation = await this.findCommonMRTStation(startingLocations, currentBestVenue.location);
-                if (commonMRTStation) {
-                    console.log(`🚇 Routes pass through common MRT: ${commonMRTStation.name}`);
-                    console.log(`🔄 Checking venues around MRT station for comparison...`);
-                    
-                    // Search for venues around MRT station
-                    const mrtVenues = await this.findSocialVenues({
-                        lat: commonMRTStation.location.lat,
-                        lng: commonMRTStation.location.lng
-                    }, this.initialRadius);
-                    
-                    if (mrtVenues.length >= this.minVenuesRequired) {
-                        const mrtAnalysis = await this.analyzeVenueTravelEquity(mrtVenues, startingLocations);
-                        
-                        if (mrtAnalysis.length > 0) {
-                            const bestMRTVenue = this.findMostEquitableVenue(mrtAnalysis);
-                            
-                            console.log(`🏆 Best venue near ${commonMRTStation.name}: ${bestMRTVenue.name} (equity: ${bestMRTVenue.equityScore.toFixed(2)})`);
-                            console.log(`⚖️ Comparing: Original venue equity=${currentBestVenue.equityScore.toFixed(2)} vs MRT area equity=${bestMRTVenue.equityScore.toFixed(2)}`);
-                            
-                            // Only switch to MRT area if it's actually better
-                            if (bestMRTVenue.equityScore < currentBestVenue.equityScore) {
-                                console.log(`✅ MRT area has better venue! Switching to ${bestMRTVenue.name}`);
-                                bestScore = bestMRTVenue.equityScore;
-                                bestMidpoint = bestMRTVenue.location;
-                                currentSearchCenter = {
-                                    lat: bestMRTVenue.location.lat,
-                                    lng: bestMRTVenue.location.lng
-                                };
-                            } else {
-                                console.log(`✅ Original venue is better! Staying with ${currentBestVenue.name}`);
-                                // Continue with original venue-based search
-                                currentSearchCenter = {
-                                    lat: currentBestVenue.location.lat,
-                                    lng: currentBestVenue.location.lng
-                                };
-                            }
-                        } else {
-                            console.log(`❌ No good venues found around MRT, staying with original venue`);
-                            currentSearchCenter = {
-                                lat: currentBestVenue.location.lat,
-                                lng: currentBestVenue.location.lng
-                            };
-                        }
-                    } else {
-                        console.log(`❌ Not enough venues around MRT (${mrtVenues.length}), staying with original venue`);
-                        currentSearchCenter = {
-                            lat: currentBestVenue.location.lat,
-                            lng: currentBestVenue.location.lng
-                        };
-                    }
-                    
-                    searchRadius = Math.max(400, searchRadius * 0.6);
-                    console.log(`🎯 Focusing search around chosen venue, radius now ${searchRadius}m`);
-                } else {
-                    // No common MRT found, continue with normal venue-based search
-                    currentSearchCenter = {
-                        lat: currentBestVenue.location.lat,
-                        lng: currentBestVenue.location.lng
-                    };
-                    searchRadius = Math.max(400, searchRadius * 0.6);
-                    console.log(`🎯 Focusing search around best venue, radius now ${searchRadius}m`);
-                }
-            } else {
-                searchRadius *= this.radiusIncrementFactor;
-                console.log(`🔄 No improvement found, expanding to ${searchRadius}m`);
-            }
-            
-            if (bestMidpoint && currentBestVenue && 
-                currentBestVenue.timeVariance < 4.0 && 
-                currentBestVenue.timeRange <= this.maxAcceptableTimeDifference) {
-                console.log(`🏆 Excellent equity found (variance < 4min², range ≤ ${this.maxAcceptableTimeDifference}min), stopping early!`);
-                break;
-            }
-        }
-        
-        setTimeout(() => {
-            if (radiusCircle) radiusCircle.setMap(null);
-        }, 3000);
-        
-        if (bestMidpoint) {
-            console.log(`✅ Algorithm complete! Best location found with equity score: ${bestScore.toFixed(2)}`);
-            console.log(`🎯 Final coordinates: lat=${bestMidpoint.lat}, lng=${bestMidpoint.lng}`);
-            const finalResult = new google.maps.LatLng(bestMidpoint.lat, bestMidpoint.lng);
-            console.log(`🎯 Returning LatLng object:`, finalResult.toString());
-            return finalResult;
-        } else {
-            console.log(`⚠️ No suitable location found, falling back to geometric midpoint`);
-            console.log(`🎯 Fallback coordinates: lat=${currentSearchCenter.lat}, lng=${currentSearchCenter.lng}`);
-            const fallbackResult = new google.maps.LatLng(currentSearchCenter.lat, currentSearchCenter.lng);
-            console.log(`🎯 Returning fallback LatLng object:`, fallbackResult.toString());
-            return fallbackResult;
-        }
-    }
-
-    async findCommonMRTStation(startingLocations, venueLocation) {
-        if (startingLocations.length !== 2) return null;
-        
-        console.log('🚇 Checking if routes to venue pass through common transit stops...');
-        
-        try {
-            const directionsService = new google.maps.DirectionsService();
-            const routes = [];
-            
-            // Get transit routes from each starting location to the venue
-            for (let i = 0; i < startingLocations.length; i++) {
-                try {
-                    const route = await new Promise((resolve, reject) => {
-                        directionsService.route({
-                            origin: startingLocations[i],
-                            destination: venueLocation,
-                            travelMode: google.maps.TravelMode.TRANSIT,
-                            transitOptions: {
-                                modes: [google.maps.TransitMode.RAIL, google.maps.TransitMode.BUS], // Added BUS
-                                routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
-                            }
-                        }, function(result, status) {
-                            if (status === google.maps.DirectionsStatus.OK) {
-                                resolve(result);
-                            } else {
-                                reject(new Error(`Route ${i + 1} failed: ${status}`));
-                            }
-                        });
-                    });
-                    routes.push(route);
-                } catch (error) {
-                    console.log(`   Route ${i + 1} failed: ${error.message}`);
-                    return null; // If any route fails, can't find common station
-                }
-            }
-            
-            // Extract all transit stops (MRT, LRT, and major bus interchanges) from each route
-            const allStationsInRoutes = routes.map(route => {
-                const stations = [];
-                route.routes[0].legs[0].steps.forEach(step => {
-                    if (step.travel_mode === 'TRANSIT' && step.transit) {
-                        const transitLine = step.transit.line;
-                        const vehicleType = transitLine?.vehicle?.type;
-                        
-                        // Include MRT/LRT stations and major bus interchanges
-                        const isMajorTransitStop = 
-                            vehicleType === 'HEAVY_RAIL' ||  // MRT
-                            vehicleType === 'METRO_RAIL' ||  // LRT  
-                            (vehicleType === 'BUS' && (
-                                step.transit.departure_stop?.name?.toLowerCase().includes('interchange') ||
-                                step.transit.departure_stop?.name?.toLowerCase().includes('terminal') ||
-                                step.transit.arrival_stop?.name?.toLowerCase().includes('interchange') ||
-                                step.transit.arrival_stop?.name?.toLowerCase().includes('terminal')
-                            ));
-                        
-                        if (isMajorTransitStop) {
-                            // Add both departure and arrival stops
-                            if (step.transit.departure_stop) {
-                                stations.push({
-                                    name: step.transit.departure_stop.name,
-                                    location: {
-                                        lat: step.transit.departure_stop.location.lat(),
-                                        lng: step.transit.departure_stop.location.lng()
-                                    },
-                                    type: vehicleType
-                                });
-                            }
-                            if (step.transit.arrival_stop) {
-                                stations.push({
-                                    name: step.transit.arrival_stop.name,
-                                    location: {
-                                        lat: step.transit.arrival_stop.location.lat(),
-                                        lng: step.transit.arrival_stop.location.lng()
-                                    },
-                                    type: vehicleType
-                                });
-                            }
-                        }
-                    }
-                });
-                return stations;
-            });
-            
-            console.log(`   Route 1 transit stops: ${allStationsInRoutes[0].map(s => `${s.name} (${s.type})`).join(', ')}`);
-            console.log(`   Route 2 transit stops: ${allStationsInRoutes[1].map(s => `${s.name} (${s.type})`).join(', ')}`);
-            
-            // Find common transit stops (prioritize MRT/LRT over bus interchanges)
-            const commonStations = allStationsInRoutes[0].filter(station1 => 
-                allStationsInRoutes[1].some(station2 => 
-                    station1.name === station2.name
-                )
-            );
-            
-            if (commonStations.length > 0) {
-                // Prioritize MRT/LRT stations over bus interchanges
-                const mrtStations = commonStations.filter(s => s.type === 'HEAVY_RAIL' || s.type === 'METRO_RAIL');
-                const busInterchanges = commonStations.filter(s => s.type === 'BUS');
-                
-                const bestStation = mrtStations.length > 0 ? mrtStations[0] : busInterchanges[0];
-                console.log(`   ✅ Found common transit stop: ${bestStation.name} (${bestStation.type})`);
-                return bestStation;
-            } else {
-                console.log('   No common major transit stops found on routes');
-                return null;
-            }
-            
-        } catch (error) {
-            console.log(`   Common MRT check failed: ${error.message}`);
-            return null;
-        }
-    }
-
-    async findTransitLineMidpoint(startingLocations) {
-        if (startingLocations.length !== 2) return null;
-        
-        console.log('🚇 Checking for MRT stations on direct transit route...');
-        
-        try {
-            const directionsService = new google.maps.DirectionsService();
-            
-            console.log('   Getting transit directions...');
-            const transitRoute = await new Promise((resolve, reject) => {
-                directionsService.route({
-                    origin: startingLocations[0],
-                    destination: startingLocations[1],
-                    travelMode: google.maps.TravelMode.TRANSIT,
-                    transitOptions: {
-                        modes: [google.maps.TransitMode.RAIL],
-                        routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
-                    }
-                }, function(result, status) {
-                    console.log(`   Transit directions status: ${status}`);
-                    if (status === google.maps.DirectionsStatus.OK) {
-                        resolve(result);
-                    } else {
-                        reject(new Error(`Transit route failed: ${status}`));
-                    }
-                });
-            });
-            
-            const route = transitRoute.routes[0];
-            const leg = route.legs[0];
-            console.log(`   Route found with ${leg.steps.length} steps`);
-            
-            const transitSteps = leg.steps.filter(step => step.travel_mode === 'TRANSIT');
-            console.log(`   Found ${transitSteps.length} transit steps`);
-            
-            if (transitSteps.length === 0) {
-                console.log('   No transit steps found, trying different approach...');
-                // Fallback: search for MRT stations along the geometric midpoint
-                return await this.findMRTNearGeometricMidpoint(startingLocations);
-            }
-            
-            // Log transit step details for debugging
-            transitSteps.forEach((step, i) => {
-                const transit = step.transit;
-                if (transit) {
-                    console.log(`   Transit step ${i + 1}: ${transit.line?.name || transit.line?.short_name || 'Unknown line'}`);
-                    console.log(`     From: ${transit.departure_stop?.name || 'Unknown'}`);
-                    console.log(`     To: ${transit.arrival_stop?.name || 'Unknown'}`);
-                }
-            });
-            
-            // If we have transit steps, try to find midpoint station
-            if (transitSteps.length >= 1) {
-                const firstTransitStep = transitSteps[0];
-                const transitDetails = firstTransitStep.transit;
-                
-                if (transitDetails && transitDetails.departure_stop && transitDetails.arrival_stop) {
-                    console.log(`   Analyzing transit line: ${transitDetails.line?.name || transitDetails.line?.short_name}`);
-                    
-                    // Calculate midpoint between start and end stations
-                    const startStation = transitDetails.departure_stop;
-                    const endStation = transitDetails.arrival_stop;
-                    
-                    const routeMidpoint = this.calculateGeometricMidpoint([
-                        startStation.location,
-                        endStation.location
-                    ]);
-                    
-                    console.log(`   Route midpoint: ${routeMidpoint.lat}, ${routeMidpoint.lng}`);
-                    
-                    // Search for MRT stations near this midpoint
-                    const nearbyStations = await this.findNearbyMRTStations(routeMidpoint, 3000); // Increased radius
-                    
-                    if (nearbyStations.length > 0) {
-                        const bestStation = nearbyStations[0];
-                        console.log(`   🏆 Optimal transit station found: ${bestStation.name}`);
-                        return new google.maps.LatLng(
-                            bestStation.geometry.location.lat(),
-                            bestStation.geometry.location.lng()
-                        );
-                    } else {
-                        console.log('   No MRT stations found near route midpoint');
-                    }
-                }
-            }
-            
-            console.log('   Falling back to geometric midpoint approach...');
-            return await this.findMRTNearGeometricMidpoint(startingLocations);
-            
-        } catch (error) {
-            console.log(`   Transit analysis failed: ${error.message}`);
-            console.log('   Trying fallback MRT search...');
-            return await this.findMRTNearGeometricMidpoint(startingLocations);
-        }
-    }
-
-    async findMRTNearGeometricMidpoint(startingLocations) {
-        console.log('   🔄 Fallback: Searching for MRT stations near geometric midpoint...');
-        
-        const geometricMidpoint = this.calculateGeometricMidpoint(startingLocations);
-        console.log(`   Geometric midpoint: ${geometricMidpoint.lat}, ${geometricMidpoint.lng}`);
-        
-        const nearbyStations = await this.findNearbyMRTStations(geometricMidpoint, 5000); // Large radius
-        
-        if (nearbyStations.length > 0) {
-            const bestStation = nearbyStations[0];
-            console.log(`   🏆 Found nearby MRT station: ${bestStation.name}`);
-            return new google.maps.LatLng(
-                bestStation.geometry.location.lat(),
-                bestStation.geometry.location.lng()
-            );
-        }
-        
-        console.log('   No MRT stations found near geometric midpoint either');
-        return null;
-    }
-
-    async findNearbyMRTStations(center, radius) {
-        const self = this;
-        return new Promise((resolve) => {
-            if (!window.placesService) {
-                console.log('   Places service not available');
-                resolve([]);
-                return;
-            }
-    
-            console.log(`   Searching for MRT stations within ${radius}m...`);
-            
-            window.placesService.nearbySearch({
-                location: new google.maps.LatLng(center.lat, center.lng),
-                radius: radius,
-                types: ['subway_station', 'transit_station'],
-                keyword: 'MRT station Singapore'
-            }, function(results, status) {
-                console.log(`   Places API status: ${status}`);
-                console.log(`   Raw results count: ${results ? results.length : 0}`);
-                
-                if (status === google.maps.places.PlacesServiceStatus.OK) {
-                    // Enhanced Singapore MRT station detection
-                    const stations = results.filter(place => {
-                        const name = place.name.toLowerCase();
-                        const types = place.types.join(' ').toLowerCase();
-                        
-                        // Singapore-specific MRT station patterns
-                        const isMRTStation = 
-                            // Explicit MRT mentions
-                            name.includes('mrt') || 
-                            name.includes('station') ||
-                            name.includes('interchange') ||
-                            
-                            // Google Places types
-                            types.includes('subway_station') ||
-                            types.includes('transit_station') ||
-                            
-                            // Major interchange stations (even without MRT in name)
-                            ['dhoby ghaut', 'raffles place', 'city hall', 'bugis', 'outram park', 
-                             'paya lebar', 'jurong east', 'bishan', 'tampines', 'ang mo kio',
-                             'serangoon', 'marina bay', 'bayfront', 'promenade', 'esplanade'].some(station => 
-                                name.includes(station.replace(' ', '')) || name.includes(station)
-                            ) ||
-                            
-                            // Line-specific patterns (for stations that don't say "MRT")
-                            name.match(/\b(ns|ew|cc|ne|dt|te|ce|cp)\d+\b/i) || // Station codes
-                            
-                            // Common Singapore station naming patterns
-                            name.match(/\w+\s+(mrt|station)/) ||
-                            
-                            // Shopping malls that are MRT stations
-                            ['vivocity', 'marina square', 'citylink', 'raffles city'].some(mall => 
-                                name.includes(mall.replace(' ', ''))
-                            );
-                        
-                        // Exclude false positives
-                        const isFalsePositive = 
-                            name.includes('bus') && !name.includes('mrt') ||
-                            name.includes('taxi') ||
-                            name.includes('parking') ||
-                            name.includes('hotel') ||
-                            name.includes('restaurant') ||
-                            name.includes('mall') && !name.includes('mrt') && !name.includes('station');
-                        
-                        if (isMRTStation && !isFalsePositive) {
-                            console.log(`     ✅ Accepted: ${place.name}`);
-                            return true;
-                        } else {
-                            console.log(`     ❌ Rejected: ${place.name} (${isFalsePositive ? 'false positive' : 'not MRT station'})`);
-                            return false;
-                        }
-                    });
-                    
-                    // Enhanced sorting: prioritize interchange stations, then by distance
-                    stations.sort((a, b) => {
-                        const aName = a.name.toLowerCase();
-                        const bName = b.name.toLowerCase();
-                        
-                        // Major interchanges get priority
-                        const majorInterchanges = [
-                            'dhoby ghaut', 'raffles place', 'city hall', 'bugis', 'outram park',
-                            'paya lebar', 'jurong east', 'bishan', 'serangoon', 'bayfront'
-                        ];
-                        
-                        const aIsInterchange = majorInterchanges.some(station => aName.includes(station.replace(' ', ''))) ||
-                                              aName.includes('interchange');
-                        const bIsInterchange = majorInterchanges.some(station => bName.includes(station.replace(' ', ''))) ||
-                                              bName.includes('interchange');
-                        
-                        if (aIsInterchange && !bIsInterchange) return -1;
-                        if (!aIsInterchange && bIsInterchange) return 1;
-                        
-                        // If both or neither are interchanges, sort by distance
-                        const distA = self.calculateDistance(center, {
-                            lat: a.geometry.location.lat(),
-                            lng: a.geometry.location.lng()
-                        });
-                        const distB = self.calculateDistance(center, {
-                            lat: b.geometry.location.lat(),
-                            lng: b.geometry.location.lng()
-                        });
-                        return distA - distB;
-                    });
-                    
-                    console.log(`   Found ${stations.length} MRT stations after enhanced filtering`);
-                    if (stations.length > 0) {
-                        console.log(`   Priority stations: ${stations.slice(0, 3).map(s => s.name).join(', ')}`);
-                    }
-                    resolve(stations);
-                } else {
-                    console.log(`   MRT station search failed: ${status}`);
-                    resolve([]);
-                }
-            });
+    // KEEP ONLY ONE VERSION of each calculation method
+    calculateGeometricMidpoint(locations) {
+        let totalLat = 0, totalLng = 0;
+        locations.forEach(location => {
+            const lat = typeof location.lat === 'function' ? location.lat() : location.lat;
+            const lng = typeof location.lng === 'function' ? location.lng() : location.lng;
+            totalLat += lat;
+            totalLng += lng;
         });
+        return { 
+            lat: totalLat / locations.length, 
+            lng: totalLng / locations.length 
+        };
     }
-    
+
+    calculateDistance(point1, point2) {
+        const lat1 = typeof point1.lat === 'function' ? point1.lat() : point1.lat;
+        const lng1 = typeof point1.lng === 'function' ? point1.lng() : point1.lng;
+        const lat2 = typeof point2.lat === 'function' ? point2.lat() : point2.lat;
+        const lng2 = typeof point2.lng === 'function' ? point2.lng() : point2.lng;
+        
+        const R = 6371000;
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lng2 - lng1) * Math.PI / 180;
+        
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        
+        return R * c;
+    }
+
+    calculateVariance(values) {
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        const squaredDiffs = values.map(value => Math.pow(value - mean, 2));
+        return squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
+    }
+
     showRadiusCircle(center, radius, existingCircle) {
         if (existingCircle) existingCircle.setMap(null);
         
@@ -563,25 +847,106 @@ class EnhancedSocialMidpointCalculator {
         return circle;
     }
 
-    calculateGeometricMidpoint(locations) {
-        let totalLat = 0, totalLng = 0;
-        locations.forEach(location => {
-            totalLat += typeof location.lat === 'function' ? location.lat() : location.lat;
-            totalLng += typeof location.lng === 'function' ? location.lng() : location.lng;
-        });
-        return { 
-            lat: totalLat / locations.length, 
-            lng: totalLng / locations.length 
-        };
+    async calculateSocialMidpoint(startingLocations) {
+        const groupSize = startingLocations.length;
+        console.log(`🎯 Starting Enhanced Social Fairness Algorithm for ${groupSize} people...`);
+        
+        if (groupSize < 2) {
+            throw new Error('Need at least 2 locations for midpoint calculation');
+        }
+    
+        this.adjustParametersForGroupSize(groupSize);
+        this.adjustParametersForDistance(startingLocations);
+        
+        let currentSearchCenter = this.calculateGeometricMidpoint(startingLocations);
+        let searchRadius = this.initialRadius;
+        let bestMidpoint = null;
+        let bestScore = Infinity;
+        let radiusCircle = null;
+        let iteration = 0;
+        
+        while (iteration < this.maxIterations && searchRadius <= this.maxSearchRadius) {
+            iteration++;
+            console.log(`🔍 Iteration ${iteration}: Searching ${searchRadius}m radius for ${groupSize} people`);
+            
+            radiusCircle = this.showRadiusCircle(currentSearchCenter, searchRadius, radiusCircle);
+            
+            // RESTORED: Actually search for venues instead of just using geometric midpoint
+            const socialVenues = await this.findSocialVenues(currentSearchCenter, searchRadius);
+            
+            if (socialVenues.length < this.minVenuesRequired) {
+                console.log(`❌ Only ${socialVenues.length} venues found, need ${this.minVenuesRequired}. Expanding search...`);
+                searchRadius *= this.radiusIncrementFactor;
+                continue;
+            }
+            
+            console.log(`✅ Found ${socialVenues.length} venues to analyze`);
+            
+            // RESTORED: Analyze venues for travel equity
+            const venueAnalysis = await this.analyzeVenueTravelEquity(socialVenues, startingLocations);
+            
+            if (venueAnalysis.length === 0) {
+                console.log(`❌ No accessible venues found. Expanding search...`);
+                searchRadius *= this.radiusIncrementFactor;
+                continue;
+            }
+            
+            // RESTORED: Find the most equitable venue
+            const currentBestVenue = this.findMostEquitableVenue(venueAnalysis);
+            
+            if (currentBestVenue && currentBestVenue.equityScore < bestScore) {
+                bestScore = currentBestVenue.equityScore;
+                bestMidpoint = currentBestVenue.location;
+                
+                console.log(`⭐ New best venue: ${currentBestVenue.name}`);
+                console.log(`   Max travel time: ${currentBestVenue.maxTravelTime.toFixed(1)}min`);
+                console.log(`   Avg travel time: ${currentBestVenue.avgTravelTime.toFixed(1)}min`);
+                console.log(`   Time variance: ${currentBestVenue.timeVariance.toFixed(1)}min²`);
+                console.log(`   Equity score: ${currentBestVenue.equityScore.toFixed(2)}`);
+                
+                // Update search center to focus around the best venue
+                currentSearchCenter = {
+                    lat: currentBestVenue.location.lat,
+                    lng: currentBestVenue.location.lng
+                };
+                searchRadius = Math.max(400, searchRadius * 0.6);
+                console.log(`🎯 Focusing search around best venue, radius now ${searchRadius}m`);
+            } else {
+                searchRadius *= this.radiusIncrementFactor;
+                console.log(`🔄 No improvement found, expanding to ${searchRadius}m`);
+            }
+            
+            // Early termination for excellent results
+            if (bestMidpoint && currentBestVenue && 
+                currentBestVenue.timeVariance < 4.0 && 
+                currentBestVenue.timeRange <= this.maxAcceptableTimeDifference) {
+                console.log(`🏆 Excellent equity found (variance < 4min², range ≤ ${this.maxAcceptableTimeDifference}min), stopping early!`);
+                break;
+            }
+        }
+        
+        setTimeout(() => {
+            if (radiusCircle) radiusCircle.setMap(null);
+        }, 3000);
+        
+        if (bestMidpoint) {
+            console.log(`✅ Algorithm complete! Best location found with equity score: ${bestScore.toFixed(2)}`);
+            return new google.maps.LatLng(bestMidpoint.lat, bestMidpoint.lng);
+        } else {
+            console.log(`⚠️ No suitable venues found, falling back to geometric midpoint`);
+            const fallback = this.calculateGeometricMidpoint(startingLocations);
+            return new google.maps.LatLng(fallback.lat, fallback.lng);
+        }
     }
 
     async findSocialVenues(center, radius) {
         return new Promise((resolve) => {
             if (!window.placesService) {
+                console.warn('Places service not available');
                 resolve([]);
                 return;
             }
-
+    
             window.placesService.nearbySearch({
                 location: new google.maps.LatLng(center.lat, center.lng),
                 radius: radius,
@@ -595,71 +960,23 @@ class EnhancedSocialMidpointCalculator {
                         
                         const name = place.name.toLowerCase();
                         const excludeKeywords = [
-                            // Private/Exclusive venues
                             'private', 'club', 'country club', 'golf', 'yacht',
                             'members only', 'exclusive', 'condo', 'condominium',
-                            
-                            // Singapore club abbreviations (CRITICAL!)
                             'sicc', 'tcc', 'rcc', 'acc', 'scc', 'sgcc',
-                            'rc ', ' rc', 'cc ', ' cc',
-                            
-                            // Inappropriate/Inaccessible places
-                            'reservoir', 'cemetery', 'hospital', 'clinic', 'hotel room',
-                            'medical', 'dental', 'pharmacy', 'bank', 'atm',
-                            
-                            // Singapore-specific exclusions
-                            'sentosa cove', 'country club', 'golf club', 'polo club',
-                            'raffles country', 'singapore island', 'tanglin club',
-                            'american club', 'singapore cricket', 'orchid country',
-                            'warren golf', 'sembawang country', 'laguna national',
-                            
-                            // Golf-related terms (but not marina - too many false positives)
-                            'look out', 'lookout', 'clubhouse', 'pro shop',
-                            'tee box', 'driving range', 'putting green'
+                            'reservoir', 'cemetery', 'hospital', 'clinic'
                         ];
-                        
-                        // More precise marina filtering - only exclude actual marinas, not places named after Marina area
-                        const isActualMarina = name.includes('marina') && (
-                            name.includes('yacht') || 
-                            name.includes('boat') || 
-                            name.includes('sailing') ||
-                            place.types.some(type => type.includes('marina'))
-                        );
-                        
-                        if (isActualMarina) {
-                            console.log(`❌ Excluded: ${place.name} (actual marina/yacht facility)`);
-                            return false;
-                        }
                         
                         if (excludeKeywords.some(keyword => name.includes(keyword))) {
-                            console.log(`❌ Excluded: ${place.name} (contains: ${excludeKeywords.find(k => name.includes(k))})`);
-                            return false;
-                        }
-                        
-                        const excludeTypes = [
-                            'country_club', 'golf_course', 'private_club', 'yacht_club',
-                            'health', 'hospital', 'pharmacy', 'bank', 'atm',
-                            'real_estate_agency', 'insurance_agency', 'lawyer'
-                        ];
-                        if (place.types && place.types.some(type => excludeTypes.includes(type))) {
-                            console.log(`❌ Excluded: ${place.name} (type: ${place.types.find(t => excludeTypes.includes(t))})`);
                             return false;
                         }
                         
                         const goodTypes = [
                             'restaurant', 'cafe', 'shopping_mall', 'food', 'establishment', 
-                            'store', 'bakery', 'bar', 'movie_theater', 'park', 
-                            'tourist_attraction', 'museum', 'library', 'subway_station',
-                            'point_of_interest', 'meal_takeaway'
+                            'store', 'bakery', 'bar', 'movie_theater', 'park'
                         ];
                         const hasGoodType = place.types.some(type => goodTypes.includes(type));
                         
-                        if (!hasGoodType) {
-                            console.log(`❌ Excluded: ${place.name} (no good types: ${place.types.join(', ')})`);
-                            return false;
-                        }
-                        
-                        return true;
+                        return hasGoodType;
                     });
                     
                     filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
@@ -673,44 +990,16 @@ class EnhancedSocialMidpointCalculator {
                 }
             });
         });
-
-        
     }
-
-    // 2. Rebalance the equity scoring weights
-    calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange) {
-        const timeVariance = this.calculateVariance(travelTimes);
-        
-        // Normalize values to prevent one metric from dominating
-        const normalizedVariance = timeVariance / 100; // Typical variance 0-100
-        const normalizedRange = timeRange / 60; // Typical range 0-60min  
-        const normalizedAvgTime = avgTime / this.maxTravelTimeMinutes; // 0-1 scale
-        
-        // More balanced weights
-        let equityScore = (normalizedVariance * 0.5) + 
-                        (normalizedRange * 0.3) + 
-                        (normalizedAvgTime * 0.4); // Favor efficient locations
-        
-        // Mixed mode penalty (but less harsh)
-        if (mixedMode && timeRange > this.maxAcceptableTimeDifference * 0.8) {
-            const mixedModePenalty = Math.pow(timeRange / this.maxAcceptableTimeDifference, 1.2) * 0.2;
-            equityScore += mixedModePenalty;
-            console.log(`   ⚠️ Mixed mode penalty: +${mixedModePenalty.toFixed(2)}`);
-        }
-        
-        return equityScore;
-    }
-
-    // 3. Update the analysis method to use new scoring
     async analyzeVenueTravelEquity(venues, startingLocations) {
         console.log(`📊 Analyzing travel equity for ${venues.length} venues...`);
         const directionsService = new google.maps.DirectionsService();
         const analysis = [];
-
+    
         for (let i = 0; i < venues.length; i++) {
             const venue = venues[i];
             
-            const modeResult = await this.findPerUserTransportMode(
+            const modeResult = await this.calculateTravelTimesForVenue(
                 directionsService, 
                 startingLocations, 
                 venue.geometry.location,
@@ -730,7 +1019,6 @@ class EnhancedSocialMidpointCalculator {
             const timeVariance = this.calculateVariance(travelTimes);
             const timeRange = maxTime - minTime;
             
-            // Use the new balanced scoring system
             const equityScore = this.calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange);
             
             analysis.push({
@@ -753,7 +1041,7 @@ class EnhancedSocialMidpointCalculator {
                 mixedMode: mixedMode
             });
         }
-
+    
         analysis.sort((a, b) => a.equityScore - b.equityScore);
         
         console.log(`   ✅ Successfully analyzed ${analysis.length} venues`);
@@ -762,28 +1050,24 @@ class EnhancedSocialMidpointCalculator {
             const modeText = venue.mixedMode ? 
                 `${venue.transportModes[0]}/${venue.transportModes[1]}` : 
                 venue.transportModes[0];
-            console.log(`   ${idx + 1}. ${venue.name} [${modeText}]: equity=${venue.equityScore.toFixed(2)}, variance=${venue.timeVariance.toFixed(1)}min², range=${venue.timeRange.toFixed(1)}min, avg=${venue.avgTravelTime.toFixed(1)}min`);
+            console.log(`   ${idx + 1}. ${venue.name} [${modeText}]: equity=${venue.equityScore.toFixed(2)}, variance=${venue.timeVariance.toFixed(1)}min², range=${venue.timeRange.toFixed(1)}min`);
         });
         
         return analysis;
     }
-
-    // NEW METHOD: Find a transport mode that works for everyone
-    async findPerUserTransportMode(directionsService, startingLocations, destination, venueName) {
-        console.log(`🚌 Calculating travel times using each person's preferred transport mode for ${venueName}...`);
+    
+    async calculateTravelTimesForVenue(directionsService, startingLocations, destination, venueName) {
+        console.log(`🚌 Calculating travel times for ${venueName}...`);
         
-        const userModes = [
-            window.userTransportModes['location-1'] || 'TRANSIT',
-            window.userTransportModes['location-2'] || 'TRANSIT'
-        ];
-        
-        console.log(`   Person 1 prefers: ${userModes[0]}`);
-        console.log(`   Person 2 prefers: ${userModes[1]}`);
+        const userModes = [];
+        startingLocations.forEach((_, index) => {
+            const locationId = `location-${index + 1}`;
+            userModes.push(window.userTransportModes.get(locationId) || 'TRANSIT');
+        });
         
         const travelTimes = [];
         const actualModes = [];
         
-        // Calculate travel time for each person using their preferred mode
         for (let personIdx = 0; personIdx < startingLocations.length; personIdx++) {
             const preferredMode = userModes[personIdx];
             const googleMapsMode = this.convertToGoogleMapsMode(preferredMode);
@@ -797,21 +1081,10 @@ class EnhancedSocialMidpointCalculator {
                 );
                 
                 if (!time) {
-                    console.log(`     ❌ Person ${personIdx + 1}: ${preferredMode} route failed`);
                     return null;
                 }
                 
-                // Apply mode-specific multipliers and limits
-                const modeConfig = this.getTransportModeConfig(preferredMode);
-                const adjustedTime = time * modeConfig.multiplier;
-                
-                if (adjustedTime > modeConfig.maxTime) {
-                    console.log(`     ❌ Person ${personIdx + 1}: ${preferredMode} ${adjustedTime.toFixed(1)}min > ${modeConfig.maxTime}min limit`);
-                    return null;
-                }
-                
-                console.log(`     ✅ Person ${personIdx + 1}: ${preferredMode} ${adjustedTime.toFixed(1)}min`);
-                travelTimes.push(adjustedTime);
+                travelTimes.push(time);
                 actualModes.push(preferredMode);
                 
             } catch (error) {
@@ -820,20 +1093,13 @@ class EnhancedSocialMidpointCalculator {
             }
         }
         
-        const maxTime = Math.max(...travelTimes);
-        const minTime = Math.min(...travelTimes);
-        const range = maxTime - minTime;
-        
-        console.log(`   ✅ Mixed modes work! Person 1: ${actualModes[0]} ${travelTimes[0].toFixed(1)}min, Person 2: ${actualModes[1]} ${travelTimes[1].toFixed(1)}min (range: ${range.toFixed(1)}min)`);
-        
         return {
             travelTimes: travelTimes,
-            transportModes: actualModes, // Array of modes used
+            transportModes: actualModes,
             mixedMode: actualModes[0] !== actualModes[1]
         };
     }
-
-
+    
     async getTravelTime(directionsService, origin, destination, travelMode) {
         return new Promise((resolve, reject) => {
             const request = {
@@ -859,127 +1125,39 @@ class EnhancedSocialMidpointCalculator {
             });
         });
     }
-
-    findParetoOptimalVenues(analysis) {
-        console.log('🎯 Finding Pareto optimal venues (mathematically fair solutions)...');
-        
-        if (analysis.length === 0) return [];
-        
-        // Create points for Pareto analysis: [person1_time, person2_time, venue_data]
-        const points = analysis.map(venue => ({
-            person1Time: venue.travelTimes[0],
-            person2Time: venue.travelTimes[1],
-            venue: venue
-        }));
-        
-        // Find Pareto front: points where no other point dominates
-        const paretoFront = [];
-        
-        for (let i = 0; i < points.length; i++) {
-            const currentPoint = points[i];
-            let isDominated = false;
-            
-            // Check if any other point dominates this one
-            for (let j = 0; j < points.length; j++) {
-                if (i === j) continue;
-                
-                const otherPoint = points[j];
-                
-                // Point A dominates point B if A is better in all objectives
-                const dominatesInTime1 = otherPoint.person1Time <= currentPoint.person1Time;
-                const dominatesInTime2 = otherPoint.person2Time <= currentPoint.person2Time;
-                const strictlyBetterInOne = otherPoint.person1Time < currentPoint.person1Time || 
-                                           otherPoint.person2Time < currentPoint.person2Time;
-                
-                if (dominatesInTime1 && dominatesInTime2 && strictlyBetterInOne) {
-                    isDominated = true;
-                    console.log(`   ${currentPoint.venue.name} dominated by ${otherPoint.venue.name}`);
-                    break;
-                }
-            }
-            
-            if (!isDominated) {
-                paretoFront.push(currentPoint);
-            }
-        }
-        
-        console.log(`   🏆 Found ${paretoFront.length} Pareto optimal venues from ${analysis.length} candidates`);
-        
-        // Sort Pareto front by "closeness to ideal" (equal travel times + minimal total time)
-        paretoFront.sort((a, b) => {
-            const idealDistance_a = Math.sqrt(
-                Math.pow(a.person1Time - a.person2Time, 2) + // Fairness: prefer equal times
-                Math.pow((a.person1Time + a.person2Time) / 2 - 30, 2) // Efficiency: prefer ~30min total
-            );
-            
-            const idealDistance_b = Math.sqrt(
-                Math.pow(b.person1Time - b.person2Time, 2) + 
-                Math.pow((b.person1Time + b.person2Time) / 2 - 30, 2)
-            );
-            
-            return idealDistance_a - idealDistance_b;
-        });
-        
-        // Log the Pareto front for debugging
-        console.log('   📊 Pareto optimal solutions:');
-        paretoFront.slice(0, 5).forEach((point, idx) => {
-            const venue = point.venue;
-            const fairnessGap = Math.abs(point.person1Time - point.person2Time);
-            console.log(`   ${idx + 1}. ${venue.name}: [${point.person1Time.toFixed(1)}min, ${point.person2Time.toFixed(1)}min] gap=${fairnessGap.toFixed(1)}min`);
-        });
-        
-        return paretoFront.map(point => point.venue);
-    }
     
-    /**
-     * Enhanced version of findMostEquitableVenue using Pareto optimization
-     */
     findMostEquitableVenue(analysis) {
         if (analysis.length === 0) return null;
         
-        const paretoOptimal = this.findParetoOptimalVenues(analysis);
+        const best = analysis[0]; // Already sorted by equity score
         
-        if (paretoOptimal.length === 0) {
-            console.warn('No Pareto optimal venues found, falling back to best single venue');
-            return analysis[0];
-        }
-        
-        const best = paretoOptimal[0];
-        
-        console.log(`🎯 Selected Pareto optimal venue: ${best.name}`);
+        console.log(`🎯 Selected venue: ${best.name}`);
         console.log(`   Travel times: [${best.travelTimes.map(t => t.toFixed(1)).join(', ')}] minutes`);
         console.log(`   Fairness gap: ${Math.abs(best.travelTimes[0] - best.travelTimes[1]).toFixed(1)} minutes`);
         console.log(`   Average time: ${best.avgTravelTime.toFixed(1)} minutes`);
         
-        // 🔥 NEW: Store the algorithm's calculated times globally
-        window.algorithmCalculatedTimes = {
-            venue: best,
-            travelTimes: best.travelTimes,
-            transportModes: best.transportModes,
-            mixedMode: best.mixedMode
-        };
-        
         return best;
     }
-
-    calculateVariance(values) {
-        const mean = values.reduce((a, b) => a + b, 0) / values.length;
-        const squaredDiffs = values.map(value => Math.pow(value - mean, 2));
-        return squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
+    
+    calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange) {
+        const timeVariance = this.calculateVariance(travelTimes);
+        
+        const normalizedVariance = timeVariance / 100;
+        const normalizedRange = timeRange / 60;
+        const normalizedAvgTime = avgTime / this.maxTravelTimeMinutes;
+        
+        let equityScore = (normalizedVariance * 0.5) + 
+                        (normalizedRange * 0.3) + 
+                        (normalizedAvgTime * 0.4);
+        
+        if (mixedMode && timeRange > this.maxAcceptableTimeDifference * 0.8) {
+            const mixedModePenalty = Math.pow(timeRange / this.maxAcceptableTimeDifference, 1.2) * 0.2;
+            equityScore += mixedModePenalty;
+        }
+        
+        return equityScore;
     }
-
-    calculateDistance(p1, p2) {
-        const R = 6371000;
-        const lat1Rad = p1.lat * Math.PI / 180;
-        const lat2Rad = p2.lat * Math.PI / 180;
-        const deltaLat = (p2.lat - p1.lat) * Math.PI / 180;
-        const deltaLng = (p2.lng - p1.lng) * Math.PI / 180;
-
-        const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
-                Math.cos(lat1Rad) * Math.cos(lat2Rad) *
-                Math.sin(deltaLng/2) * Math.sin(deltaLng/2);
-        return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * R;
-    }
+    
     convertToGoogleMapsMode(uiMode) {
         switch (uiMode) {
             case 'TRANSIT': return google.maps.TravelMode.TRANSIT;
@@ -989,23 +1167,77 @@ class EnhancedSocialMidpointCalculator {
         }
     }
     
-    getTransportModeConfig(mode) {
-        const baseConfigs = {
-            'TRANSIT': { multiplier: 1.0, maxTime: this.maxTravelTimeMinutes },
-            'WALKING': { multiplier: 1.0, maxTime: 45 }, // Walking has shorter limit
-            'DRIVING': { multiplier: 1.3, maxTime: this.maxTravelTimeMinutes } // Driving penalty for traffic
-        };
-        
-        return baseConfigs[mode] || baseConfigs['TRANSIT'];
-    }
-
 }
 
-// Replace the existing calculateSocialMidpoint function
 async function calculateSocialMidpoint(locations) {
-    const calculator = new EnhancedSocialMidpointCalculator();
-    const result = await calculator.calculateSocialMidpoint(locations);
-    return result;
+    if (!locations || !Array.isArray(locations) || locations.length < 2) {
+        throw new Error('Invalid locations provided for midpoint calculation');
+    }
+    
+    try {
+        console.log(`🚀 Starting social midpoint calculation for ${locations.length} people...`);
+        
+        const validLocations = locations.filter(loc => {
+            if (!loc) return false;
+            if (typeof loc.lat !== 'function' && typeof loc.lat !== 'number') return false;
+            if (typeof loc.lng !== 'function' && typeof loc.lng !== 'number') return false;
+            return true;
+        });
+        
+        if (validLocations.length < 2) {
+            throw new Error('Not enough valid locations for calculation');
+        }
+        
+        const calculator = new EnhancedSocialMidpointCalculator();
+        const result = await calculator.calculateSocialMidpoint(validLocations);
+        
+        if (result && result.lat && result.lng) {
+            console.log(`🎯 Enhanced social midpoint calculation successful for ${validLocations.length} people`);
+            return result;
+        } else {
+            throw new Error('Enhanced algorithm returned invalid result');
+        }
+    } catch (error) {
+        console.warn(`Enhanced calculation failed:`, error);
+        showErrorNotification('Using simple midpoint calculation');
+        return calculateMidpoint(locations);
+    }
+}
+
+// KEEP ONLY ONE VERSION of calculateMidpoint
+function calculateMidpoint(locations) {
+    if (!locations || locations.length < 2) {
+        console.warn('calculateMidpoint: Need at least 2 locations');
+        return null;
+    }
+
+    let totalLat = 0;
+    let totalLng = 0;
+
+    locations.forEach(location => {
+        if (typeof location.lat === 'function') {
+            totalLat += location.lat();
+            totalLng += location.lng();
+        } else {
+            totalLat += location.lat;
+            totalLng += location.lng;
+        }
+    });
+
+    const avgLat = totalLat / locations.length;
+    const avgLng = totalLng / locations.length;
+
+    return new google.maps.LatLng(avgLat, avgLng);
+}
+
+function calculateMidpointFromMarkers() {
+    const markers = Object.values(window.locationMarkers || {}).filter(marker => marker);
+    
+    if (markers.length >= 2) {
+        const locations = markers.map(marker => marker.getPosition());
+        window.calculatedMidpoint = calculateMidpoint(locations);
+        console.log('Geometric midpoint calculated:', window.calculatedMidpoint);
+    }
 }
 
 // Initialize map with Singapore as default center
@@ -1022,7 +1254,6 @@ async function initMap() {
         }
         
         console.log('Map container found:', mapContainer);
-        console.log('Map container dimensions:', mapContainer.offsetWidth, mapContainer.offsetHeight);
         
         if (mapContainer.offsetWidth === 0 || mapContainer.offsetHeight === 0) {
             console.log('Fixing map container dimensions');
@@ -1055,6 +1286,11 @@ async function initMap() {
         window.placesService = new google.maps.places.PlacesService(map);
         
         console.log("Google Maps initialized successfully");
+        
+        // Initialize hybrid location manager after map is ready
+        if (window.hybridLocationManager) {
+            window.hybridLocationManager.initialize();
+        }
     } catch (error) {
         console.error("Error initializing Google Maps:", error);
     }
@@ -1108,8 +1344,25 @@ async function initWithPlaceAutocompleteElement(locationInputs) {
                         return;
                     }
                     
-                    addLocationMarker(place.geometry.location, input.id);
-                    checkBothLocationsAndShowButton();
+                    // Store location data
+                    window.locationData.set(input.id, {
+                        place: place,
+                        position: place.geometry.location,
+                        transportMode: window.userTransportModes.get(input.id) || 'TRANSIT',
+                        address: place.formatted_address || place.name
+                    });
+                    
+                    // Get person color for marker
+                    const container = input.closest('.location-container');
+                    const colorElement = container?.querySelector('.location-icon');
+                    const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+                    
+                    addLocationMarker(place.geometry.location, input.id, personColor);
+                    
+                    // Use the hybrid manager's debounced method
+                    if (window.hybridLocationManager) {
+                        window.hybridLocationManager.debouncedLocationCheck();
+                    }
                 } catch (error) {
                     console.error('Error handling place selection:', error);
                 }
@@ -1125,7 +1378,7 @@ function initWithLegacyAutocomplete(locationInputs) {
         locationInputs.forEach(input => {
             const autocomplete = new window.Autocomplete(input, {
                 componentRestrictions: { country: "sg" },
-                fields: ["address_components", "geometry", "name"],
+                fields: ["address_components", "geometry", "name", "formatted_address"],
                 types: ["address"]
             });
             
@@ -1134,12 +1387,29 @@ function initWithLegacyAutocomplete(locationInputs) {
             autocomplete.addListener('place_changed', function() {
                 const place = autocomplete.getPlace();
                 if (!place.geometry) {
-                    window.alert("No details available for: '" + place.name + "'");
+                    console.warn("No details available for: '" + place.name + "'");
                     return;
                 }
                 
-                addLocationMarker(place.geometry.location, input.id);
-                checkBothLocationsAndShowButton();
+                // Store location data
+                window.locationData.set(input.id, {
+                    place: place,
+                    position: place.geometry.location,
+                    transportMode: window.userTransportModes.get(input.id) || 'TRANSIT',
+                    address: place.formatted_address || place.name
+                });
+                
+                // Get person color for marker
+                const container = input.closest('.location-container');
+                const colorElement = container?.querySelector('.location-icon');
+                const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+                
+                addLocationMarker(place.geometry.location, input.id, personColor);
+                
+                // Use the hybrid manager's debounced method
+                if (window.hybridLocationManager) {
+                    window.hybridLocationManager.debouncedLocationCheck();
+                }
             });
         });
     } catch (error) {
@@ -1150,153 +1420,19 @@ function initWithLegacyAutocomplete(locationInputs) {
 function setupMapMarkers() {
     window.locationMarkers = {};
     window.midpointMarker = null;
+    window.directionsRenderers = [];
 
     if (window.google && window.google.maps) {
         window.geocoder = new google.maps.Geocoder();
     }
 }
 
-function addLocationMarker(location, inputId) {
-    if (window.locationMarkers && window.locationMarkers[inputId]) {
-        window.locationMarkers[inputId].setMap(null);
-    }
-
-    const marker = new google.maps.Marker({
-        position: location,
-        map: window.midwhereahMap,
-        title: document.getElementById(inputId) ? document.getElementById(inputId).value : 'Location',
-        animation: google.maps.Animation.DROP
-    });
-
-    window.locationMarkers[inputId] = marker;
-
-    if (window.midwhereahMap) {
-        window.midwhereahMap.panTo(location);
-    }
-
-    setTimeout(() => {
-        calculateMidpointFromMarkers();
-    }, 100);
-}
-
-function checkBothLocationsAndShowButton() {
-    const location1 = document.getElementById('location-1');
-    const location2 = document.getElementById('location-2');
-    const findCentralBtn = document.getElementById('find-central-btn');
-
-    if (!location1 || !location2 || !findCentralBtn) return;
-
-    const hasValue1 = location1.value.trim() !== '';
-    const hasValue2 = location2.value.trim() !== '';
-
-    if (hasValue1 && hasValue2) {
-        findCentralBtn.classList.add('active');
-        console.log('Both locations filled, showing button');
-        
-        window.calculatedMidpoint = null;
-        
-        if (window.midpointMarker) {
-            window.midpointMarker.setVisible(false);
-        }
-        
-        geocodeAndCreateMarkers();
-    } else {
-        findCentralBtn.classList.remove('active');
-        window.calculatedMidpoint = null;
-        
-        if (!hasValue1 && window.locationMarkers['location-1']) {
-            window.locationMarkers['location-1'].setMap(null);
-            delete window.locationMarkers['location-1'];
-        }
-        if (!hasValue2 && window.locationMarkers['location-2']) {
-            window.locationMarkers['location-2'].setMap(null);
-            delete window.locationMarkers['location-2'];
-        }
-        
-        if (window.midpointMarker) {
-            window.midpointMarker.setVisible(false);
-        }
-    }
-}
-
-function geocodeAndCreateMarkers() {
-    const location1 = document.getElementById('location-1');
-    const location2 = document.getElementById('location-2');
-
-    if (!location1.value.trim() || !location2.value.trim()) return;
-
-    if (!window.geocoder && window.google && window.google.maps) {
-        window.geocoder = new google.maps.Geocoder();
-    }
-
-    if (!window.geocoder) {
-        console.warn('Geocoder not available yet');
-        return;
-    }
-
-    if (window.geocodingTimeout1) {
-        clearTimeout(window.geocodingTimeout1);
-    }
-    if (window.geocodingTimeout2) {
-        clearTimeout(window.geocodingTimeout2);
-    }
-
-    let geocodedCount = 0;
-    const totalNeeded = 2;
-
-    const geocodeLocation1 = () => {
-        if (!location1.value.trim()) return;
-        
-        window.geocoder.geocode({ 
-            address: location1.value.trim() + ', Singapore',
-            componentRestrictions: { country: 'SG' }
-        }, function(results, status) {
-            if (status === 'OK' && results[0]) {
-                if (location1.value.trim() !== '') {
-                    addLocationMarker(results[0].geometry.location, 'location-1');
-                    geocodedCount++;
-                    if (geocodedCount === totalNeeded) {
-                        calculateMidpointFromMarkers();
-                    }
-                }
-            } else {
-                console.warn('Geocoding failed for location 1:', status);
-            }
-        });
-    };
-
-    const geocodeLocation2 = () => {
-        if (!location2.value.trim()) return;
-        
-        window.geocoder.geocode({ 
-            address: location2.value.trim() + ', Singapore',
-            componentRestrictions: { country: 'SG' }
-        }, function(results, status) {
-            if (status === 'OK' && results[0]) {
-                if (location2.value.trim() !== '') {
-                    addLocationMarker(results[0].geometry.location, 'location-2');
-                    geocodedCount++;
-                    if (geocodedCount === totalNeeded) {
-                        calculateMidpointFromMarkers();
-                    }
-                }
-            } else {
-                console.warn('Geocoding failed for location 2:', status);
-            }
-        });
-    };
-
-    window.geocodingTimeout1 = setTimeout(geocodeLocation1, 1000);
-    window.geocodingTimeout2 = setTimeout(geocodeLocation2, 1000);
-}
-
 function calculateMidpointFromMarkers() {
-    const marker1 = window.locationMarkers && window.locationMarkers['location-1'];
-    const marker2 = window.locationMarkers && window.locationMarkers['location-2'];
-
-    if (marker1 && marker2) {
-        const locations = [marker1.getPosition(), marker2.getPosition()];
-        
+    // Get all active markers
+    const markers = Object.values(window.locationMarkers || {}).filter(marker => marker);
+    
+    if (markers.length >= 2) {
+        const locations = markers.map(marker => marker.getPosition());
         window.calculatedMidpoint = calculateMidpoint(locations);
         console.log('Geometric midpoint calculated:', window.calculatedMidpoint);
     }
@@ -1331,44 +1467,18 @@ function setupMobileMenu() {
     console.log('Mobile menu disabled - no hamburger menu');
 }
 
-function setupLocationInputs() {
-    const locationInputs = document.querySelectorAll('.location-input');
-    locationInputs.forEach(input => {
-        initializeAutocompleteForInput(input);
-    });
 
-    function initializeAutocompleteForInput(input) {
-        try {
-            if (google.maps.places && google.maps.places.Autocomplete) {
-                const autocomplete = new google.maps.places.Autocomplete(input, {
-                    componentRestrictions: { country: "sg" },
-                    fields: ["address_components", "geometry", "name"],
-                    types: ["address"]
-                });
-                
-                input.autocomplete = autocomplete;
-                
-                autocomplete.addListener('place_changed', function() {
-                    const place = autocomplete.getPlace();
-                    if (!place.geometry) {
-                        console.warn("No details available for: '" + place.name + "'");
-                        return;
-                    }
-                    
-                    addLocationMarker(place.geometry.location, input.id);
-                    checkBothLocationsAndShowButton();
-                });
-            } else {
-                console.warn('Google Maps Places API not available yet. Will retry initialization later.');
-                setTimeout(() => {
-                    if (google.maps.places && google.maps.places.Autocomplete) {
-                        initializeAutocompleteForInput(input);
-                    }
-                }, 1000);
-            }
-        } catch (error) {
-            console.error('Error initializing autocomplete:', error);
-        }
+function setupLocationInputs() {
+    console.log('📍 Setting up location inputs...');
+    
+    // Initialize the hybrid location manager if not already done
+    if (window.hybridLocationManager && !window.hybridLocationManager.initialized) {
+        console.log('Initializing hybrid location manager...');
+        window.hybridLocationManager.initialize();
+    } else if (window.hybridLocationManager) {
+        console.log('Hybrid location manager already initialized');
+    } else {
+        console.warn('HybridLocationManager not found!');
     }
 }
 
@@ -1404,11 +1514,13 @@ function setupBottomNavigation() {
 
 function showCreateGroupModal(){
     const menu = document.getElementById('dropdown-menu');
-    menu.classList.toggle('hidden');
+    if (menu) {
+        menu.classList.toggle('hidden');
+    }
 }
 
 function setupUserInfo() {
-    if (firebase.auth) {
+    if (typeof firebase !== 'undefined' && firebase.auth) {
         firebase.auth().onAuthStateChanged(function(user) {
             if (user) {
                 const userAvatar = document.querySelector('.user-avatar');
@@ -1442,6 +1554,10 @@ function setupVenueCard() {
     console.log('Venue cards disabled');
 }
 
+// Fix for the Find Central Button in mobile.js
+// Replace the existing setupFindCentralButton function with this:
+
+// FIXED: Enhanced setupFindCentralButton
 function setupFindCentralButton() {
     const findCentralBtn = document.getElementById('find-central-btn');
     if (!findCentralBtn) return;
@@ -1449,13 +1565,16 @@ function setupFindCentralButton() {
     findCentralBtn.addEventListener('click', async function() {
         console.log('🔥 Find central button clicked - Starting Enhanced Social Fairness Algorithm!');
         
-        const marker1 = window.locationMarkers && window.locationMarkers['location-1'];
-        const marker2 = window.locationMarkers && window.locationMarkers['location-2'];
+        // Get all location data from the hybrid manager
+        const allLocationData = window.hybridLocationManager ? 
+            window.hybridLocationManager.getAllLocationData() : [];
         
-        if (!marker1 || !marker2) {
-            console.warn('Missing markers for midpoint calculation');
+        if (allLocationData.length < 2) {
+            showErrorNotification('Please enter at least 2 locations and wait for them to be processed');
             return;
         }
+        
+        console.log(`📍 Processing ${allLocationData.length} locations for midpoint calculation`);
         
         if (window.midpointMarker) {
             window.midpointMarker.setMap(null);
@@ -1466,18 +1585,21 @@ function setupFindCentralButton() {
         findCentralBtn.style.pointerEvents = 'none';
         
         try {
-            const locations = [marker1.getPosition(), marker2.getPosition()];
+            // Extract positions from location data
+            const locations = allLocationData.map(data => data.position);
             
-            console.log('🎯 Running Enhanced Social Fairness Algorithm (Travel Time Equity Focus)...');
+            console.log('🎯 Running Enhanced Social Fairness Algorithm...');
             const socialMidpoint = await calculateSocialMidpoint(locations);
             window.calculatedMidpoint = socialMidpoint;
             console.log('✅ Social optimal location found:', socialMidpoint);
-            console.log('🔍 DEBUG: socialMidpoint coordinates:', socialMidpoint.lat(), socialMidpoint.lng());
             
         } catch (error) {
             console.warn('Enhanced algorithm failed, using geometric midpoint:', error);
-            if (!window.calculatedMidpoint) {
-                window.calculatedMidpoint = calculateMidpoint([marker1.getPosition(), marker2.getPosition()]);
+            
+            // Fallback to geometric midpoint
+            const positions = allLocationData.map(data => data.position);
+            if (positions.length >= 2) {
+                window.calculatedMidpoint = calculateMidpoint(positions);
             }
         }
         
@@ -1486,9 +1608,11 @@ function setupFindCentralButton() {
         
         if (!window.calculatedMidpoint) {
             console.warn('No midpoint calculated');
+            showErrorNotification('Could not calculate meeting point');
             return;
         }
         
+        // Create midpoint marker
         window.midpointMarker = new google.maps.Marker({
             position: window.calculatedMidpoint,
             map: window.midwhereahMap,
@@ -1500,7 +1624,7 @@ function setupFindCentralButton() {
                 strokeWeight: 3,
                 scale: 15
             },
-            title: 'Optimal Meeting Spot (Fair Travel Times)',
+            title: `Optimal Meeting Spot for ${allLocationData.length} People`,
             animation: google.maps.Animation.BOUNCE
         });
         
@@ -1510,184 +1634,145 @@ function setupFindCentralButton() {
             }
         }, 2000);
         
+        // Center map on midpoint
         window.midwhereahMap.panTo(window.calculatedMidpoint);
-        window.midwhereahMap.setZoom(16);
+        window.midwhereahMap.setZoom(14);
         
-        showRoutes();
+        // Show routes (you'll need to implement this for multiple locations)
+        // showRoutes();
         
         findCentralBtn.classList.add('used');
-        findCentralBtn.innerHTML = '<i class="fas fa-check"></i>';
+        findCentralBtn.innerHTML = '<i class="fas fa-check"></i> Found!';
         
         setTimeout(() => {
             findCentralBtn.classList.remove('active', 'used');
+            findCentralBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
         }, 3000);
     });
 }
 
+
+function getColorForInputId(inputId) {
+    const input = document.getElementById(inputId);
+    const container = input?.closest('.location-container');
+    const colorElement = container?.querySelector('.location-icon');
+    return colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+}
+
+
 function showRoutes() {
-    const location1Marker = window.locationMarkers['location-1'];
-    const location2Marker = window.locationMarkers['location-2'];
     const midpoint = window.calculatedMidpoint;
-
-    if (!midpoint || !location1Marker || !location2Marker) return;
-
-    // Clear existing routes
-    if (window.routeRenderers) {
-        window.routeRenderers.forEach(renderer => renderer.setMap(null));
-    }
-    window.routeRenderers = [];
-
-    const directionsService = new google.maps.DirectionsService();
-    const colors = ['#2196F3', '#FF9800'];
-    const markers = [location1Marker, location2Marker];
-
-    // 🔥 NEW: Use algorithm's calculated data if available
-    if (window.algorithmCalculatedTimes) {
-        const algoData = window.algorithmCalculatedTimes;
-        console.log(`🎯 Displaying routes with algorithm's calculated times:`);
-        console.log(`   Person 1 (${algoData.transportModes[0]}): ${algoData.travelTimes[0].toFixed(1)}min`);
-        console.log(`   Person 2 (${algoData.transportModes[1]}): ${algoData.travelTimes[1].toFixed(1)}min`);
-        console.log(`   Gap: ${Math.abs(algoData.travelTimes[0] - algoData.travelTimes[1]).toFixed(1)}min`);
-        
-        // Display routes but show algorithm's times in console/UI
-        showRoutesWithAlgorithmTimes(markers, midpoint, directionsService, colors, algoData);
-    } else {
-        // Fallback to old behavior if no algorithm data
-        console.log(`🚗 Showing routes: Standard calculation (no algorithm data available)`);
-        showRoutesLegacy(markers, midpoint, directionsService, colors);
-    }
-}
-
-function showRoutesWithAlgorithmTimes(markers, midpoint, directionsService, colors, algoData) {
-    markers.forEach((marker, index) => {
-        const algorithmMode = algoData.transportModes[index];
-        const algorithmTime = algoData.travelTimes[index];
-        
-        const googleMapsMode = algorithmMode === 'TRANSIT' ? google.maps.TravelMode.TRANSIT :
-                              algorithmMode === 'DRIVING' ? google.maps.TravelMode.DRIVING :
-                              google.maps.TravelMode.WALKING;
-        
-        const request = {
-            origin: marker.getPosition(),
-            destination: midpoint,
-            travelMode: googleMapsMode
-        };
-
-        if (googleMapsMode === google.maps.TravelMode.TRANSIT) {
-            request.transitOptions = {
-                modes: [google.maps.TransitMode.BUS, google.maps.TransitMode.RAIL],
-                routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
-            };
-        }
-        
-        directionsService.route(request, function(result, status) {
-            if (status === google.maps.DirectionsStatus.OK) {
-                const routeRenderer = new google.maps.DirectionsRenderer({
-                    suppressMarkers: true,
-                    polylineOptions: {
-                        strokeColor: colors[index],
-                        strokeOpacity: 0.8,
-                        strokeWeight: 5
-                    },
-                    map: window.midwhereahMap
-                });
-                
-                routeRenderer.setDirections(result);
-                window.routeRenderers.push(routeRenderer);
-                
-                const actualDuration = result.routes[0].legs[0].duration.text;
-                const actualMinutes = result.routes[0].legs[0].duration.value / 60;
-                
-                console.log(`Route ${index + 1} (${algorithmMode}):`);
-                console.log(`   Algorithm calculated: ${algorithmTime.toFixed(1)}min`);
-                console.log(`   Google Maps says: ${actualDuration} (${actualMinutes.toFixed(1)}min)`);
-                console.log(`   Difference: ${Math.abs(algorithmTime - actualMinutes).toFixed(1)}min`);
-                
-                // 🔥 NEW: Show the ALGORITHM'S time to user, not Google's recalculation
-                console.log(`   📊 Displaying algorithm time: ${algorithmTime.toFixed(0)}min`);
-            } else {
-                console.warn(`Route calculation failed for location ${index + 1}:`, status);
-            }
-        });
-    });
-}
-
-
-// STEP 2: Setup transport mode selection (add to your DOMContentLoaded section)
-function setupTransportModeSelection() {
-    const transportButtons = document.querySelectorAll('.transport-btn');
     
-    transportButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const mode = this.getAttribute('data-mode');
-            const person = this.getAttribute('data-person');
+    if (!midpoint) {
+        console.warn('No midpoint available for route calculation');
+        return;
+    }
+    
+    // Get all location data
+    const allLocationData = window.hybridLocationManager ? 
+        window.hybridLocationManager.getAllLocationData() : [];
+    
+    if (allLocationData.length < 2) {
+        console.warn('Not enough locations for route calculation');
+        return;
+    }
+    
+    console.log(`🗺️ Showing routes for ${allLocationData.length} locations to midpoint`);
+    
+    // Use the fixed showRoutesLegacy function with proper parameters
+    showRoutesLegacy(midpoint, allLocationData);
+}
+
+// Setup transport mode selection
+function setupTransportModeSelection() {
+    // Use event delegation for dynamically created transport buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('transport-btn') || e.target.closest('.transport-btn')) {
+            const btn = e.target.classList.contains('transport-btn') ? e.target : e.target.closest('.transport-btn');
+            const mode = btn.getAttribute('data-mode');
+            const person = btn.getAttribute('data-person');
             const locationId = `location-${person}`;
             
-            // Update active state for this person's buttons
-            const personButtons = document.querySelectorAll(`[data-person="${person}"]`);
-            personButtons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Store preference
-            window.userTransportModes[locationId] = mode;
+            if (window.hybridLocationManager) {
+                window.hybridLocationManager.updateTransportMode(locationId, mode);
+            }
             
             console.log(`🚗 Person ${person} selected: ${mode}`);
-            
-            // Recalculate if both locations are set
-            setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 100);
-        });
+        }
     });
 }
 
 
 
+function geocodeAndCreateMarkers() {
+    // This is handled automatically by the autocomplete listeners
+    console.log('Geocoding handled by autocomplete listeners');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Initializing MidWhereAh mobile interface...');
+    
     setupMobileMenu();
-    setupLocationInputs();
     setupBottomNavigation();
     setupUserInfo();
     setupVenueCard();
     setupFindCentralButton();
     setupTransportModeSelection();
     
-    const location1 = document.getElementById('location-1');
-    const location2 = document.getElementById('location-2');
-
-    if (location1) {
-        location1.addEventListener('input', function() {
-            if (window.inputTimeout1) {
-                clearTimeout(window.inputTimeout1);
+    // ENHANCED: Initialize location inputs through HybridLocationManager
+    setupLocationInputs();
+    
+    // Set up add person button if it exists
+    const addPersonBtn = document.getElementById('add-person-btn');
+    if (addPersonBtn) {
+        console.log('✅ Add person button found');
+        addPersonBtn.addEventListener('click', () => {
+            console.log('Add person button clicked');
+            if (window.hybridLocationManager) {
+                window.hybridLocationManager.addLocationInput();
             }
-            window.inputTimeout1 = setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 300);
         });
-        
-        location1.addEventListener('paste', function() {
-            setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 100);
-        });
+    } else {
+        console.log('❌ Add person button NOT found');
     }
-
-    if (location2) {
-        location2.addEventListener('input', function() {
-            if (window.inputTimeout2) {
-                clearTimeout(window.inputTimeout2);
-            }
-            window.inputTimeout2 = setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 300);
-        });
-        
-        location2.addEventListener('paste', function() {
-            setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 100);
-        });
+    
+    // Check for find central button
+    const findBtn = document.getElementById('find-central-btn');
+    if (findBtn) {
+        console.log('✅ Find central button found');
+    } else {
+        console.log('❌ Find central button NOT found');
     }
-
-    setTimeout(checkBothLocationsAndShowButton, 500);
+    
+    console.log('✅ MidWhereAh mobile interface initialized');
 });
+
+// Backwards compatibility function (delegates to HybridLocationManager)
+function checkBothLocationsAndShowButton() {
+    if (window.hybridLocationManager) {
+        window.hybridLocationManager.debouncedLocationCheck();
+    } else {
+        console.warn('HybridLocationManager not available, using fallback logic');
+        // Fallback to old logic if needed
+        const location1 = document.getElementById('location-1');
+        const location2 = document.getElementById('location-2');
+        const findCentralBtn = document.getElementById('find-central-btn');
+
+        if (!location1 || !location2 || !findCentralBtn) return;
+
+        const hasValue1 = location1.value.trim() !== '';
+        const hasValue2 = location2.value.trim() !== '';
+
+        if (hasValue1 && hasValue2) {
+            findCentralBtn.classList.add('active');
+            findCentralBtn.style.display = 'flex';
+        } else {
+            findCentralBtn.classList.remove('active');
+            findCentralBtn.style.display = 'none';
+        }
+    }
+}
+
+
+window.hybridLocationManager = new HybridLocationManager();
+console.log('✅ HybridLocationManager initialized');

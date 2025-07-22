@@ -845,3 +845,467 @@ a {
   box-shadow: 0 4px 12px rgba(139, 93, 184, 0.3);
   margin-bottom: -8px;
 }
+
+.location-container {
+  margin-bottom: 15px;
+  transition: all 0.3s ease;
+  position: relative;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.location-container:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Enhanced location item with remove button support */
+.location-item .d-flex {
+  align-items: center;
+  gap: 8px;
+}
+
+.location-input {
+  flex: 1;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  background: #fafafa;
+}
+
+.location-input:focus {
+  border-color: #8B5DB8;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(139, 93, 184, 0.1);
+  outline: none;
+}
+
+.location-input.is-valid {
+  border-color: #4CAF50;
+  background: #f8fff8;
+}
+
+.location-input.is-invalid {
+  border-color: #f44336;
+  background: #fff8f8;
+}
+
+/* Remove person button */
+.remove-person-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #ff4444;
+  background: #ffffff;
+  color: #ff4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.remove-person-btn:hover {
+  background: #ff4444;
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+/* Enhanced location icon with color support */
+.location-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.location-icon.purple {
+  color: #8B5DB8;
+}
+
+/* Enhanced transport selector */
+.transport-selector {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(139, 93, 184, 0.05);
+  border-radius: 8px;
+}
+
+.transport-btn {
+  background: rgba(255, 255, 255, 0.8);
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transport-btn:hover {
+  background: rgba(139, 93, 184, 0.1);
+  border-color: #8B5DB8;
+  transform: translateY(-1px);
+}
+
+.transport-btn.active {
+  background: #8B5DB8;
+  border-color: #8B5DB8;
+  color: white;
+  box-shadow: 0 2px 8px rgba(139, 93, 184, 0.3);
+}
+
+/* Add person container */
+.add-person-container {
+  margin-top: 15px;
+  padding: 10px;
+  text-align: center;
+}
+
+.add-person-container button {
+  background: rgba(139, 93, 184, 0.1);
+  border: 2px dashed #8B5DB8;
+  border-radius: 8px;
+  padding: 8px 16px;
+  color: #8B5DB8;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.add-person-container button:hover:not(:disabled) {
+  background: rgba(139, 93, 184, 0.2);
+  border-style: solid;
+  transform: translateY(-1px);
+}
+
+.add-person-container button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f5f5f5;
+  border-color: #ccc;
+  color: #999;
+}
+
+.person-count-display {
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+}
+
+/* Enhanced find central button for multiple people */
+.find-central-btn {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #8B5DB8, #6a4c93);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  box-shadow: 0 4px 16px rgba(139, 93, 184, 0.4);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  border: none;
+}
+
+.find-central-btn:hover {
+  transform: translateX(-50%) translateY(-2px) scale(1.1);
+  box-shadow: 0 6px 20px rgba(139, 93, 184, 0.5);
+}
+
+.find-central-btn.processing {
+  animation: pulse 1.5s infinite;
+  pointer-events: none;
+}
+
+.find-central-btn.success {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  animation: successBounce 0.6s ease;
+}
+
+@keyframes pulse {
+  0% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.1); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+@keyframes successBounce {
+  0% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.2); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+/* Loading indicator */
+.loading-indicator {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 15px 0;
+  text-align: center;
+  border: 2px solid rgba(139, 93, 184, 0.2);
+  animation: fadeIn 0.3s ease;
+}
+
+.loading-indicator .spinner-border {
+  color: #8B5DB8;
+  width: 24px;
+  height: 24px;
+}
+
+.loading-indicator .person-count-text {
+  font-weight: 600;
+  color: #8B5DB8;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Enhanced map markers for multiple people */
+.gm-style .gm-style-iw-d {
+  max-width: 300px !important;
+}
+
+.info-window {
+  padding: 10px;
+}
+
+.info-window h5 {
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 16px;
+}
+
+.travel-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.travel-info > div {
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* Responsive adjustments for multiple locations */
+@media (max-width: 480px) {
+  .location-container {
+      margin-bottom: 12px;
+      padding: 10px;
+  }
+  
+  .location-input {
+      font-size: 13px;
+      padding: 8px 10px;
+  }
+  
+  .transport-btn {
+      padding: 6px 10px;
+      font-size: 14px;
+      min-width: 40px;
+  }
+  
+  .remove-person-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 10px;
+  }
+  
+  .add-person-container button {
+      padding: 6px 12px;
+      font-size: 13px;
+  }
+  
+  .find-central-btn {
+      width: 56px;
+      height: 56px;
+      font-size: 22px;
+      bottom: 90px;
+  }
+}
+
+/* Group size indicators */
+.group-size-indicator {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #8B5DB8;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Multiple route colors on map */
+.route-legend {
+  position: fixed;
+  top: 120px;
+  right: 15px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  max-width: 150px;
+  display: none; /* Show when routes are displayed */
+}
+
+.route-legend.visible {
+  display: block;
+  animation: slideInFromRight 0.3s ease;
+}
+
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.route-legend-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+
+.route-legend-color {
+  width: 12px;
+  height: 3px;
+  margin-right: 6px;
+  border-radius: 2px;
+}
+
+/* Enhanced error/success notifications for multiple locations */
+.notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  max-width: 300px;
+}
+
+.notification {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-left: 4px solid #8B5DB8;
+  animation: slideInFromTop 0.3s ease;
+}
+
+.notification.success {
+  border-left-color: #4CAF50;
+  background: rgba(232, 245, 233, 0.95);
+}
+
+.notification.error {
+  border-left-color: #f44336;
+  background: rgba(255, 235, 238, 0.95);
+}
+
+.notification.info {
+  border-left-color: #2196F3;
+  background: rgba(227, 242, 253, 0.95);
+}
+
+@keyframes slideInFromTop {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Accessibility improvements */
+.transport-btn:focus,
+.location-input:focus,
+.remove-person-btn:focus,
+.find-central-btn:focus {
+  outline: 2px solid #8B5DB8;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .location-container {
+      border: 2px solid #000;
+  }
+  
+  .transport-btn {
+      border-width: 3px;
+  }
+  
+  .find-central-btn {
+      box-shadow: 0 0 0 3px #fff, 0 0 0 6px #8B5DB8;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .location-container,
+  .transport-btn,
+  .find-central-btn,
+  .remove-person-btn {
+      transition: none;
+  }
+  
+  .find-central-btn:hover {
+      transform: translateX(-50%);
+  }
+  
+  @keyframes pulse {
+      from, to { transform: none; opacity: 1; }
+  }
+  
+  @keyframes successBounce {
+      from, to { transform: none; opacity: 1; }
+  }
+  
+  @keyframes fadeIn {
+      from, to { transform: none; opacity: 1; }
+  }
+  
+  @keyframes slideInFromRight {
+      from, to { transform: none; opacity: 1; }
+  }
+  
+  @keyframes slideInFromTop {
+      from, to { transform: none; opacity: 1; }
+  }
+}
