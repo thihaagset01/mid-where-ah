@@ -25,63 +25,63 @@
 
 <!-- FIXED: Compact location inputs container -->
 <div class="group group-col center" id="locations-container">
-    <!-- Location 1 -->
-    <div class="location-container" data-person-id="1">
-        <div class="location-item">
-            <div class="location-icon" style="color: #FF6B6B;" data-person-color="#FF6B6B">
-                <i class="fas fa-circle"></i>
-            </div>
-            <input type="text" id="location-1" class="location-input" placeholder="Enter first location" autocomplete="off">
-            <button class="remove-person-btn" style="display: none;" title="Remove Person">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="transport-selector">
-            <button class="transport-btn active" data-mode="TRANSIT" data-person="1" title="Public Transport">
-                🚇
-            </button>
-            <button class="transport-btn" data-mode="DRIVING" data-person="1" title="Car/Taxi">
-                🚗
-            </button>
-            <button class="transport-btn" data-mode="WALKING" data-person="1" title="Walking">
-                🚶
-            </button>
-        </div>
-    </div>
-      
-    <!-- Location 2 -->
-    <div class="location-container" data-person-id="2">
-        <div class="location-item">
-            <div class="location-icon" style="color: #4ECDC4;" data-person-color="#4ECDC4">
-                <i class="fas fa-circle"></i>
-            </div>
-            <input type="text" id="location-2" class="location-input" placeholder="Enter second location" autocomplete="off">
-            <button class="remove-person-btn" style="display: none;" title="Remove Person">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="transport-selector">
-            <button class="transport-btn active" data-mode="TRANSIT" data-person="2" title="Public Transport">
-                🚇
-            </button>
-            <button class="transport-btn" data-mode="DRIVING" data-person="2" title="Car/Taxi">
-                🚗
-            </button>
-            <button class="transport-btn" data-mode="WALKING" data-person="2" title="Walking">
-                🚶
-            </button>
-        </div>
-    </div>
+  <!-- Location 1 - NEW STRUCTURE -->
+  <div class="location-container" data-person-id="1">
+      <div class="location-item">
+          <!-- Transport icon replaces colored dot -->
+          <div class="transport-icon transit" 
+               data-person="1" 
+               data-current-mode="TRANSIT"
+               data-tooltip="Public Transport">
+              🚇
+          </div>
+          
+          <input type="text" 
+                 id="location-1" 
+                 class="location-input" 
+                 placeholder="Enter first location" 
+                 autocomplete="off">
+                 
+          <button class="remove-person-btn" style="display: none;" title="Remove Person">
+              <i class="fas fa-times"></i>
+          </button>
+      </div>
+      <!-- REMOVE the transport-selector div entirely -->
+  </div>
+    
+  <!-- Location 2 - NEW STRUCTURE -->
+  <div class="location-container" data-person-id="2">
+      <div class="location-item">
+          <!-- Transport icon replaces colored dot -->
+          <div class="transport-icon transit" 
+               data-person="2" 
+               data-current-mode="TRANSIT"
+               data-tooltip="Public Transport">
+              🚇
+          </div>
+          
+          <input type="text" 
+                 id="location-2" 
+                 class="location-input" 
+                 placeholder="Enter second location" 
+                 autocomplete="off">
+                 
+          <button class="remove-person-btn" style="display: none;" title="Remove Person">
+              <i class="fas fa-times"></i>
+          </button>
+      </div>
+      <!-- REMOVE the transport-selector div entirely -->
+  </div>
 
-    <!-- FIXED: Add Person Button inside container -->
-    <div class="add-person-container">
-        <button id="add-person-btn">
-            <i class="fas fa-plus"></i>Add Person
-        </button>
-        <div class="person-count-display">
-            <span id="person-count">2</span> people
-        </div>
-    </div>
+  <!-- Add Person Button (keep as is) -->
+  <div class="add-person-container">
+      <button id="add-person-btn">
+          <i class="fas fa-plus"></i>Add Person
+      </button>
+      <div class="person-count-display">
+          <span id="person-count">2</span> people
+      </div>
+  </div>
 </div>
 
 <!-- Find Central Button -->

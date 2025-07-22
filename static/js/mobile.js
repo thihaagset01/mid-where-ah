@@ -9,6 +9,98 @@ window.nextPersonId = 1;
 window.directionsRenderers = window.directionsRenderers || [];
 window.locationMarkers = window.locationMarkers || {};
 
+// Transport modes configuration
+const TRANSPORT_MODES = [
+    {
+        mode: 'TRANSIT',
+        icon: '🚇',
+        name: 'Public Transport',
+        class: 'transit'
+    },
+    {
+        mode: 'DRIVING', 
+        icon: '🚗',
+        name: 'Car/Taxi',
+        class: 'driving'
+    },
+    {
+        mode: 'WALKING',
+        icon: '🚶',
+        name: 'Walking', 
+        class: 'walking'
+    }
+];
+
+function setupTransportCycling() {
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('transport-icon')) {
+            cycleTransportMode(e.target);
+        }
+    });
+}
+
+function cycleTransportMode(iconElement) {
+    const person = iconElement.getAttribute('data-person');
+    const currentMode = iconElement.getAttribute('data-current-mode');
+    
+    // Find current mode index
+    const currentIndex = TRANSPORT_MODES.findIndex(mode => mode.mode === currentMode);
+    
+    // Get next mode (cycle back to 0 if at end)
+    const nextIndex = (currentIndex + 1) % TRANSPORT_MODES.length;
+    const nextMode = TRANSPORT_MODES[nextIndex];
+    
+    // Update the icon
+    updateTransportIcon(iconElement, nextMode, person);
+    
+    // Add tap animation
+    iconElement.classList.add('tap-animation');
+    setTimeout(() => {
+        iconElement.classList.remove('tap-animation');
+    }, 300);
+    
+    console.log(`🔄 Person ${person} switched to: ${nextMode.name}`);
+}
+
+function updateTransportIcon(iconElement, modeConfig, person) {
+    const locationId = `location-${person}`;
+    
+    // Update icon appearance
+    iconElement.textContent = modeConfig.icon;
+    iconElement.setAttribute('data-current-mode', modeConfig.mode);
+    iconElement.setAttribute('data-tooltip', modeConfig.name);
+    
+    // Update CSS classes
+    iconElement.className = `transport-icon ${modeConfig.class}`;
+    
+    // Maintain person ID ring color
+    const container = iconElement.closest('.location-container');
+    if (container) {
+        const personId = container.getAttribute('data-person-id');
+        if (personId) {
+            // Ring color is handled by CSS, no need to modify
+        }
+    }
+    
+    // Update global transport mode storage
+    if (window.userTransportModes) {
+        window.userTransportModes.set(locationId, modeConfig.mode);
+    }
+    
+    // Update stored location data if exists
+    if (window.locationData && window.locationData.has(locationId)) {
+        const locationData = window.locationData.get(locationId);
+        locationData.transportMode = modeConfig.mode;
+        window.locationData.set(locationId, locationData);
+    }
+    
+    // Trigger location check if hybrid manager exists
+    if (window.hybridLocationManager) {
+        window.hybridLocationManager.debouncedLocationCheck();
+    }
+}
+
+
 // Debounce function
 function debounce(func, wait) {
     let timeout;
@@ -149,16 +241,15 @@ class HybridLocationManager {
     constructor() {
         this.minLocations = 2;
         this.maxLocations = 8;
-        this.personCounter = 0;
+        this.personCounter = 0; // Will be properly set in initialize()
         this.colors = [
-            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
-            '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
+            '#EF4444', '#06B6D4', '#8B5CF6', '#F59E0B', 
+            '#EC4899', '#10B981', '#F97316', '#6366F1'
         ];
         this.initialized = false;
         this.lastLocationStatus = '';
-        this.isAdding = false; // PREVENT DOUBLE ADDITIONS
+        this.isAdding = false;
         
-        // Debounced location check
         this.debouncedLocationCheck = debounce(this.checkAllLocationsAndShowButton.bind(this), 300);
     }
 
@@ -177,49 +268,279 @@ class HybridLocationManager {
             this.createInitialInputs();
         }
         
-        // REMOVED: Don't setup add person button here - it's handled in main init
         this.initialized = true;
-        
         console.log('✅ HybridLocationManager initialized');
     }
 
     setupExistingInputs(inputs) {
+        // PROPERLY SET PERSON COUNTER based on existing inputs
+        this.personCounter = 0;
+        
         inputs.forEach((input, index) => {
-            const personId = index + 1;
+            const container = input.closest('.location-container');
+            let personId;
+            
+            if (container && container.hasAttribute('data-person-id')) {
+                // Use existing person ID from HTML
+                personId = parseInt(container.getAttribute('data-person-id'));
+            } else {
+                // Assign sequential person ID
+                personId = index + 1;
+                if (container) {
+                    container.setAttribute('data-person-id', personId);
+                }
+            }
+            
+            // Update person counter to highest ID
             this.personCounter = Math.max(this.personCounter, personId);
             
             const inputId = input.id || `location-${personId}`;
             input.id = inputId;
             
-            // Initialize transport mode (default to TRANSIT)
+            // Initialize transport mode
             window.userTransportModes.set(inputId, 'TRANSIT');
             
-            // Set person color
-            const colorIndex = (personId - 1) % this.colors.length;
-            const personColor = this.colors[colorIndex];
-            
-            // Update location icon color if it exists
-            const container = input.closest('.location-container');
-            if (container) {
-                const locationIcon = container.querySelector('.location-icon');
-                if (locationIcon) {
-                    locationIcon.style.color = personColor;
-                    locationIcon.setAttribute('data-person-color', personColor);
-                }
-                
-                this.setupTransportButtonsForContainer(container, personId, inputId);
-            }
-            
-            // Set up input event listeners properly
+            // Set up input event listeners
             this.setupInputEventListeners(input);
             
-            // Set up autocomplete when Google Maps is ready
+            // Initialize autocomplete when Google Maps is ready
             this.initializeAutocompleteForInput(input);
             
             console.log(`📍 Set up existing input: ${inputId} (Person ${personId})`);
         });
         
         this.updateUIState();
+    }
+
+    addLocationInput(personName = null) {
+        if (this.isAdding) {
+            console.log('🚫 Already adding a person, please wait');
+            return null;
+        }
+        
+        if (this.getLocationCount() >= this.maxLocations) {
+            showErrorNotification(`Maximum ${this.maxLocations} people allowed`);
+            return null;
+        }
+
+        this.isAdding = true;
+        console.log('🚀 Starting to add location input...');
+
+        // PROPER PERSON ID ASSIGNMENT
+        const personId = ++this.personCounter;
+        let container = document.getElementById('locations-container');
+        
+        if (!container) {
+            const existingContainer = document.querySelector('.group.group-col.center');
+            if (existingContainer) {
+                container = existingContainer;
+                container.id = 'locations-container';
+            } else {
+                container = document.createElement('div');
+                container.id = 'locations-container';
+                container.className = 'group group-col center';
+                document.body.appendChild(container);
+            }
+        }
+
+        // Create location element
+        const locationElement = document.createElement('div');
+        locationElement.className = 'location-container';
+        locationElement.setAttribute('data-person-id', personId);
+
+        const inputId = `location-${personId}`;
+        const colorIndex = (personId - 1) % this.colors.length;
+        const personColor = this.colors[colorIndex];
+
+        // NEW ELEGANT HTML STRUCTURE
+        locationElement.innerHTML = `
+            <div class="location-item">
+                <div class="transport-icon transit" 
+                     data-person="${personId}" 
+                     data-current-mode="TRANSIT"
+                     data-tooltip="Public Transport">
+                    🚇
+                </div>
+                <input type="text" 
+                       class="location-input" 
+                       id="${inputId}" 
+                       placeholder="${personName ? `${personName}'s location` : `Address ${personId}`}" 
+                       autocomplete="off">
+                <button class="remove-person-btn" 
+                        style="display: ${this.getLocationCount() >= this.minLocations ? 'inline-flex' : 'none'};" 
+                        title="Remove Person">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+        // Insert before the add-person-container
+        const addPersonContainer = container.querySelector('.add-person-container');
+        if (addPersonContainer) {
+            container.insertBefore(locationElement, addPersonContainer);
+        } else {
+            container.appendChild(locationElement);
+        }
+
+        // Get references to created elements
+        const input = locationElement.querySelector('.location-input');
+        const removeBtn = locationElement.querySelector('.remove-person-btn');
+        
+        // Setup remove button
+        removeBtn.addEventListener('click', () => {
+            this.removeLocationInput(personId);
+        });
+
+        // Setup input listeners
+        this.setupInputEventListeners(input);
+        
+        // Initialize autocomplete
+        this.initializeAutocompleteForInput(input);
+        
+        // Initialize transport mode
+        window.userTransportModes.set(inputId, 'TRANSIT');
+        
+        // Update UI
+        this.updateUIState();
+        
+        console.log(`➕ Added location input for Person ${personId} (${inputId})`);
+        
+        // Reset adding flag
+        setTimeout(() => {
+            this.isAdding = false;
+        }, 300);
+
+        return { personId, inputId, input, color: personColor };
+    }
+
+    removeLocationInput(personId) {
+        const container = document.querySelector(`[data-person-id="${personId}"]`);
+        if (!container) return;
+
+        const inputId = `location-${personId}`;
+
+        console.log(`➖ Removing location input for Person ${personId} (${inputId})`);
+
+        // Remove from data structures
+        window.userTransportModes.delete(inputId);
+        window.locationData.delete(inputId);
+        
+        // Remove marker from map
+        if (window.locationMarkers && window.locationMarkers[inputId]) {
+            window.locationMarkers[inputId].setMap(null);
+            delete window.locationMarkers[inputId];
+        }
+
+        // Remove DOM element with animation
+        container.style.transition = 'opacity 0.3s, transform 0.3s';
+        container.style.opacity = '0';
+        container.style.transform = 'translateX(-100%)';
+        
+        setTimeout(() => {
+            container.remove();
+            
+            // IMPORTANT: Resequence person IDs after removal
+            this.resequencePersonIds();
+            
+            this.updateUIState();
+        }, 300);
+    }
+
+    // NEW METHOD: Resequence person IDs to keep them consecutive
+    resequencePersonIds() {
+        const containers = document.querySelectorAll('.location-container[data-person-id]');
+        let newPersonCounter = 0;
+        
+        containers.forEach((container, index) => {
+            const newPersonId = index + 1;
+            newPersonCounter = newPersonId;
+            
+            // Update container data attribute
+            container.setAttribute('data-person-id', newPersonId);
+            
+            // Update transport icon data attribute
+            const transportIcon = container.querySelector('.transport-icon');
+            if (transportIcon) {
+                transportIcon.setAttribute('data-person', newPersonId);
+            }
+            
+            // Update input ID and transport mode mapping
+            const input = container.querySelector('.location-input');
+            if (input) {
+                const oldInputId = input.id;
+                const newInputId = `location-${newPersonId}`;
+                
+                // Update input ID
+                input.id = newInputId;
+                
+                // Transfer data if it exists
+                if (window.userTransportModes.has(oldInputId)) {
+                    const transportMode = window.userTransportModes.get(oldInputId);
+                    window.userTransportModes.delete(oldInputId);
+                    window.userTransportModes.set(newInputId, transportMode);
+                }
+                
+                if (window.locationData.has(oldInputId)) {
+                    const locationData = window.locationData.get(oldInputId);
+                    window.locationData.delete(oldInputId);
+                    window.locationData.set(newInputId, locationData);
+                }
+                
+                // Update marker if it exists
+                if (window.locationMarkers && window.locationMarkers[oldInputId]) {
+                    window.locationMarkers[newInputId] = window.locationMarkers[oldInputId];
+                    delete window.locationMarkers[oldInputId];
+                }
+            }
+        });
+        
+        // Update person counter
+        this.personCounter = newPersonCounter;
+        
+        console.log(`🔄 Resequenced person IDs, new counter: ${this.personCounter}`);
+    }
+
+    getLocationCount() {
+        return document.querySelectorAll('.location-input').length;
+    }
+
+    updateUIState() {
+        const count = this.getLocationCount();
+        const addBtn = document.getElementById('add-person-btn');
+        const removeBtns = document.querySelectorAll('.remove-person-btn');
+        const personCountSpan = document.getElementById('person-count');
+
+        // Update person count display
+        if (personCountSpan) {
+            personCountSpan.textContent = count;
+        }
+
+        // Show/hide add button
+        if (addBtn) {
+            addBtn.style.display = count < this.maxLocations ? 'inline-flex' : 'none';
+            if (count >= this.maxLocations) {
+                addBtn.innerHTML = '<i class="fas fa-users me-1"></i>Max reached';
+                addBtn.disabled = true;
+            } else {
+                addBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Person';
+                addBtn.disabled = false;
+            }
+        }
+
+        // Show/hide remove buttons (only show for 3+ people)
+        removeBtns.forEach((btn) => {
+            const container = btn.closest('.location-container');
+            const personId = parseInt(container.getAttribute('data-person-id') || '0');
+            const shouldShow = count > this.minLocations && personId > 2;
+            
+            console.log(`🔍 Person ${personId}: shouldShow=${shouldShow}, count=${count}`);
+            btn.style.display = shouldShow ? 'inline-flex' : 'none';
+        });
+
+        // Update find button state
+        this.debouncedLocationCheck();
+
+        console.log(`📊 UI updated: ${count} people, next ID would be: ${this.personCounter + 1}`);
     }
 
     setupInputEventListeners(input) {
@@ -347,188 +668,11 @@ class HybridLocationManager {
         }
     }
 
-    // CLEAN addLocationInput with cooldown protection
-    addLocationInput(personName = null) {
-        // PREVENT RAPID ADDITIONS
-        if (this.isAdding) {
-            console.log('🚫 Already adding a person, please wait');
-            return null;
-        }
-        
-        if (this.getLocationCount() >= this.maxLocations) {
-            showErrorNotification(`Maximum ${this.maxLocations} people allowed`);
-            return null;
-        }
-
-        this.isAdding = true; // Set flag to prevent rapid additions
-        console.log('🚀 Starting to add location input...');
-
-        const personId = ++this.personCounter;
-        let container = document.getElementById('locations-container');
-        
-        if (!container) {
-            // Try to find existing container or create one
-            const existingContainer = document.querySelector('.group.group-col.center');
-            if (existingContainer) {
-                container = existingContainer;
-                container.id = 'locations-container';
-            } else {
-                container = document.createElement('div');
-                container.id = 'locations-container';
-                container.className = 'group group-col center';
-                document.body.appendChild(container);
-            }
-        }
-
-        // Create location input HTML dynamically
-        const locationElement = document.createElement('div');
-        locationElement.className = 'location-container';
-        locationElement.setAttribute('data-person-id', personId);
-
-        const inputId = `location-${personId}`;
-        const colorIndex = (personId - 1) % this.colors.length;
-        const personColor = this.colors[colorIndex];
-
-        locationElement.innerHTML = `
-            <div class="location-item">
-                <div class="d-flex align-items-center justify-content-between" style="z-index: 15;">
-                    <div class="location-icon" style="color: ${personColor};" data-person-color="${personColor}">
-                        <i class="fas fa-circle"></i>
-                    </div>
-                    <input type="text" 
-                           class="location-input" 
-                           id="${inputId}" 
-                           placeholder="${personName ? `${personName}'s location` : `Address ${personId}`}" 
-                           autocomplete="off">
-                    <button class="btn btn-sm btn-outline-danger remove-person-btn" 
-                            style="display: ${this.getLocationCount() >= this.minLocations ? 'inline-flex' : 'none'}; margin-left: 8px;" 
-                            title="Remove Person">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="transport-selector">
-                <button class="transport-btn active" data-mode="TRANSIT" data-person="${personId}" title="Public Transport">
-                    🚇
-                </button>
-                <button class="transport-btn" data-mode="DRIVING" data-person="${personId}" title="Car/Taxi">
-                    🚗
-                </button>
-                <button class="transport-btn" data-mode="WALKING" data-person="${personId}" title="Walking">
-                    🚶
-                </button>
-            </div>
-        `;
-
-        // Add to container
-        container.appendChild(locationElement);
-
-        // Get references to the created elements
-        const input = locationElement.querySelector('.location-input');
-        const removeBtn = locationElement.querySelector('.remove-person-btn');
-        
-        // Setup remove button
-        removeBtn.addEventListener('click', () => {
-            this.removeLocationInput(personId);
-        });
-
-        // Setup transport mode buttons
-        this.setupTransportButtonsForContainer(locationElement, personId, inputId);
-        
-        // Setup input listeners
-        this.setupInputEventListeners(input);
-        
-        // Initialize autocomplete
-        this.initializeAutocompleteForInput(input);
-        
-        // Initialize transport mode
-        window.userTransportModes.set(inputId, 'TRANSIT');
-        
-        // Update UI
-        this.updateUIState();
-        
-        console.log(`➕ Added location input for Person ${personId} (${inputId})`);
-        
-        // Reset adding flag after a short delay
-        setTimeout(() => {
-            this.isAdding = false;
-            console.log('🔓 Add person cooldown released');
-        }, 300);
-
-        return { personId, inputId, input, color: personColor };
-    }
-
-    removeLocationInput(personId) {
-        const container = document.querySelector(`[data-person-id="${personId}"]`);
-        if (!container) return;
-
-        const inputId = `location-${personId}`;
-
-        console.log(`➖ Removing location input for Person ${personId} (${inputId})`);
-
-        // Remove from data structures
-        window.userTransportModes.delete(inputId);
-        window.locationData.delete(inputId);
-        
-        // Remove marker from map
-        if (window.locationMarkers && window.locationMarkers[inputId]) {
-            window.locationMarkers[inputId].setMap(null);
-            delete window.locationMarkers[inputId];
-        }
-
-        // Remove DOM element with animation
-        container.style.transition = 'opacity 0.3s, transform 0.3s';
-        container.style.opacity = '0';
-        container.style.transform = 'translateX(-100%)';
-        
-        setTimeout(() => {
-            container.remove();
-            this.updateUIState();
-        }, 300);
-    }
 
     getLocationCount() {
         return document.querySelectorAll('.location-input').length;
     }
 
-    updateUIState() {
-        const count = this.getLocationCount();
-        const addBtn = document.getElementById('add-person-btn');
-        const findBtn = document.getElementById('find-central-btn');
-        const removeBtns = document.querySelectorAll('.remove-person-btn');
-        const personCountSpan = document.getElementById('person-count');
-
-        // Update person count display
-        if (personCountSpan) {
-            personCountSpan.textContent = count;
-        }
-
-        // Show/hide add button
-        if (addBtn) {
-            addBtn.style.display = count < this.maxLocations ? 'inline-block' : 'none';
-            if (count >= this.maxLocations) {
-                addBtn.innerHTML = '<i class="fas fa-users me-1"></i>Max reached';
-                addBtn.disabled = true;
-            } else {
-                addBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Person';
-                addBtn.disabled = false;
-            }
-        }
-
-        // Show/hide remove buttons (only for dynamically added inputs beyond minimum)
-        removeBtns.forEach((btn) => {
-            const container = btn.closest('.location-container');
-            const personId = parseInt(container.getAttribute('data-person-id') || '0');
-            const shouldShow = count > this.minLocations && personId > 2; // Only for person 3+
-            
-            btn.style.display = shouldShow ? 'inline-flex' : 'none';
-        });
-
-        // Update find button state - use debounced version
-        this.debouncedLocationCheck();
-
-        console.log(`📊 UI updated: ${count} people, add button: ${count < this.maxLocations ? 'visible' : 'hidden'}`);
-    }
 
     checkAllLocationsAndShowButton() {
         const inputs = document.querySelectorAll('.location-input');
@@ -1749,7 +1893,8 @@ document.addEventListener('DOMContentLoaded', function() {
     setupUserInfo();
     setupVenueCard();
     setupTransportModeSelection();
-    
+    setupTransportCycling();
+
     // Initialize location manager
     if (!window.hybridLocationManager) {
         window.hybridLocationManager = new HybridLocationManager();
@@ -1770,8 +1915,22 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('❌ Find central button NOT found');
         }
     }, 300);
-    
+    console.log('✅ Transport mode cycling enabled');   
     console.log('✅ MidWhereAh mobile interface initialized');
+});
+
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-person-btn') || e.target.closest('.remove-person-btn')) {
+        const btn = e.target.classList.contains('remove-person-btn') ? e.target : e.target.closest('.remove-person-btn');
+        const container = btn.closest('.location-container');
+        const personId = parseInt(container.getAttribute('data-person-id'));
+        
+        console.log(`🔴 Remove button clicked for Person ${personId} via delegation`);
+        
+        if (window.hybridLocationManager) {
+            window.hybridLocationManager.removeLocationInput(personId);
+        }
+    }
 });
 
 // Initialize hybrid location manager
