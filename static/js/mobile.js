@@ -596,6 +596,48 @@ class HybridLocationManager {
         
         console.log(`🔍 Fallback geocoding for ${input.id}: "${value}"`);
         
+        // Special case handling for known locations with geocoding issues
+        const knownLocations = {
+            "east coast lagoon food village": { lat: 1.3046, lng: 103.9082 },
+            "east coast lagoon food centre": { lat: 1.3046, lng: 103.9082 },
+            "east coast park food centre": { lat: 1.3046, lng: 103.9082 }
+        };
+        
+        // Check if this is a known problematic location
+        const normalizedValue = value.toLowerCase().trim();
+        if (knownLocations[normalizedValue]) {
+            console.log(`🔍 Using predefined coordinates for known location: ${value}`);
+            const position = knownLocations[normalizedValue];
+            const latLng = new google.maps.LatLng(position.lat, position.lng);
+            
+            // Create a simplified place object
+            const place = {
+                geometry: { location: latLng },
+                formatted_address: value,
+                name: value
+            };
+            
+            // Store location data
+            window.locationData.set(input.id, {
+                place: place,
+                position: latLng,
+                transportMode: window.userTransportModes.get(input.id) || 'TRANSIT',
+                address: value
+            });
+            
+            // Get person color for marker
+            const container = input.closest('.location-container');
+            const colorElement = container?.querySelector('.location-icon');
+            const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+            
+            addLocationMarker(latLng, input.id, personColor);
+            
+            console.log(`✅ Used predefined coordinates for ${input.id}: ${value}`);
+            this.debouncedLocationCheck();
+            return;
+        }
+        
+        // Regular geocoding for other locations
         window.geocoder.geocode({ 
             address: value + ', Singapore',
             componentRestrictions: { country: 'SG' }
@@ -625,6 +667,7 @@ class HybridLocationManager {
             }
         });
     }
+    
 
     setupTransportButtonsForContainer(container, personId, inputId) {
         const transportBtns = container.querySelectorAll('.transport-btn');
@@ -903,6 +946,9 @@ class EnhancedSocialMidpointCalculator {
             'restaurant', 'cafe', 'shopping_mall', 'food', 
             'establishment', 'store', 'meal_takeaway', 'bakery'
         ];
+        
+        // Memoization cache for travel time calculations
+        this.travelTimeCache = new Map();
     }
 
     adjustParametersForGroupSize(groupSize) {
@@ -918,11 +964,17 @@ class EnhancedSocialMidpointCalculator {
             this.equityWeight = 0.8;
             this.totalTimeWeight = 0.2;
             console.log(`   📏 Medium group: 15min max difference, balanced approach`);
-        } else {
+        } else if (groupSize <= 6) {
             this.maxAcceptableTimeDifference = 20;
             this.equityWeight = 0.7;
             this.totalTimeWeight = 0.3;
             console.log(`   📏 Large group: 20min max difference, efficiency focus`);
+        } else {
+            // For very large groups (7+), we need to be more lenient
+            this.maxAcceptableTimeDifference = 25;
+            this.equityWeight = 0.6;
+            this.totalTimeWeight = 0.4;
+            console.log(`   📏 Very large group: 25min max difference, high efficiency focus`);
         }
     }
 
@@ -931,21 +983,18 @@ class EnhancedSocialMidpointCalculator {
             { lat: startingLocations[0].lat(), lng: startingLocations[0].lng() },
             { lat: startingLocations[1].lat(), lng: startingLocations[1].lng() }
         );
-        
+
         const distanceKm = distance / 1000;
-        
+
         if (distanceKm > 30) {
             this.maxTravelTimeMinutes = 90;
-            this.maxAcceptableTimeDifference = 20;
-            console.log(`🌏 Extreme distance (${distanceKm.toFixed(1)}km): Allowing up to 90min travel, 20min range`);
+            console.log(`🌏 Extreme distance (${distanceKm.toFixed(1)}km): Allowing up to 90min travel, ${this.maxAcceptableTimeDifference}min range`);
         } else if (distanceKm > 15) {
             this.maxTravelTimeMinutes = 75;
-            this.maxAcceptableTimeDifference = 15;
-            console.log(`📏 Long distance (${distanceKm.toFixed(1)}km): Allowing up to 75min travel, 15min range`);
+            console.log(`🌏 Long distance (${distanceKm.toFixed(1)}km): Allowing up to 75min travel, ${this.maxAcceptableTimeDifference}min range`);
         } else {
-            this.maxTravelTimeMinutes = this.baseMaxTravelTimeMinutes;
-            this.maxAcceptableTimeDifference = 10;
-            console.log(`📍 Normal distance (${distanceKm.toFixed(1)}km): Allowing up to 60min travel, 10min range`);
+            this.maxTravelTimeMinutes = 60;
+            console.log(`📍 Normal distance (${distanceKm.toFixed(1)}km): Allowing up to 60min travel, ${this.maxAcceptableTimeDifference}min range`);
         }
     }
 
@@ -961,6 +1010,157 @@ class EnhancedSocialMidpointCalculator {
             lat: totalLat / locations.length, 
             lng: totalLng / locations.length 
         };
+    }
+    
+    /**
+     * Calculate a weighted midpoint that considers transport modes
+     * Gives higher weight to public transit users and lower weight to walkers
+     */
+    calculateWeightedMidpoint(locations) {
+        let totalWeight = 0;
+        let weightedLat = 0;
+        let weightedLng = 0;
+        
+        locations.forEach((location, index) => {
+            const locationId = `location-${index + 1}`;
+            const transportMode = window.userTransportModes.get(locationId) || 'TRANSIT';
+            
+            // Assign weights based on transport mode
+            const weight = transportMode === 'WALKING' ? 0.5 :
+                          transportMode === 'DRIVING' ? 1.0 :
+                          1.2; // TRANSIT gets priority
+            
+            const lat = typeof location.lat === 'function' ? location.lat() : location.lat;
+            const lng = typeof location.lng === 'function' ? location.lng() : location.lng;
+            
+            weightedLat += lat * weight;
+            weightedLng += lng * weight;
+            totalWeight += weight;
+        });
+        
+        return {
+            lat: weightedLat / totalWeight,
+            lng: weightedLng / totalWeight
+        };
+    }
+    
+    /**
+     * Check if a point is likely inside a nature reserve or venue desert
+     * Uses hardcoded bounding boxes for common Singapore nature reserves
+     */
+    isLikelyInNatureReserve(point) {
+        // Central Catchment Nature Reserve (including MacRitchie)
+        if (point.lat > 1.34 && point.lat < 1.39 && 
+            point.lng > 103.77 && point.lng < 103.84) {
+            return true;
+        }
+        
+        // Bukit Timah Nature Reserve
+        if (point.lat > 1.341 && point.lat < 1.362 && 
+            point.lng > 103.765 && point.lng < 103.784) {
+            return true;
+        }
+        
+        // Sungei Buloh Wetland Reserve
+        if (point.lat > 1.44 && point.lat < 1.45 && 
+            point.lng > 103.72 && point.lng < 103.73) {
+            return true;
+        }
+        
+        // Pulau Ubin
+        if (point.lat > 1.40 && point.lat < 1.42 && 
+            point.lng > 103.94 && point.lng < 104.00) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Find a common MRT hub near the geometric midpoint
+     * Returns the location of a major MRT interchange if one is nearby
+     */
+    findNearbyMRTHub(midpoint) {
+        // Major MRT interchanges in Singapore
+        const mrtHubs = [
+            { name: "Dhoby Ghaut", lat: 1.2993, lng: 103.8455 },
+            { name: "City Hall", lat: 1.2931, lng: 103.8519 },
+            { name: "Raffles Place", lat: 1.2836, lng: 103.8511 },
+            { name: "Bugis", lat: 1.3008, lng: 103.8559 },
+            { name: "Paya Lebar", lat: 1.3181, lng: 103.8927 },
+            { name: "Serangoon", lat: 1.3498, lng: 103.8736 },
+            { name: "Bishan", lat: 1.3513, lng: 103.8483 },
+            { name: "Jurong East", lat: 1.3329, lng: 103.7421 },
+            { name: "Woodlands", lat: 1.4368, lng: 103.7864 },
+            { name: "Tampines", lat: 1.3527, lng: 103.9453 },
+            { name: "Clementi", lat: 1.3150, lng: 103.7651 },
+            { name: "Novena", lat: 1.3204, lng: 103.8439 },
+            { name: "Orchard", lat: 1.3040, lng: 103.8318 },
+            { name: "Outram Park", lat: 1.2813, lng: 103.8394 },
+            { name: "Harbourfront", lat: 1.2659, lng: 103.8209 },
+            { name: "Buona Vista", lat: 1.3070, lng: 103.7904 }
+        ];
+        
+        // Find closest MRT hub to the midpoint
+        let closestHub = null;
+        let minDistance = Infinity;
+        
+        mrtHubs.forEach(hub => {
+            const distance = this.calculateDistance(midpoint, hub);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestHub = hub;
+            }
+        });
+        
+        // Only return the hub if it's reasonably close (within 3km)
+        if (minDistance <= 3000) {
+            console.log(`🚇 Found nearby MRT hub: ${closestHub.name} (${minDistance.toFixed(0)}m away)`);
+            return closestHub;
+        }
+        
+        console.log(`❌ No nearby MRT hub found (closest is ${minDistance.toFixed(0)}m away)`);
+        return null;
+    }
+    
+    /**
+     * Get a smart initial midpoint that avoids nature reserves and venue deserts
+     * Uses a hybrid approach with fallbacks
+     */
+    async getSmartInitialMidpoint(locations) {
+        // Step 1: Calculate geometric midpoint as baseline
+        const geoMidpoint = this.calculateGeometricMidpoint(locations);
+        console.log(`📍 Geometric midpoint: ${geoMidpoint.lat.toFixed(4)}, ${geoMidpoint.lng.toFixed(4)}`);
+        
+        // Step 2: Check if it's in a nature reserve
+        if (this.isLikelyInNatureReserve(geoMidpoint)) {
+            console.log(`⚠️ Geometric midpoint appears to be in a nature reserve or venue desert`);
+            
+            // Step 3a: Try finding a nearby MRT hub
+            const mrtHub = this.findNearbyMRTHub(geoMidpoint);
+            if (mrtHub) {
+                console.log(`🚇 Using MRT hub ${mrtHub.name} as initial midpoint`);
+                return mrtHub;
+            }
+            
+            // Step 3b: Fall back to weighted midpoint
+            const weightedMidpoint = this.calculateWeightedMidpoint(locations);
+            console.log(`⚖️ Using weighted midpoint: ${weightedMidpoint.lat.toFixed(4)}, ${weightedMidpoint.lng.toFixed(4)}`);
+            
+            // Step 3c: Check if weighted midpoint is also in a nature reserve
+            if (this.isLikelyInNatureReserve(weightedMidpoint)) {
+                console.log(`⚠️ Weighted midpoint also appears to be in a nature reserve`);
+                
+                // Step 3d: Fall back to closest viable area (Novena as a general fallback)
+                console.log(`🏙️ Falling back to Novena as a viable venue area`);
+                return { name: "Novena", lat: 1.3204, lng: 103.8439 };
+            }
+            
+            return weightedMidpoint;
+        }
+        
+        // If geometric midpoint is not in a nature reserve, use it
+        return geoMidpoint;
     }
 
     calculateDistance(point1, point2) {
@@ -987,6 +1187,25 @@ class EnhancedSocialMidpointCalculator {
         const mean = values.reduce((a, b) => a + b, 0) / values.length;
         const squaredDiffs = values.map(value => Math.pow(value - mean, 2));
         return squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
+    }
+    
+    calculateGeographicSpread() {
+        // Calculate the geographic spread of locations to determine if they're widely distributed
+        if (!this.locations || this.locations.length < 2) return 0;
+        
+        // Extract lat/lng values
+        const lats = this.locations.map(loc => loc.lat);
+        const lngs = this.locations.map(loc => loc.lng);
+        
+        // Calculate ranges
+        const latRange = Math.max(...lats) - Math.min(...lats);
+        const lngRange = Math.max(...lngs) - Math.min(...lngs);
+        
+        // Combine into a single spread metric (Singapore is roughly 0.2 degrees across)
+        const spread = Math.sqrt(latRange * latRange + lngRange * lngRange);
+        console.log(`🌏 Geographic spread calculation: lat range ${latRange.toFixed(4)}, lng range ${lngRange.toFixed(4)}, combined spread ${spread.toFixed(4)}`);
+        
+        return spread;
     }
 
     showRadiusCircle(center, radius, existingCircle) {
@@ -1017,12 +1236,17 @@ class EnhancedSocialMidpointCalculator {
         this.adjustParametersForGroupSize(groupSize);
         this.adjustParametersForDistance(startingLocations);
         
-        let currentSearchCenter = this.calculateGeometricMidpoint(startingLocations);
+        // Get a smart initial midpoint instead of pure geometric average
+        let currentSearchCenter = await this.getSmartInitialMidpoint(startingLocations);
         let searchRadius = this.initialRadius;
         let bestMidpoint = null;
+        let previousBestScore = Infinity;
         let bestScore = Infinity;
         let radiusCircle = null;
         let iteration = 0;
+        let noImprovementCount = 0;
+        let bestVariance = Infinity;
+        let bestRange = Infinity;
         
         while (iteration < this.maxIterations && searchRadius <= this.maxSearchRadius) {
             iteration++;
@@ -1054,32 +1278,54 @@ class EnhancedSocialMidpointCalculator {
             const currentBestVenue = this.findMostEquitableVenue(venueAnalysis);
             
             if (currentBestVenue && currentBestVenue.equityScore < bestScore) {
+                // Calculate improvement in equity score
+                const equityImprovement = bestScore - currentBestVenue.equityScore;
+                previousBestScore = bestScore;
                 bestScore = currentBestVenue.equityScore;
                 bestMidpoint = currentBestVenue.location;
+                bestVariance = currentBestVenue.timeVariance;
+                bestRange = currentBestVenue.timeRange;
+                noImprovementCount = 0;
                 
                 console.log(`⭐ New best venue: ${currentBestVenue.name}`);
                 console.log(`   Max travel time: ${currentBestVenue.maxTravelTime.toFixed(1)}min`);
                 console.log(`   Avg travel time: ${currentBestVenue.avgTravelTime.toFixed(1)}min`);
                 console.log(`   Time variance: ${currentBestVenue.timeVariance.toFixed(1)}min²`);
                 console.log(`   Equity score: ${currentBestVenue.equityScore.toFixed(2)}`);
+                console.log(`   Improvement: ${equityImprovement.toFixed(3)}`);
                 
                 // Update search center to focus around the best venue
                 currentSearchCenter = {
                     lat: currentBestVenue.location.lat,
                     lng: currentBestVenue.location.lng
                 };
-                searchRadius = Math.max(400, searchRadius * 0.6);
-                console.log(`🎯 Focusing search around best venue, radius now ${searchRadius}m`);
+                
+                // If we have a significant improvement, aggressively refocus
+                if (equityImprovement > 0.05) {
+                    searchRadius = Math.max(400, searchRadius * 0.5);
+                    console.log(`🎯 Significant improvement! Aggressively focusing search, radius now ${searchRadius}m`);
+                } else {
+                    searchRadius = Math.max(400, searchRadius * 0.6);
+                    console.log(`🎯 Focusing search around best venue, radius now ${searchRadius}m`);
+                }
             } else {
+                noImprovementCount++;
                 searchRadius *= this.radiusIncrementFactor;
-                console.log(`🔄 No improvement found, expanding to ${searchRadius}m`);
+                console.log(`🔄 No improvement found (${noImprovementCount} iterations), expanding to ${searchRadius}m`);
             }
             
-            // Early termination for excellent results
+            // Check for diminishing returns - exit if minimal improvement over multiple iterations
+            if (iteration >= 5 && previousBestScore - bestScore < 0.02 && noImprovementCount >= 2) {
+                console.log(`⚠️ Equity improvement too small (${(previousBestScore - bestScore).toFixed(3)}), halting after ${iteration} iterations`);
+                break;
+            }
+            
+            // Early termination for excellent results - only if ALL criteria are met
             if (bestMidpoint && currentBestVenue && 
                 currentBestVenue.timeVariance < 4.0 && 
-                currentBestVenue.timeRange <= this.maxAcceptableTimeDifference) {
-                console.log(`🏆 Excellent equity found (variance < 4min², range ≤ ${this.maxAcceptableTimeDifference}min), stopping early!`);
+                currentBestVenue.timeRange <= this.maxAcceptableTimeDifference * 0.8 &&
+                currentBestVenue.avgTravelTime < 40) {
+                console.log(`🏆 Excellent equity found (variance < 4min², range ≤ ${(this.maxAcceptableTimeDifference * 0.8).toFixed(1)}min, avg ≤ 40min), stopping early!`);
                 break;
             }
         }
@@ -1155,9 +1401,19 @@ class EnhancedSocialMidpointCalculator {
         console.log(`📊 Analyzing travel equity for ${venues.length} venues...`);
         const directionsService = new google.maps.DirectionsService();
         const analysis = [];
+        
+        // Pre-filter venues if we have too many to analyze
+        let venuesToAnalyze = venues;
+        if (venues.length > 15) {
+            // For large venue sets, prioritize highly-rated venues in the first pass
+            venuesToAnalyze = venues
+                .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+                .slice(0, 15);
+            console.log(`   ⚡ Pre-filtered to ${venuesToAnalyze.length} highest-rated venues to reduce API calls`);
+        }
 
-        for (let i = 0; i < venues.length; i++) {
-            const venue = venues[i];
+        for (let i = 0; i < venuesToAnalyze.length; i++) {
+            const venue = venuesToAnalyze[i];
             
             const modeResult = await this.calculateTravelTimesForVenue(
                 directionsService, 
@@ -1179,7 +1435,8 @@ class EnhancedSocialMidpointCalculator {
             const timeVariance = this.calculateVariance(travelTimes);
             const timeRange = maxTime - minTime;
             
-            const equityScore = this.calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange);
+            // Raw equity score (will be normalized later)
+            const rawEquityScore = this.calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange);
             
             analysis.push({
                 name: venue.name,
@@ -1193,7 +1450,7 @@ class EnhancedSocialMidpointCalculator {
                 avgTravelTime: avgTime,
                 timeVariance: timeVariance,
                 timeRange: timeRange,
-                equityScore: equityScore,
+                rawEquityScore: rawEquityScore,
                 rating: venue.rating,
                 types: venue.types,
                 venue: venue,
@@ -1201,17 +1458,51 @@ class EnhancedSocialMidpointCalculator {
                 mixedMode: mixedMode
             });
         }
+        
+        // Normalize scores across this iteration's venues
+        if (analysis.length > 0) {
+            // Find min/max values for normalization
+            const minVar = Math.min(...analysis.map(v => v.timeVariance));
+            const maxVar = Math.max(...analysis.map(v => v.timeVariance));
+            const minAvg = Math.min(...analysis.map(v => v.avgTravelTime));
+            const maxAvg = Math.max(...analysis.map(v => v.avgTravelTime));
+            const minRange = Math.min(...analysis.map(v => v.timeRange));
+            const maxRange = Math.max(...analysis.map(v => v.timeRange));
+            
+            // Small epsilon to avoid division by zero
+            const epsilon = 0.001;
+            
+            // Calculate normalized scores
+            analysis.forEach(venue => {
+                const normalizedVariance = (venue.timeVariance - minVar) / (maxVar - minVar + epsilon);
+                const normalizedAvg = (venue.avgTravelTime - minAvg) / (maxAvg - minAvg + epsilon);
+                const normalizedRange = (venue.timeRange - minRange) / (maxRange - minRange + epsilon);
+                
+                // Weighted normalized equity score
+                venue.equityScore = normalizedVariance * 0.6 + normalizedAvg * 0.2 + normalizedRange * 0.2;
+            });
+            
+            console.log(`   📊 Applied per-iteration normalization to equity scores`);
+        }
 
         analysis.sort((a, b) => a.equityScore - b.equityScore);
         
         console.log(`   ✅ Successfully analyzed ${analysis.length} venues`);
         
-        analysis.slice(0, 3).forEach((venue, idx) => {
+        // Enhanced debug logging for top venues
+        console.log(`\n📊 Top venues ranked by equity score:`);
+        analysis.slice(0, 5).forEach((venue, idx) => {
             const modeText = venue.mixedMode ? 
                 `${venue.transportModes[0]}/${venue.transportModes[1]}` : 
                 venue.transportModes[0];
-            console.log(`   ${idx + 1}. ${venue.name} [${modeText}]: equity=${venue.equityScore.toFixed(2)}, variance=${venue.timeVariance.toFixed(1)}min², range=${venue.timeRange.toFixed(1)}min`);
+            console.log(`   ${idx + 1}. ${venue.name} [${modeText}]:`);
+            console.log(`      - Equity score: ${venue.equityScore.toFixed(2)}`);
+            console.log(`      - Travel times: ${venue.travelTimes.map(t => t.toFixed(0)).join(', ')} mins`);
+            console.log(`      - Range: ${venue.timeRange.toFixed(1)}min (${venue.minTravelTime.toFixed(0)}-${venue.maxTravelTime.toFixed(0)}min)`);
+            console.log(`      - Variance: ${venue.timeVariance.toFixed(1)}min²`);
+            console.log(`      - Average: ${venue.avgTravelTime.toFixed(1)}min`);
         });
+        console.log(`\n`);
         
         return analysis;
     }
@@ -1261,6 +1552,20 @@ class EnhancedSocialMidpointCalculator {
     }
 
     async getTravelTime(directionsService, origin, destination, travelMode) {
+        // Create a cache key using origin, destination, and travel mode
+        const originLat = typeof origin.lat === 'function' ? origin.lat() : origin.lat;
+        const originLng = typeof origin.lng === 'function' ? origin.lng() : origin.lng;
+        const destLat = typeof destination.lat === 'function' ? destination.lat() : destination.lat;
+        const destLng = typeof destination.lng === 'function' ? destination.lng() : destination.lng;
+        
+        const cacheKey = `${originLat},${originLng}_${destLat},${destLng}_${travelMode}`;
+        
+        // Check if result is already in cache
+        if (this.travelTimeCache.has(cacheKey)) {
+            console.log(`   ⚡ Using cached travel time for ${travelMode} route`);
+            return this.travelTimeCache.get(cacheKey);
+        }
+        
         return new Promise((resolve, reject) => {
             const request = {
                 origin: origin,
@@ -1278,6 +1583,10 @@ class EnhancedSocialMidpointCalculator {
             directionsService.route(request, (result, status) => {
                 if (status === google.maps.DirectionsStatus.OK) {
                     const durationMinutes = result.routes[0].legs[0].duration.value / 60;
+                    
+                    // Store result in cache
+                    this.travelTimeCache.set(cacheKey, durationMinutes);
+                    
                     resolve(durationMinutes);
                 } else {
                     reject(new Error(`Directions failed: ${status}`));
@@ -1287,20 +1596,74 @@ class EnhancedSocialMidpointCalculator {
     }
 
     findMostEquitableVenue(analysis) {
-        if (analysis.length === 0) return null;
+        if (!analysis || analysis.length === 0) return null;
         
-        const best = analysis[0]; // Already sorted by equity score
+        // First, check if any venue has exceptionally low variance and range
+        // even if equity score isn't the absolute best
+        for (let i = 1; i < Math.min(5, analysis.length); i++) {
+            const venue = analysis[i];
+            const bestVenue = analysis[0];
+            
+            // If this venue has significantly better variance and range, promote it
+            // even if equity score is slightly worse (within 0.1)
+            if (venue.timeVariance < bestVenue.timeVariance * 0.7 && 
+                venue.timeRange < bestVenue.timeRange * 0.8 &&
+                venue.equityScore - bestVenue.equityScore < 0.1) {
+                
+                console.log(`   🔄 Promoting ${venue.name} due to better variance/range metrics`);
+                console.log(`      Variance: ${venue.timeVariance.toFixed(1)} vs ${bestVenue.timeVariance.toFixed(1)}`);
+                console.log(`      Range: ${venue.timeRange.toFixed(1)} vs ${bestVenue.timeRange.toFixed(1)}`);
+                return venue;
+            }
+        }
         
-        console.log(`🎯 Selected venue: ${best.name}`);
-        console.log(`   Travel times: [${best.travelTimes.map(t => t.toFixed(1)).join(', ')}] minutes`);
-        console.log(`   Fairness gap: ${Math.abs(best.travelTimes[0] - best.travelTimes[1]).toFixed(1)} minutes`);
-        console.log(`   Average time: ${best.avgTravelTime.toFixed(1)} minutes`);
-        
-        return best;
+        return analysis[0]; // Return the venue with best equity score
     }
 
     calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange) {
         const timeVariance = this.calculateVariance(travelTimes);
+        
+        // Skip venues with excessive max travel time (>85% of max allowed)
+        // For large groups (7+), we allow up to 90% of max allowed time
+        // For very large groups (8+) with diverse locations, we allow up to 100% of max allowed time
+        // Dynamically determine max allowed travel time based on this.maxTravelTimeMinutes
+        const maxAllowedTravelTime = this.maxTravelTimeMinutes || 60; // minutes
+        const maxTravelTime = Math.max(...travelTimes);
+        let maxTravelTimeThreshold;
+        
+        // Calculate geographic diversity by measuring the range of latitudes and longitudes
+        const geoSpread = this.calculateGeographicSpread();
+        
+        if (travelTimes.length >= 8) {
+            // For very large groups (8+), scale threshold based on geographic spread
+            if (geoSpread > 0.15) { // High geographic diversity
+                maxTravelTimeThreshold = 1.5; // 150% for 8+ people with high geographic diversity
+                console.log(`   💡 Very large group (8+) with high geographic diversity: Using extra lenient max travel time threshold of 150%`);
+            } else {
+                maxTravelTimeThreshold = 1.2; // 120% for 8+ people with normal geographic diversity
+                console.log(`   💡 Very large group (8+): Using lenient max travel time threshold of 120%`);
+            }
+        } else if (travelTimes.length >= 7) {
+            maxTravelTimeThreshold = 1.0; // 100% for 7 people
+            console.log(`   💡 Large group (7): Using lenient max travel time threshold of 100%`);
+        } else {
+            maxTravelTimeThreshold = 0.85; // 85% for smaller groups
+        }
+        
+        const effectiveMaxTravelTime = maxAllowedTravelTime * maxTravelTimeThreshold;
+        if (maxTravelTime > effectiveMaxTravelTime) {
+            console.log(`⛔ Skipping venue with excessive max travel time: ${maxTravelTime.toFixed(1)}min > ${effectiveMaxTravelTime.toFixed(1)}min`);
+            return null;
+        }
+        
+        // Skip venues with excessive time range (>120% of maxAcceptableTimeDifference)
+        // For large groups (7+), we allow up to 130% of maxAcceptableTimeDifference
+        const rangeThreshold = travelTimes.length >= 7 ? 1.3 : 1.2;
+        console.log(`   🔍 DEBUG: maxAcceptableTimeDifference=${this.maxAcceptableTimeDifference}, rangeThreshold=${rangeThreshold}, travelTimes.length=${travelTimes.length}`);
+        if (timeRange > this.maxAcceptableTimeDifference * rangeThreshold) {
+            console.log(`⛔ Skipping venue with excessive time range: ${timeRange.toFixed(1)}min > ${(this.maxAcceptableTimeDifference * rangeThreshold).toFixed(1)}min`);
+            return null;
+        }
         
         const normalizedVariance = timeVariance / 100;
         const normalizedRange = timeRange / 60;
@@ -1310,9 +1673,18 @@ class EnhancedSocialMidpointCalculator {
                         (normalizedRange * 0.3) + 
                         (normalizedAvgTime * 0.4);
         
-        if (mixedMode && timeRange > this.maxAcceptableTimeDifference * 0.8) {
-            const mixedModePenalty = Math.pow(timeRange / this.maxAcceptableTimeDifference, 1.2) * 0.2;
+        // Apply penalty for high time range regardless of mode
+        if (timeRange > this.maxAcceptableTimeDifference * 0.8) {
+            const rangePenalty = Math.pow(timeRange / this.maxAcceptableTimeDifference, 1.5) * 0.3;
+            equityScore += rangePenalty;
+            console.log(`   ⚠️ Applied range penalty: +${rangePenalty.toFixed(2)} (range: ${timeRange.toFixed(1)}min)`); 
+        }
+        
+        // Additional penalty for mixed mode
+        if (mixedMode) {
+            const mixedModePenalty = 0.15; // Fixed penalty for mixed mode
             equityScore += mixedModePenalty;
+            console.log(`   ⚠️ Applied mixed mode penalty: +${mixedModePenalty.toFixed(2)}`);
         }
         
         return equityScore;
