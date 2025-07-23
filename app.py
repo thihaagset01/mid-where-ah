@@ -56,45 +56,77 @@ def inject_config():
         google_maps_api_key=os.environ.get('GOOGLE_MAPS_API_KEY')
     )
 
-# Routes
-@app.route('/profile')
-def profile():
-    return render_template('profile.html')
+# MAIN ROUTES - Proper separation
 @app.route('/')
 def index():
-    print('activated')
-    return render_template('mobile_home.html')
+    """Landing page - Now redirects to login page"""
+    print('Redirecting to login page')
+    return redirect(url_for('login'))
+
+@app.route('/app')
+def mobile_interface():
+    """Mobile interface - Custom CSS mobile app"""
+    print('Mobile interface activated')
+    # Get any query parameters for group joining
+    group_code = request.args.get('group')
+    user_name = request.args.get('name')
+    
+    return render_template('mobile_home.html', 
+                         group_code=group_code, 
+                         user_name=user_name)
 
 @app.route('/login')
 def login():
+    """Login page - can redirect to mobile interface after auth"""
     return render_template('login.html')
 
 @app.route('/dashboard')
 def dashboard():
-    # In a real app, we would check if user is authenticated here
-    return render_template('dashboard.html')
+    """Dashboard - redirect to mobile interface for now"""
+    return redirect(url_for('mobile_interface'))
 
+# MOBILE APP ROUTES - All use mobile_base.html
 @app.route('/groups')
 def groups():
-    # Redirected from bottom nav, shows all user groups
+    """Groups management page - mobile interface"""
     return render_template('group.html')
+
+@app.route('/profile')
+def profile():
+    """Profile page - mobile interface"""
+    return render_template('profile.html')
 
 @app.route('/group_chat')
 def group_chat():
-    # In a real app, we would fetch group data from Firestore
+    """Group chat - mobile interface"""
     return render_template('group_chat.html')
 
 @app.route('/venues/<group_id>')
 def venues(group_id):
-    # In a real app, we would calculate venues based on group locations
+    """Venues page - mobile interface"""
     return render_template('venues.html', group_id=group_id)
 
 @app.route('/swipe/<group_id>')
 def swipe(group_id):
-    # In a real app, we would fetch venue options for swiping
+    """Swipe interface - mobile interface"""
     return render_template('swipe.html', group_id=group_id)
 
-# API endpoints
+# UTILITY ROUTES
+@app.route('/join')
+def join_group():
+    """Handle group joining from external links"""
+    group_code = request.args.get('code')
+    if group_code:
+        return redirect(url_for('mobile_interface', group=group_code))
+    else:
+        return redirect(url_for('index'))
+
+@app.route('/quick-start')
+def quick_start():
+    """Quick start - bypass landing page, go straight to mobile interface"""
+    return redirect(url_for('mobile_interface'))
+
+# API ENDPOINTS
 @app.route('/api/user', methods=['GET', 'POST'])
 def user_api():
     if request.method == 'POST':
@@ -115,8 +147,33 @@ def group_api():
 
 @app.route('/api/venues', methods=['GET'])
 def venues_api():
-    # Calculate and return venue recommendations
+    """Calculate and return venue recommendations"""
     return jsonify({"status": "success", "data": []})
+
+@app.route('/api/join-group', methods=['POST'])
+def join_group_api():
+    """Handle group joining via API"""
+    data = request.get_json()
+    group_code = data.get('group_code')
+    user_name = data.get('user_name')
+    
+    # TODO: Implement actual group joining logic
+    # For now, just return success
+    return jsonify({
+        "status": "success", 
+        "redirect_url": url_for('mobile_interface', group=group_code, name=user_name)
+    })
+
+# ERROR HANDLERS
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors - redirect to landing page"""
+    return redirect(url_for('index'))
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors"""
+    return render_template('error.html', error="Internal server error"), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

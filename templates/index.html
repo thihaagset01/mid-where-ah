@@ -2,54 +2,133 @@
 
 {% block title %}Find the perfect meetup spot{% endblock %}
 
+{% block head %}
+{{ super() }}
+<!-- Ensure this page doesn't interfere with mobile interface -->
+<style>
+/* Landing page specific styles - isolated from mobile */
+.landing-page {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.landing-content {
+    padding: 2rem 0;
+}
+
+.feature-icon {
+    width: 4rem;
+    height: 4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin: 0 auto;
+}
+
+.card {
+    border: none;
+    border-radius: 1rem;
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #8B5DB8, #6A4A8C);
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.75rem 2rem;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #6A4A8C, #8B5DB8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 93, 184, 0.3);
+}
+
+.btn-outline-secondary {
+    border: 2px solid #8B5DB8;
+    color: #8B5DB8;
+    border-radius: 0.5rem;
+    padding: 0.75rem 2rem;
+    font-weight: 600;
+}
+
+.btn-outline-secondary:hover {
+    background: #8B5DB8;
+    border-color: #8B5DB8;
+    color: white;
+}
+
+/* Ensure no conflicts with mobile styles */
+body.landing-page {
+    overflow: auto !important;
+    height: auto !important;
+}
+
+/* Hide mobile-specific elements on landing page */
+.group-header-container,
+.bottom-container,
+.find-central-btn,
+#map {
+    display: none !important;
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-        <div class="text-center mb-5">
-            <h1 class="display-4 fw-bold">MidWhereAh</h1>
-            <p class="lead">Find the perfect meetup spot in Singapore based on everyone's location</p>
-        </div>
-        
-        <div class="card shadow-sm">
-            <div class="card-body p-4">
-                <div class="text-center mb-4">
-                    <i class="fas fa-map-marked-alt fa-4x text-primary mb-3"></i>
-                    <h2>Meet in the middle</h2>
-                    <p class="text-muted">Create a group, invite friends, and let MidWhereAh find the perfect venue for everyone</p>
+<div class="landing-page">
+    <div class="container landing-content">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="text-center mb-5 text-white">
+                    <h1 class="display-4 fw-bold">MidWhereAh</h1>
+                    <p class="lead">Find the perfect meetup spot in Singapore based on everyone's location</p>
                 </div>
                 
-                <div class="d-grid gap-2">
-                    <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg" id="get-started-btn">
-                        Get Started
-                    </a>
-                    <button class="btn btn-outline-secondary btn-lg" id="join-group-btn" data-bs-toggle="modal" data-bs-target="#joinGroupModal">
-                        Join Existing Group
-                    </button>
+                <div class="card shadow-lg">
+                    <div class="card-body p-4">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-map-marked-alt fa-4x text-primary mb-3"></i>
+                            <h2>Meet in the middle</h2>
+                            <p class="text-muted">Create a group, invite friends, and let MidWhereAh find the perfect venue for everyone</p>
+                        </div>
+                        
+                        <div class="d-grid gap-3">
+                            <a href="{{ url_for('mobile_interface') }}" class="btn btn-primary btn-lg" id="get-started-btn">
+                                <i class="fas fa-rocket me-2"></i>Get Started
+                            </a>
+                            <button class="btn btn-outline-secondary btn-lg" id="join-group-btn" data-bs-toggle="modal" data-bs-target="#joinGroupModal">
+                                <i class="fas fa-users me-2"></i>Join Existing Group
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-        
-        <div class="row mt-5 g-4 text-center">
-            <div class="col-md-4">
-                <div class="feature-icon bg-primary bg-gradient text-white rounded-3 mb-3">
-                    <i class="fas fa-users"></i>
+                
+                <div class="row mt-5 g-4 text-center text-white">
+                    <div class="col-md-4">
+                        <div class="feature-icon bg-white text-primary rounded-3 mb-3">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <h5>Create Groups</h5>
+                        <p class="small opacity-75">Invite friends and family to join your meetup group</p>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="feature-icon bg-white text-primary rounded-3 mb-3">
+                            <i class="fas fa-map-pin"></i>
+                        </div>
+                        <h5>Find Midpoints</h5>
+                        <p class="small opacity-75">We calculate the perfect middle location for everyone</p>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="feature-icon bg-white text-primary rounded-3 mb-3">
+                            <i class="fas fa-utensils"></i>
+                        </div>
+                        <h5>Discover Venues</h5>
+                        <p class="small opacity-75">Vote on suggested restaurants, cafes, and more</p>
+                    </div>
                 </div>
-                <h5>Create Groups</h5>
-                <p class="text-muted small">Invite friends and family to join your meetup group</p>
-            </div>
-            <div class="col-md-4">
-                <div class="feature-icon bg-primary bg-gradient text-white rounded-3 mb-3">
-                    <i class="fas fa-map-pin"></i>
-                </div>
-                <h5>Find Midpoints</h5>
-                <p class="text-muted small">We calculate the perfect middle location for everyone</p>
-            </div>
-            <div class="col-md-4">
-                <div class="feature-icon bg-primary bg-gradient text-white rounded-3 mb-3">
-                    <i class="fas fa-utensils"></i>
-                </div>
-                <h5>Discover Venues</h5>
-                <p class="text-muted small">Vote on suggested restaurants, cafes, and more</p>
             </div>
         </div>
     </div>
@@ -67,14 +146,18 @@
                 <form id="join-group-form">
                     <div class="mb-3">
                         <label for="group-code" class="form-label">Enter Group Code</label>
-                        <input type="text" class="form-control" id="group-code" placeholder="Enter the 6-digit code" required>
+                        <input type="text" class="form-control" id="group-code" placeholder="Enter the 6-digit code" required maxlength="6">
+                        <div class="form-text">Ask your friend for the 6-digit group code</div>
                     </div>
                     <div class="mb-3">
                         <label for="your-name" class="form-label">Your Name</label>
                         <input type="text" class="form-control" id="your-name" placeholder="Enter your name" required>
+                        <div class="form-text">This will be shown to other group members</div>
                     </div>
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Join Group</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt me-2"></i>Join Group
+                        </button>
                     </div>
                 </form>
             </div>
@@ -85,9 +168,46 @@
 
 {% block scripts %}
 <script>
-    // Check if user is already logged in and redirect to dashboard
-    document.addEventListener('DOMContentLoaded', function() {
-        // This will be implemented in app.js to check Firebase auth state
-    });
+document.addEventListener('DOMContentLoaded', function() {
+    // Add landing page class to body
+    document.body.classList.add('landing-page');
+    
+    // Handle join group form
+    const joinForm = document.getElementById('join-group-form');
+    if (joinForm) {
+        joinForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const groupCode = document.getElementById('group-code').value.trim();
+            const yourName = document.getElementById('your-name').value.trim();
+            
+            if (groupCode.length !== 6) {
+                alert('Please enter a valid 6-digit group code');
+                return;
+            }
+            
+            if (yourName.length < 2) {
+                alert('Please enter your name');
+                return;
+            }
+            
+            // TODO: Implement group joining logic
+            console.log('Joining group:', groupCode, 'as:', yourName);
+            
+            // For now, redirect to mobile interface
+            window.location.href = "{{ url_for('mobile_interface') }}?group=" + groupCode + "&name=" + encodeURIComponent(yourName);
+        });
+    }
+    
+    // Format group code input
+    const groupCodeInput = document.getElementById('group-code');
+    if (groupCodeInput) {
+        groupCodeInput.addEventListener('input', function(e) {
+            // Only allow numbers and limit to 6 digits
+            let value = e.target.value.replace(/\D/g, '').substring(0, 6);
+            e.target.value = value;
+        });
+    }
+});
 </script>
 {% endblock %}

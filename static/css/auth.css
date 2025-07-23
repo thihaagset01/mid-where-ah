@@ -1,0 +1,264 @@
+/* MidWhereAh Authentication Styling */
+
+/* Global Auth Styles */
+body {
+    background: #ffffff;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Auth Container */
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.auth-content {
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+}
+
+/* Logo Styling */
+.logo-container {
+    margin-bottom: 30px;
+}
+
+.logo-image {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 10px;
+    display: block;
+    object-fit: contain;
+}
+
+.logo-text {
+    font-size: 24px;
+    font-weight: 600;
+    color: #6a4c93;
+    margin-bottom: 30px;
+}
+
+/* Section Styling */
+.active-section {
+    display: block;
+}
+
+.hidden-section {
+    display: none;
+}
+
+.account-toggle {
+    margin-top: 20px;
+    font-size: 14px;
+    color: #666;
+}
+
+.account-toggle a {
+    color: #6a4c93;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.account-toggle a:hover {
+    text-decoration: underline;
+}
+
+.social-login {
+    margin-top: 30px;
+}
+
+/* Form Styling */
+.form-control {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 16px;
+    background: #f8f9fa;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus {
+    outline: none;
+    background: white;
+    border-color: #6a4c93;
+    box-shadow: 0 0 0 3px rgba(106, 76, 147, 0.1);
+}
+
+.form-floating > .form-control {
+    padding: 1rem 0.75rem;
+}
+
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label {
+    color: #6a4c93;
+    transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
+}
+
+.form-floating > label {
+    color: #666;
+    padding: 1rem 0.75rem;
+}
+
+.form-text {
+    color: #666;
+    font-size: 12px;
+    margin-top: -8px;
+    margin-bottom: 16px;
+    text-align: left;
+}
+
+/* Password Toggle */
+.password-container {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0;
+    opacity: 0.6;
+    transition: opacity 0.3s ease;
+    z-index: 5;
+}
+
+.password-toggle:hover {
+    opacity: 1;
+}
+
+/* Button Styling */
+.btn-primary {
+    background: #6a4c93;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    width: 100%;
+    margin: 10px 0;
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    background: #5a3d83;
+    box-shadow: 0 2px 5px rgba(106, 76, 147, 0.2);
+}
+
+.btn-primary:active {
+    transform: translateY(1px);
+}
+
+.btn-outline-dark {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px;
+    background: white;
+    color: #333;
+    font-weight: 500;
+    width: 100%;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-dark:hover {
+    border-color: #6a4c93;
+    background: #f8f9fa;
+    color: #6a4c93;
+}
+
+/* Separator */
+.separator {
+    position: relative;
+    margin: 30px 0;
+}
+
+.separator::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #e0e0e0;
+}
+
+.separator-text {
+    background: white;
+    color: #999;
+    padding: 0 15px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Links */
+.auth-link {
+    color: #6a4c93;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.auth-link:hover {
+    color: #5a3d83;
+    text-decoration: underline;
+}
+
+/* Checkbox styling */
+.form-check {
+    text-align: left;
+    margin: 15px 0;
+}
+
+.form-check-label {
+    font-size: 14px;
+    color: #666;
+}
+
+.form-check-input:checked {
+    background-color: #6a4c93;
+    border-color: #6a4c93;
+}
+
+.form-check-input:focus {
+    border-color: #6a4c93;
+    box-shadow: 0 0 0 0.25rem rgba(106, 76, 147, 0.25);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 576px) {
+    .auth-content {
+        max-width: 320px;
+    }
+    
+    .logo-image {
+        width: 70px;
+        height: 70px;
+    }
+    
+    .logo-text {
+        font-size: 22px;
+        margin-bottom: 25px;
+    }
+}
+
+/* Toast styling */
+.toast {
+    border-radius: 8px;
+}
+
+/* Add JavaScript for section toggle */
+#show-signup, #show-login {
+    cursor: pointer;
+}
+
+/* Toast for auth messages */
+#auth-toast {
+    z-index: 5;
+}

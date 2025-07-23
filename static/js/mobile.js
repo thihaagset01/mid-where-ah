@@ -1,14 +1,1240 @@
-// Mobile-first JavaScript functionality for MidWhereAh
-// Enhanced Social Fairness Algorithm - Prioritizing Travel Time Equity
+// COMPLETELY CLEAN MOBILE.JS - Remove all duplicates and conflicts
 
-// Enhanced Social Fairness Midpoint Algorithm (Travel Time Equity Focus)
+// Enhanced global variables for multiple locations
+window.userTransportModes = new Map();
+window.locationData = new Map();
+window.nextPersonId = 1;
 
-window.userTransportModes = {
-    'location-1': 'TRANSIT', // Default to transit
-    'location-2': 'TRANSIT'
-};
+// Initialize arrays to prevent errors
+window.directionsRenderers = window.directionsRenderers || [];
+window.locationMarkers = window.locationMarkers || {};
 
-class EnhancedSocialMidpointCalculator {
+// Transport modes configuration
+const TRANSPORT_MODES = [
+    {
+        mode: 'TRANSIT',
+        icon: '🚇',
+        name: 'Public Transport',
+        class: 'transit'
+    },
+    {
+        mode: 'DRIVING', 
+        icon: '🚗',
+        name: 'Car/Taxi',
+        class: 'driving'
+    },
+    {
+        mode: 'WALKING',
+        icon: '🚶',
+        name: 'Walking', 
+        class: 'walking'
+    }
+];
+
+function setupTransportCycling() {
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('transport-icon')) {
+            cycleTransportMode(e.target);
+        }
+    });
+}
+
+function cycleTransportMode(iconElement) {
+    const person = iconElement.getAttribute('data-person');
+    const currentMode = iconElement.getAttribute('data-current-mode');
+    
+    // Find current mode index
+    const currentIndex = TRANSPORT_MODES.findIndex(mode => mode.mode === currentMode);
+    
+    // Get next mode (cycle back to 0 if at end)
+    const nextIndex = (currentIndex + 1) % TRANSPORT_MODES.length;
+    const nextMode = TRANSPORT_MODES[nextIndex];
+    
+    // Update the icon
+    updateTransportIcon(iconElement, nextMode, person);
+    
+    // Add tap animation
+    iconElement.classList.add('tap-animation');
+    setTimeout(() => {
+        iconElement.classList.remove('tap-animation');
+    }, 300);
+    
+    console.log(`🔄 Person ${person} switched to: ${nextMode.name}`);
+}
+
+function updateTransportIcon(iconElement, modeConfig, person) {
+    const locationId = `location-${person}`;
+    
+    // Update icon appearance
+    iconElement.textContent = modeConfig.icon;
+    iconElement.setAttribute('data-current-mode', modeConfig.mode);
+    iconElement.setAttribute('data-tooltip', modeConfig.name);
+    
+    // Update CSS classes
+    iconElement.className = `transport-icon ${modeConfig.class}`;
+    
+    // Maintain person ID ring color
+    const container = iconElement.closest('.location-container');
+    if (container) {
+        const personId = container.getAttribute('data-person-id');
+        if (personId) {
+            // Ring color is handled by CSS, no need to modify
+        }
+    }
+    
+    // Update global transport mode storage
+    if (window.userTransportModes) {
+        window.userTransportModes.set(locationId, modeConfig.mode);
+    }
+    
+    // Update stored location data if exists
+    if (window.locationData && window.locationData.has(locationId)) {
+        const locationData = window.locationData.get(locationId);
+        locationData.transportMode = modeConfig.mode;
+        window.locationData.set(locationId, locationData);
+    }
+    
+    // Trigger location check if hybrid manager exists
+    if (window.hybridLocationManager) {
+        window.hybridLocationManager.debouncedLocationCheck();
+    }
+}
+
+
+// Debounce function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// CLEAN Error notification - only one version
+function showErrorNotification(message) {
+    console.error('Error:', message);
+    
+    // Remove existing notification
+    const existing = document.getElementById('error-notification');
+    if (existing) {
+        existing.remove();
+    }
+    
+    // Create new notification
+    const notification = document.createElement('div');
+    notification.id = 'error-notification';
+    notification.style.cssText = `
+        position: fixed; 
+        top: 80px; 
+        left: 50%; 
+        transform: translateX(-50%);
+        background: rgba(244, 67, 54, 0.95); 
+        color: white; 
+        padding: 12px 20px;
+        border-radius: 8px; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 9999; 
+        max-width: 90%; 
+        text-align: center;
+        font-size: 14px;
+        backdrop-filter: blur(10px);
+    `;
+    
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
+}
+
+function storeAlgorithmResults(bestVenue) {
+    window.algorithmResults = {
+        venue: bestVenue,
+        calculatedTimes: bestVenue.travelTimes,
+        transportModes: bestVenue.transportModes,
+        timestamp: Date.now()
+    };
+}
+
+// CLEAN Routes display function
+function showRoutesLegacy(midpoint, locationArray) {
+    if (!ensureMapInitialization()) {
+        showErrorNotification('Map not ready for route display');
+        return;
+    }
+    
+    console.log(`🛣️ Displaying ${locationArray.length} routes to midpoint`);
+    
+    // Clear existing routes
+    if (window.directionsRenderers) {
+        window.directionsRenderers.forEach(renderer => {
+            if (renderer && renderer.setMap) {
+                renderer.setMap(null);
+            }
+        });
+    }
+    window.directionsRenderers = [];
+    
+    const directionsService = new google.maps.DirectionsService();
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
+    
+    locationArray.forEach((location, index) => {
+        const renderer = new google.maps.DirectionsRenderer({
+            map: window.midwhereahMap,
+            suppressMarkers: true,
+            polylineOptions: {
+                strokeColor: colors[index % colors.length],
+                strokeWeight: 4,
+                strokeOpacity: 0.7
+            }
+        });
+        
+        window.directionsRenderers.push(renderer);
+        
+        // 🔥 USE STORED ALGORITHM TIMES if available
+        if (window.algorithmResults && window.algorithmResults.calculatedTimes[index]) {
+            console.log(`🛣️ Route ${index + 1}: Using algorithm time ${window.algorithmResults.calculatedTimes[index].toFixed(1)}min`);
+        }
+        
+        const travelMode = location.transportMode || 'TRANSIT';
+        const googleMapsMode = travelMode === 'TRANSIT' ? google.maps.TravelMode.TRANSIT :
+                              travelMode === 'DRIVING' ? google.maps.TravelMode.DRIVING :
+                              google.maps.TravelMode.WALKING;
+        
+        const request = {
+            origin: location.position,
+            destination: midpoint,
+            travelMode: googleMapsMode
+        };
+        
+        if (googleMapsMode === google.maps.TravelMode.TRANSIT) {
+            request.transitOptions = {
+                modes: [google.maps.TransitMode.BUS, google.maps.TransitMode.RAIL],
+                routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
+            };
+        }
+        
+        directionsService.route(request, (result, status) => {
+            if (status === google.maps.DirectionsStatus.OK) {
+                renderer.setDirections(result);
+                const duration = result.routes[0].legs[0].duration;
+                console.log(`🛣️ Route ${index + 1} displayed: ${duration.text} via ${travelMode}`);
+            } else {
+                console.error(`❌ Route ${index + 1} failed: ${status}`);
+            }
+        });
+    });
+}
+
+// CLEAN HybridLocationManager - single version with add person cooldown
+class HybridLocationManager {
+    constructor() {
+        this.minLocations = 2;
+        this.maxLocations = 8;
+        this.personCounter = 0; // Will be properly set in initialize()
+        this.colors = [
+            '#EF4444', '#06B6D4', '#8B5CF6', '#F59E0B', 
+            '#EC4899', '#10B981', '#F97316', '#6366F1'
+        ];
+        this.initialized = false;
+        this.lastLocationStatus = '';
+        this.isAdding = false;
+        
+        this.debouncedLocationCheck = debounce(this.checkAllLocationsAndShowButton.bind(this), 300);
+    }
+
+    initialize() {
+        if (this.initialized) return;
+        
+        console.log('🔧 Initializing HybridLocationManager...');
+        
+        const existingInputs = document.querySelectorAll('.location-input');
+        
+        if (existingInputs.length > 0) {
+            console.log(`📍 Found ${existingInputs.length} existing location inputs, using hybrid mode`);
+            this.setupExistingInputs(existingInputs);
+        } else {
+            console.log('📍 No existing inputs found, creating new dynamic system');
+            this.createInitialInputs();
+        }
+        
+        this.initialized = true;
+        console.log('✅ HybridLocationManager initialized');
+    }
+
+    setupExistingInputs(inputs) {
+        // PROPERLY SET PERSON COUNTER based on existing inputs
+        this.personCounter = 0;
+        
+        inputs.forEach((input, index) => {
+            const container = input.closest('.location-container');
+            let personId;
+            
+            if (container && container.hasAttribute('data-person-id')) {
+                // Use existing person ID from HTML
+                personId = parseInt(container.getAttribute('data-person-id'));
+            } else {
+                // Assign sequential person ID
+                personId = index + 1;
+                if (container) {
+                    container.setAttribute('data-person-id', personId);
+                }
+            }
+            
+            // Update person counter to highest ID
+            this.personCounter = Math.max(this.personCounter, personId);
+            
+            const inputId = input.id || `location-${personId}`;
+            input.id = inputId;
+            
+            // Initialize transport mode
+            window.userTransportModes.set(inputId, 'TRANSIT');
+            
+            // Set up input event listeners
+            this.setupInputEventListeners(input);
+            
+            // Initialize autocomplete when Google Maps is ready
+            this.initializeAutocompleteForInput(input);
+            
+            console.log(`📍 Set up existing input: ${inputId} (Person ${personId})`);
+        });
+        
+        this.updateUIState();
+    }
+
+    addLocationInput(personName = null) {
+        if (this.isAdding) {
+            console.log('🚫 Already adding a person, please wait');
+            return null;
+        }
+        
+        if (this.getLocationCount() >= this.maxLocations) {
+            showErrorNotification(`Maximum ${this.maxLocations} people allowed`);
+            return null;
+        }
+
+        this.isAdding = true;
+        console.log('🚀 Starting to add location input...');
+
+        // PROPER PERSON ID ASSIGNMENT
+        const personId = ++this.personCounter;
+        let container = document.getElementById('locations-container');
+        
+        if (!container) {
+            const existingContainer = document.querySelector('.group.group-col.center');
+            if (existingContainer) {
+                container = existingContainer;
+                container.id = 'locations-container';
+            } else {
+                container = document.createElement('div');
+                container.id = 'locations-container';
+                container.className = 'group group-col center';
+                document.body.appendChild(container);
+            }
+        }
+
+        // Create location element
+        const locationElement = document.createElement('div');
+        locationElement.className = 'location-container';
+        locationElement.setAttribute('data-person-id', personId);
+
+        const inputId = `location-${personId}`;
+        const colorIndex = (personId - 1) % this.colors.length;
+        const personColor = this.colors[colorIndex];
+
+        // NEW ELEGANT HTML STRUCTURE
+        locationElement.innerHTML = `
+            <div class="location-item">
+                <div class="transport-icon transit" 
+                     data-person="${personId}" 
+                     data-current-mode="TRANSIT"
+                     data-tooltip="Public Transport">
+                    🚇
+                </div>
+                <input type="text" 
+                       class="location-input" 
+                       id="${inputId}" 
+                       placeholder="${personName ? `${personName}'s location` : `Address ${personId}`}" 
+                       autocomplete="off">
+                <button class="remove-person-btn" 
+                        style="display: ${this.getLocationCount() >= this.minLocations ? 'inline-flex' : 'none'};" 
+                        title="Remove Person">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+        // Insert before the add-person-container
+        const addPersonContainer = container.querySelector('.add-person-container');
+        if (addPersonContainer) {
+            container.insertBefore(locationElement, addPersonContainer);
+        } else {
+            container.appendChild(locationElement);
+        }
+
+        // Get references to created elements
+        const input = locationElement.querySelector('.location-input');
+        const removeBtn = locationElement.querySelector('.remove-person-btn');
+        
+        // Setup remove button
+        removeBtn.addEventListener('click', () => {
+            this.removeLocationInput(personId);
+        });
+
+        // Setup input listeners
+        this.setupInputEventListeners(input);
+        
+        // Initialize autocomplete
+        this.initializeAutocompleteForInput(input);
+        
+        // Initialize transport mode
+        window.userTransportModes.set(inputId, 'TRANSIT');
+        
+        // Update UI
+        this.updateUIState();
+        
+        console.log(`➕ Added location input for Person ${personId} (${inputId})`);
+        
+        // Reset adding flag
+        setTimeout(() => {
+            this.isAdding = false;
+        }, 300);
+
+        return { personId, inputId, input, color: personColor };
+    }
+
+    removeLocationInput(personId) {
+        const container = document.querySelector(`[data-person-id="${personId}"]`);
+        if (!container) return;
+
+        const inputId = `location-${personId}`;
+
+        console.log(`➖ Removing location input for Person ${personId} (${inputId})`);
+
+        // Remove from data structures
+        window.userTransportModes.delete(inputId);
+        window.locationData.delete(inputId);
+        
+        // Remove marker from map
+        if (window.locationMarkers && window.locationMarkers[inputId]) {
+            window.locationMarkers[inputId].setMap(null);
+            delete window.locationMarkers[inputId];
+        }
+
+        // Remove DOM element with animation
+        container.style.transition = 'opacity 0.3s, transform 0.3s';
+        container.style.opacity = '0';
+        container.style.transform = 'translateX(-100%)';
+        
+        setTimeout(() => {
+            container.remove();
+            
+            // IMPORTANT: Resequence person IDs after removal
+            this.resequencePersonIds();
+            
+            this.updateUIState();
+        }, 300);
+    }
+
+    // NEW METHOD: Resequence person IDs to keep them consecutive
+    resequencePersonIds() {
+        const containers = document.querySelectorAll('.location-container[data-person-id]');
+        let newPersonCounter = 0;
+        
+        containers.forEach((container, index) => {
+            const newPersonId = index + 1;
+            newPersonCounter = newPersonId;
+            
+            // Update container data attribute
+            container.setAttribute('data-person-id', newPersonId);
+            
+            // Update transport icon data attribute
+            const transportIcon = container.querySelector('.transport-icon');
+            if (transportIcon) {
+                transportIcon.setAttribute('data-person', newPersonId);
+            }
+            
+            // Update input ID and transport mode mapping
+            const input = container.querySelector('.location-input');
+            if (input) {
+                const oldInputId = input.id;
+                const newInputId = `location-${newPersonId}`;
+                
+                // Update input ID
+                input.id = newInputId;
+                
+                // Transfer data if it exists
+                if (window.userTransportModes.has(oldInputId)) {
+                    const transportMode = window.userTransportModes.get(oldInputId);
+                    window.userTransportModes.delete(oldInputId);
+                    window.userTransportModes.set(newInputId, transportMode);
+                }
+                
+                if (window.locationData.has(oldInputId)) {
+                    const locationData = window.locationData.get(oldInputId);
+                    window.locationData.delete(oldInputId);
+                    window.locationData.set(newInputId, locationData);
+                }
+                
+                // Update marker if it exists
+                if (window.locationMarkers && window.locationMarkers[oldInputId]) {
+                    window.locationMarkers[newInputId] = window.locationMarkers[oldInputId];
+                    delete window.locationMarkers[oldInputId];
+                }
+            }
+        });
+        
+        // Update person counter
+        this.personCounter = newPersonCounter;
+        
+        console.log(`🔄 Resequenced person IDs, new counter: ${this.personCounter}`);
+    }
+
+    getLocationCount() {
+        return document.querySelectorAll('.location-input').length;
+    }
+
+    updateUIState() {
+        const count = this.getLocationCount();
+        const addBtn = document.getElementById('add-person-btn');
+        const removeBtns = document.querySelectorAll('.remove-person-btn');
+        const personCountSpan = document.getElementById('person-count');
+
+        // Update person count display
+        if (personCountSpan) {
+            personCountSpan.textContent = count;
+        }
+
+        // Show/hide add button
+        if (addBtn) {
+            addBtn.style.display = count < this.maxLocations ? 'inline-flex' : 'none';
+            if (count >= this.maxLocations) {
+                addBtn.innerHTML = '<i class="fas fa-users me-1"></i>Max reached';
+                addBtn.disabled = true;
+            } else {
+                addBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Person';
+                addBtn.disabled = false;
+            }
+        }
+
+        // Show/hide remove buttons (only show for 3+ people)
+        removeBtns.forEach((btn) => {
+            const container = btn.closest('.location-container');
+            const personId = parseInt(container.getAttribute('data-person-id') || '0');
+            const shouldShow = count > this.minLocations && personId > 2;
+            
+            console.log(`🔍 Person ${personId}: shouldShow=${shouldShow}, count=${count}`);
+            btn.style.display = shouldShow ? 'inline-flex' : 'none';
+        });
+
+        // Update find button state
+        this.debouncedLocationCheck();
+
+        console.log(`📊 UI updated: ${count} people, next ID would be: ${this.personCounter + 1}`);
+    }
+
+    setupInputEventListeners(input) {
+        // Add input event listener with debouncing
+        input.addEventListener('input', () => {
+            console.log(`Input changed: ${input.id} = "${input.value}"`);
+            this.debouncedLocationCheck();
+            this.handleLocationInput(input);
+        });
+        
+        // Add paste event listener
+        input.addEventListener('paste', () => {
+            setTimeout(() => {
+                console.log(`Paste detected: ${input.id} = "${input.value}"`);
+                this.debouncedLocationCheck();
+                this.handleLocationInput(input);
+            }, 100);
+        });
+    }
+
+    handleLocationInput(input) {
+        const value = input.value.trim();
+        
+        if (value.length >= 3) {
+            // Clear any existing timeout
+            if (input.geocodeTimeout) {
+                clearTimeout(input.geocodeTimeout);
+            }
+            
+            // Set up geocoding with delay (in case autocomplete doesn't work)
+            input.geocodeTimeout = setTimeout(() => {
+                this.geocodeLocation(input);
+            }, 2000); // Wait 2 seconds for autocomplete to work first
+        }
+    }
+
+    // Enhanced Singapore Postal Code Geocoding
+// Properly handles Singapore postal codes and improves location accuracy
+
+geocodeLocation(input) {
+    const value = input.value.trim();
+    
+    // Don't geocode if we already have data from autocomplete
+    if (window.locationData.has(input.id)) {
+        return;
+    }
+    
+    if (!window.geocoder && window.google && window.google.maps) {
+        window.geocoder = new google.maps.Geocoder();
+    }
+    
+    if (!window.geocoder) {
+        console.warn('Geocoder not available yet');
+        return;
+    }
+    
+    console.log(`🔍 Enhanced geocoding for ${input.id}: "${value}"`);
+    
+    // Enhanced Singapore input processing
+    const processedInput = this.processSingaporeInput(value);
+    console.log(`📝 Processed input: "${processedInput.query}" (type: ${processedInput.type})`);
+    
+    // Special case handling for known problematic locations
+    const knownLocations = {
+        "east coast lagoon food village": { lat: 1.3046, lng: 103.9082 },
+        "east coast lagoon food centre": { lat: 1.3046, lng: 103.9082 },
+        "east coast park food centre": { lat: 1.3046, lng: 103.9082 },
+        // Add more known locations as needed
+        "marina bay sands": { lat: 1.2834, lng: 103.8607 },
+        "gardens by the bay": { lat: 1.2816, lng: 103.8636 },
+        "singapore zoo": { lat: 1.4043, lng: 103.7930 }
+    };
+    
+    // Check if this is a known problematic location
+    const normalizedValue = value.toLowerCase().trim();
+    if (knownLocations[normalizedValue]) {
+        console.log(`🔍 Using predefined coordinates for known location: ${value}`);
+        this.useKnownLocation(input, knownLocations[normalizedValue], value);
+        return;
+    }
+    
+    // Enhanced geocoding with multiple fallback strategies
+    this.geocodeWithFallback(input, processedInput);
+}
+
+// Process Singapore input to optimize geocoding
+processSingaporeInput(input) {
+    const trimmed = input.trim();
+    
+    // Singapore postal code pattern (6 digits)
+    const postalCodePattern = /^(\d{6})$/;
+    const postalMatch = trimmed.match(postalCodePattern);
+    
+    if (postalMatch) {
+        return {
+            query: `Singapore ${postalMatch[1]}`,
+            type: 'postal_code',
+            original: trimmed
+        };
+    }
+    
+    // Singapore postal code with "Singapore" prefix
+    const postalWithCountryPattern = /^(?:singapore\s+)?(\d{6})$/i;
+    const postalWithCountryMatch = trimmed.match(postalWithCountryPattern);
+    
+    if (postalWithCountryMatch) {
+        return {
+            query: `Singapore ${postalWithCountryMatch[1]}`,
+            type: 'postal_code',
+            original: trimmed
+        };
+    }
+    
+    // MRT station patterns
+    const mrtPatterns = [
+        /(.+)\s+mrt$/i,
+        /(.+)\s+station$/i,
+        /(.+)\s+interchange$/i
+    ];
+    
+    for (let pattern of mrtPatterns) {
+        const match = trimmed.match(pattern);
+        if (match) {
+            return {
+                query: `${match[1]} MRT Station, Singapore`,
+                type: 'mrt_station',
+                original: trimmed
+            };
+        }
+    }
+    
+    // Shopping mall patterns
+    const mallPatterns = [
+        /(.+)\s+mall$/i,
+        /(.+)\s+plaza$/i,
+        /(.+)\s+hub$/i,
+        /(.+)\s+centre$/i,
+        /(.+)\s+center$/i
+    ];
+    
+    for (let pattern of mallPatterns) {
+        const match = trimmed.match(pattern);
+        if (match) {
+            return {
+                query: `${match[1]} ${pattern.source.includes('mall') ? 'Mall' : 
+                               pattern.source.includes('plaza') ? 'Plaza' :
+                               pattern.source.includes('hub') ? 'Hub' : 'Centre'}, Singapore`,
+                type: 'shopping_center',
+                original: trimmed
+            };
+        }
+    }
+    
+    // HDB estate patterns (common Singapore housing)
+    const hdbPatterns = [
+        /(.+)\s+estate$/i,
+        /(.+)\s+block\s+(\d+)$/i,
+        /block\s+(\d+)\s+(.+)$/i
+    ];
+    
+    for (let pattern of hdbPatterns) {
+        const match = trimmed.match(pattern);
+        if (match) {
+            return {
+                query: `${trimmed}, Singapore`,
+                type: 'hdb_address',
+                original: trimmed
+            };
+        }
+    }
+    
+    // Road/Street patterns
+    const roadPatterns = [
+        /(.+)\s+road$/i,
+        /(.+)\s+street$/i,
+        /(.+)\s+avenue$/i,
+        /(.+)\s+drive$/i,
+        /(.+)\s+lane$/i,
+        /(.+)\s+way$/i
+    ];
+    
+    for (let pattern of roadPatterns) {
+        const match = trimmed.match(pattern);
+        if (match) {
+            return {
+                query: `${trimmed}, Singapore`,
+                type: 'street_address',
+                original: trimmed
+            };
+        }
+    }
+    
+    // Default: append Singapore if not present
+    const hasCountry = /singapore/i.test(trimmed);
+    return {
+        query: hasCountry ? trimmed : `${trimmed}, Singapore`,
+        type: 'general',
+        original: trimmed
+    };
+}
+
+// Geocode with multiple fallback strategies
+async geocodeWithFallback(input, processedInput) {
+    const strategies = [
+        // Strategy 1: Use processed query with component restrictions
+        {
+            name: 'Enhanced Query',
+            request: {
+                address: processedInput.query,
+                componentRestrictions: { 
+                    country: 'SG',
+                    ...(processedInput.type === 'postal_code' ? { postalCode: processedInput.original } : {})
+                }
+            }
+        },
+        
+        // Strategy 2: Singapore-specific geocoding
+        {
+            name: 'Singapore Specific',
+            request: {
+                address: processedInput.query,
+                region: 'SG',
+                componentRestrictions: { country: 'SG' }
+            }
+        },
+        
+        // Strategy 3: Bounds-restricted geocoding (Singapore bounds)
+        {
+            name: 'Bounds Restricted',
+            request: {
+                address: processedInput.query,
+                bounds: new google.maps.LatLngBounds(
+                    new google.maps.LatLng(1.16, 103.6), // Southwest corner
+                    new google.maps.LatLng(1.48, 104.0)  // Northeast corner
+                ),
+                componentRestrictions: { country: 'SG' }
+            }
+        },
+        
+        // Strategy 4: Original input as fallback
+        {
+            name: 'Original Input',
+            request: {
+                address: `${processedInput.original}, Singapore`,
+                componentRestrictions: { country: 'SG' }
+            }
+        }
+    ];
+    
+    for (let strategy of strategies) {
+        try {
+            console.log(`🎯 Trying ${strategy.name} strategy for: ${processedInput.original}`);
+            
+            const result = await this.geocodeWithStrategy(strategy.request);
+            
+            if (result && this.isValidSingaporeLocation(result.geometry.location)) {
+                console.log(`✅ ${strategy.name} strategy successful!`);
+                console.log(`📍 Result: ${result.formatted_address}`);
+                console.log(`🎯 Coordinates: ${result.geometry.location.lat().toFixed(6)}, ${result.geometry.location.lng().toFixed(6)}`);
+                
+                this.processGeocodingResult(input, result);
+                return;
+            } else {
+                console.log(`❌ ${strategy.name} strategy failed or returned invalid location`);
+            }
+        } catch (error) {
+            console.log(`❌ ${strategy.name} strategy error:`, error.message);
+        }
+    }
+    
+    console.warn(`❌ All geocoding strategies failed for: ${processedInput.original}`);
+    this.handleGeocodingFailure(input, processedInput.original);
+}
+
+// Geocode with a specific strategy (promisified)
+geocodeWithStrategy(request) {
+    return new Promise((resolve, reject) => {
+        window.geocoder.geocode(request, (results, status) => {
+            if (status === 'OK' && results && results.length > 0) {
+                // Filter results to ensure they're actually in Singapore
+                const singaporeResults = results.filter(result => 
+                    this.isValidSingaporeLocation(result.geometry.location)
+                );
+                
+                if (singaporeResults.length > 0) {
+                    resolve(singaporeResults[0]);
+                } else {
+                    reject(new Error('No valid Singapore locations found'));
+                }
+            } else {
+                reject(new Error(`Geocoding failed: ${status}`));
+            }
+        });
+    });
+}
+
+// Validate that the location is actually in Singapore
+isValidSingaporeLocation(location) {
+    const lat = typeof location.lat === 'function' ? location.lat() : location.lat;
+    const lng = typeof location.lng === 'function' ? location.lng() : location.lng;
+    
+    // Singapore bounds check
+    const singaporeBounds = {
+        north: 1.48,
+        south: 1.16,
+        east: 104.0,
+        west: 103.6
+    };
+    
+    const isInBounds = lat >= singaporeBounds.south && 
+                      lat <= singaporeBounds.north && 
+                      lng >= singaporeBounds.west && 
+                      lng <= singaporeBounds.east;
+    
+    if (!isInBounds) {
+        console.warn(`❌ Location outside Singapore bounds: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        return false;
+    }
+    
+    return true;
+}
+
+// Process successful geocoding result
+processGeocodingResult(input, result) {
+    const latLng = result.geometry.location;
+    
+    // Store location data
+    window.locationData.set(input.id, {
+        place: result,
+        position: latLng,
+        transportMode: window.userTransportModes.get(input.id) || 'TRANSIT',
+        address: result.formatted_address || result.address_components[0].short_name
+    });
+    
+    // Get person color for marker
+    const container = input.closest('.location-container');
+    const colorElement = container?.querySelector('.location-icon');
+    const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+    
+    // Add marker to map
+    addLocationMarker(latLng, input.id, personColor);
+    
+    console.log(`✅ Successfully geocoded ${input.id}: ${result.formatted_address}`);
+    
+    // Trigger location check
+    if (this.debouncedLocationCheck) {
+        this.debouncedLocationCheck();
+    }
+}
+
+// Use known location coordinates
+useKnownLocation(input, coordinates, originalValue) {
+    const latLng = new google.maps.LatLng(coordinates.lat, coordinates.lng);
+    
+    // Create a simplified place object
+    const place = {
+        geometry: { location: latLng },
+        formatted_address: originalValue,
+        name: originalValue,
+        address_components: [{
+            long_name: originalValue,
+            short_name: originalValue,
+            types: ['establishment']
+        }]
+    };
+    
+    this.processGeocodingResult(input, place);
+}
+
+// Handle geocoding failure
+handleGeocodingFailure(input, originalValue) {
+    console.warn(`❌ Could not geocode: ${originalValue}`);
+    
+    // Show user-friendly error message
+    if (typeof showErrorNotification === 'function') {
+        showErrorNotification(`Could not find location: "${originalValue}". Please try a more specific address.`);
+    }
+    
+    // Mark input as invalid
+    input.classList.add('is-invalid');
+    input.classList.remove('is-valid');
+    
+    // Optional: Show suggestions
+    this.showLocationSuggestions(input, originalValue);
+}
+
+// Show location suggestions to user
+showLocationSuggestions(input, originalValue) {
+    const suggestions = this.generateLocationSuggestions(originalValue);
+    
+    if (suggestions.length > 0) {
+        console.log(`💡 Suggestions for "${originalValue}":`, suggestions);
+        
+        // You could implement a dropdown here to show suggestions
+        // For now, just log them for debugging
+    }
+}
+
+// Generate smart suggestions based on input
+generateLocationSuggestions(input) {
+    const suggestions = [];
+    
+    // If it looks like a postal code, suggest adding "Singapore"
+    if (/^\d{6}$/.test(input)) {
+        suggestions.push(`Singapore ${input}`);
+    }
+    
+    // If it's short, suggest it might be a place name
+    if (input.length < 15 && !/\d/.test(input)) {
+        suggestions.push(`${input} Singapore`);
+        suggestions.push(`${input} MRT Station`);
+    }
+    
+    // Common typos and alternatives
+    const commonAlternatives = {
+        'orchard': 'Orchard Road',
+        'marina': 'Marina Bay',
+        'sentosa': 'Sentosa Island',
+        'changi': 'Changi Airport',
+        'bugis': 'Bugis MRT Station',
+        'raffles': 'Raffles Place MRT',
+        'jurong': 'Jurong East'
+    };
+    
+    const lowerInput = input.toLowerCase();
+    for (let [key, suggestion] of Object.entries(commonAlternatives)) {
+        if (lowerInput.includes(key)) {
+            suggestions.push(suggestion);
+        }
+    }
+    
+        return suggestions;
+    }
+    
+
+    setupTransportButtonsForContainer(container, personId, inputId) {
+        const transportBtns = container.querySelectorAll('.transport-btn');
+        transportBtns.forEach(btn => {
+            btn.setAttribute('data-person', personId);
+            
+            btn.addEventListener('click', (e) => {
+                const mode = btn.getAttribute('data-mode');
+                this.updateTransportMode(inputId, mode);
+                
+                // Update UI state
+                const personButtons = container.querySelectorAll('.transport-btn');
+                personButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                console.log(`🚌 Person ${personId} selected: ${mode}`);
+            });
+        });
+    }
+
+    createInitialInputs() {
+        // Create container if it doesn't exist
+        let container = document.getElementById('locations-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'locations-container';
+            container.className = 'group group-col center';
+            
+            // Insert after header or at body
+            const header = document.querySelector('.group-header-container');
+            if (header) {
+                header.parentNode.insertBefore(container, header.nextSibling);
+            } else {
+                document.body.appendChild(container);
+            }
+        }
+        
+        // Create 2 initial location inputs
+        for (let i = 0; i < 2; i++) {
+            this.addLocationInput();
+        }
+    }
+
+
+    getLocationCount() {
+        return document.querySelectorAll('.location-input').length;
+    }
+
+
+    checkAllLocationsAndShowButton() {
+        const inputs = document.querySelectorAll('.location-input');
+        const findBtn = document.getElementById('find-central-btn');
+        
+        if (!findBtn) {
+            return;
+        }
+
+        let validLocations = 0;
+        let totalInputs = inputs.length;
+
+        inputs.forEach(input => {
+            const hasText = input.value.trim().length >= 3;
+            const hasLocationData = window.locationData.has(input.id);
+            const hasMarker = window.locationMarkers && window.locationMarkers[input.id];
+            
+            // Count as valid if we have text AND (location data OR marker)
+            if (hasText && (hasLocationData || hasMarker)) {
+                validLocations++;
+                input.classList.add('is-valid');
+                input.classList.remove('is-invalid');
+            } else if (hasText) {
+                // Has text but no location data yet - show as pending
+                input.classList.add('is-invalid');
+                input.classList.remove('is-valid');
+            } else {
+                input.classList.remove('is-valid', 'is-invalid');
+            }
+        });
+
+        // Only log if the count has actually changed
+        const currentStatus = `${validLocations}/${totalInputs}`;
+        if (this.lastLocationStatus !== currentStatus) {
+            console.log(`🔍 Location check: ${currentStatus} valid locations`);
+            this.lastLocationStatus = currentStatus;
+        }
+
+        if (validLocations >= this.minLocations) {
+            findBtn.style.display = 'flex';
+            findBtn.classList.add('active');
+            findBtn.title = `Find optimal meeting point for ${validLocations} people`;
+            findBtn.style.opacity = '1';
+            findBtn.style.transform = 'scale(1)';
+            findBtn.style.pointerEvents = 'auto';
+        } else {
+            findBtn.style.display = 'none';
+            findBtn.classList.remove('active');
+        }
+    }
+
+    initializeAutocompleteForInput(input) {
+        try {
+            if (google.maps.places && google.maps.places.Autocomplete) {
+                const autocomplete = new google.maps.places.Autocomplete(input, {
+                    componentRestrictions: { country: "sg" },
+                    fields: ["address_components", "geometry", "name", "formatted_address"],
+                    types: ["address"]
+                });
+                
+                input.autocomplete = autocomplete;
+                
+                autocomplete.addListener('place_changed', () => {
+                    const place = autocomplete.getPlace();
+                    if (!place.geometry) {
+                        console.warn("No details available for: '" + place.name + "'");
+                        return;
+                    }
+                    
+                    // Store location data
+                    window.locationData.set(input.id, {
+                        place: place,
+                        position: place.geometry.location,
+                        transportMode: window.userTransportModes.get(input.id) || 'TRANSIT',
+                        address: place.formatted_address || place.name
+                    });
+                    
+                    // Get person color for marker
+                    const container = input.closest('.location-container');
+                    const colorElement = container?.querySelector('.location-icon');
+                    const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+                    
+                    addLocationMarker(place.geometry.location, input.id, personColor);
+                    this.debouncedLocationCheck();
+                    
+                    console.log(`📍 Location set for ${input.id}: ${place.formatted_address || place.name}`);
+                });
+            } else {
+                console.warn('Google Maps Places API not available yet. Will retry initialization later.');
+                
+                // Retry after a delay
+                setTimeout(() => {
+                    if (google.maps.places && google.maps.places.Autocomplete) {
+                        this.initializeAutocompleteForInput(input);
+                    }
+                }, 1000);
+            }
+        } catch (error) {
+            console.error('Error initializing autocomplete:', error);
+        }
+    }
+
+    getAllLocationData() {
+        const locations = [];
+        
+        // First try to get from stored location data (autocomplete selections)
+        window.locationData.forEach((data, inputId) => {
+            if (data.position) {
+                locations.push({
+                    id: inputId,
+                    position: data.position,
+                    transportMode: data.transportMode,
+                    place: data.place,
+                    address: data.address,
+                    color: this.getColorForInput(inputId)
+                });
+            }
+        });
+        
+        // If we don't have enough from locationData, check markers as fallback
+        if (locations.length < this.minLocations && window.locationMarkers) {
+            Object.keys(window.locationMarkers).forEach(inputId => {
+                // Don't duplicate if we already have this from locationData
+                if (locations.some(loc => loc.id === inputId)) return;
+                
+                const marker = window.locationMarkers[inputId];
+                const input = document.getElementById(inputId);
+                
+                if (marker && input && input.value.trim()) {
+                    locations.push({
+                        id: inputId,
+                        position: marker.getPosition(),
+                        transportMode: window.userTransportModes.get(inputId) || 'TRANSIT',
+                        address: input.value.trim(),
+                        color: this.getColorForInput(inputId)
+                    });
+                }
+            });
+        }
+        
+        // Sort by input ID to maintain consistent order
+        locations.sort((a, b) => {
+            const idA = parseInt(a.id.split('-')[1] || '0');
+            const idB = parseInt(b.id.split('-')[1] || '0');
+            return idA - idB;
+        });
+        
+        return locations;
+    }
+
+    getColorForInput(inputId) {
+        const input = document.getElementById(inputId);
+        const container = input?.closest('.location-container');
+        const colorElement = container?.querySelector('.location-icon');
+        return colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+    }
+
+    updateTransportMode(inputId, mode) {
+        window.userTransportModes.set(inputId, mode);
+        
+        // Update stored location data
+        const locationData = window.locationData.get(inputId);
+        if (locationData) {
+            locationData.transportMode = mode;
+            window.locationData.set(inputId, locationData);
+        }
+
+        console.log(`🚌 Updated transport mode for ${inputId}: ${mode}`);
+    }
+}
+
+// CLEAN Enhanced marker function
+function addLocationMarker(location, inputId, color = '#8B5DB8') {
+    if (!window.locationMarkers) {
+        window.locationMarkers = {};
+    }
+    
+    if (window.locationMarkers[inputId]) {
+        window.locationMarkers[inputId].setMap(null);
+    }
+
+    const markerIcon = {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: color,
+        fillOpacity: 0.8,
+        strokeColor: '#ffffff',
+        strokeWeight: 2,
+        scale: 8
+    };
+
+    const marker = new google.maps.Marker({
+        position: location,
+        map: window.midwhereahMap,
+        title: document.getElementById(inputId) ? document.getElementById(inputId).value : 'Location',
+        icon: markerIcon,
+        animation: google.maps.Animation.DROP
+    });
+
+    window.locationMarkers[inputId] = marker;
+
+    if (window.midwhereahMap) {
+        window.midwhereahMap.panTo(location);
+    }
+
+    setTimeout(() => {
+        calculateMidpointFromMarkers();
+    }, 100);
+}
+
+// SINGLE calculateMidpoint function
+// COMPLETE EnhancedSocialMidpointCalculator - Add this to your clean mobile.js
+// Replace the simplified calculateSocialMidpoint function with this full version
+
+class ImprovedSocialMidpointCalculator {
     constructor() {
         this.maxIterations = 50;
         this.convergenceThreshold = 50;
@@ -17,655 +1243,186 @@ class EnhancedSocialMidpointCalculator {
         this.maxSearchRadius = 5000;
         this.minVenuesRequired = 5;
         
-        // These will be adjusted based on distance
+        // Base parameters (will be adapted based on area and group size)
         this.baseMaxTravelTimeMinutes = 60;
-        this.maxTravelTimeMinutes = 60; // Will be updated in calculateSocialMidpoint
+        this.maxTravelTimeMinutes = 60;
+        this.baseFairnessThreshold = 10;
+        this.fairnessThreshold = 10;
         
-        this.maxAcceptableTimeDifference = 10;
-        this.equityWeight = 0.9;
-        this.totalTimeWeight = 0.1;
+        // Scoring weights
+        this.equityWeight = 0.7;
+        this.totalTimeWeight = 0.3;
         
         this.socialPlaceTypes = [
             'restaurant', 'cafe', 'shopping_mall', 'food', 
-            'establishment', 'store', 'meal_takeaway', 'bakery'
+            'establishment', 'store', 'meal_takeaway', 'bakery',
+            'bar', 'movie_theater', 'tourist_attraction'
+        ];
+        
+        // Memoization for travel time calculations
+        this.travelTimeCache = new Map();
+        
+        // Singapore area definitions
+        this.cbdZones = [
+            {name: "CBD/Marina", lat: 1.2800, lng: 103.8500, radius: 2500, strictness: 1.0},
+            {name: "Orchard", lat: 1.3048, lng: 103.8318, radius: 1500, strictness: 1.0},
+            {name: "Bugis", lat: 1.3000, lng: 103.8560, radius: 1200, strictness: 1.0},
+            {name: "Clarke Quay", lat: 1.2886, lng: 103.8467, radius: 800, strictness: 1.0},
+            {name: "Raffles Place", lat: 1.2836, lng: 103.8511, radius: 1000, strictness: 1.0}
         ];
     }
 
-    adjustParametersForDistance(startingLocations) {
-        const distance = this.calculateDistance(
-            { lat: startingLocations[0].lat(), lng: startingLocations[0].lng() },
-            { lat: startingLocations[1].lat(), lng: startingLocations[1].lng() }
-        );
-        
-        const distanceKm = distance / 1000;
-        
-        if (distanceKm > 30) {
-            this.maxTravelTimeMinutes = 90;
-            this.maxAcceptableTimeDifference = 20; // Scale with distance!
-            console.log(`🌏 Extreme distance (${distanceKm.toFixed(1)}km): Allowing up to 90min travel, 20min range`);
-        } else if (distanceKm > 15) {
-            this.maxTravelTimeMinutes = 75;
-            this.maxAcceptableTimeDifference = 15; // Scale with distance!
-            console.log(`📏 Long distance (${distanceKm.toFixed(1)}km): Allowing up to 75min travel, 15min range`);
-        } else {
-            this.maxTravelTimeMinutes = this.baseMaxTravelTimeMinutes;
-            this.maxAcceptableTimeDifference = 10; // Normal distance
-            console.log(`📍 Normal distance (${distanceKm.toFixed(1)}km): Allowing up to 60min travel, 10min range`);
-        }
-    }
-
-    async calculateSocialMidpoint(startingLocations) {
-        console.log('🎯 Starting Enhanced Social Fairness Algorithm (Equity Focus)...');
-        console.log(`📍 Analyzing ${startingLocations.length} starting locations`);
-        
-        // NEW: Adjust parameters based on distance
-        this.adjustParametersForDistance(startingLocations);
-        
-        let currentSearchCenter = this.calculateGeometricMidpoint(startingLocations);
-        let searchRadius = this.initialRadius;
-        let bestMidpoint = null;
-        let bestScore = Infinity;
-        let radiusCircle = null;
-        let iteration = 0;
-        
-        while (iteration < this.maxIterations && searchRadius <= this.maxSearchRadius) {
-            iteration++;
-            console.log(`🔍 Iteration ${iteration}: Searching ${searchRadius}m radius around current center`);
-            
-            radiusCircle = this.showRadiusCircle(currentSearchCenter, searchRadius, radiusCircle);
-            
-            const socialVenues = await this.findSocialVenues(currentSearchCenter, searchRadius);
-            
-            if (socialVenues.length < this.minVenuesRequired) {
-                console.log(`❌ Only ${socialVenues.length} venues found, need ${this.minVenuesRequired}. Expanding search...`);
-                searchRadius *= this.radiusIncrementFactor;
-                continue;
-            }
-            
-            console.log(`✅ Found ${socialVenues.length} venues to analyze`);
-            
-            const venueAnalysis = await this.analyzeVenueTravelEquity(socialVenues, startingLocations);
-            
-            if (venueAnalysis.length === 0) {
-                console.log(`❌ No accessible venues found. Expanding search...`);
-                searchRadius *= this.radiusIncrementFactor;
-                continue;
-            }
-            
-            const currentBestVenue = this.findMostEquitableVenue(venueAnalysis);
-            
-            if (currentBestVenue && currentBestVenue.equityScore < bestScore) {
-                bestScore = currentBestVenue.equityScore;
-                bestMidpoint = currentBestVenue.location;
-                
-                console.log(`⭐ New best venue: ${currentBestVenue.name}`);
-                console.log(`   Max travel time: ${currentBestVenue.maxTravelTime.toFixed(1)}min`);
-                console.log(`   Avg travel time: ${currentBestVenue.avgTravelTime.toFixed(1)}min`);
-                console.log(`   Time variance: ${currentBestVenue.timeVariance.toFixed(1)}min²`);
-                console.log(`   Equity score: ${currentBestVenue.equityScore.toFixed(2)}`);
-                
-                // NEW: Check if routes to this venue pass through a common MRT station
-                const commonMRTStation = await this.findCommonMRTStation(startingLocations, currentBestVenue.location);
-                if (commonMRTStation) {
-                    console.log(`🚇 Routes pass through common MRT: ${commonMRTStation.name}`);
-                    console.log(`🔄 Checking venues around MRT station for comparison...`);
-                    
-                    // Search for venues around MRT station
-                    const mrtVenues = await this.findSocialVenues({
-                        lat: commonMRTStation.location.lat,
-                        lng: commonMRTStation.location.lng
-                    }, this.initialRadius);
-                    
-                    if (mrtVenues.length >= this.minVenuesRequired) {
-                        const mrtAnalysis = await this.analyzeVenueTravelEquity(mrtVenues, startingLocations);
-                        
-                        if (mrtAnalysis.length > 0) {
-                            const bestMRTVenue = this.findMostEquitableVenue(mrtAnalysis);
-                            
-                            console.log(`🏆 Best venue near ${commonMRTStation.name}: ${bestMRTVenue.name} (equity: ${bestMRTVenue.equityScore.toFixed(2)})`);
-                            console.log(`⚖️ Comparing: Original venue equity=${currentBestVenue.equityScore.toFixed(2)} vs MRT area equity=${bestMRTVenue.equityScore.toFixed(2)}`);
-                            
-                            // Only switch to MRT area if it's actually better
-                            if (bestMRTVenue.equityScore < currentBestVenue.equityScore) {
-                                console.log(`✅ MRT area has better venue! Switching to ${bestMRTVenue.name}`);
-                                bestScore = bestMRTVenue.equityScore;
-                                bestMidpoint = bestMRTVenue.location;
-                                currentSearchCenter = {
-                                    lat: bestMRTVenue.location.lat,
-                                    lng: bestMRTVenue.location.lng
-                                };
-                            } else {
-                                console.log(`✅ Original venue is better! Staying with ${currentBestVenue.name}`);
-                                // Continue with original venue-based search
-                                currentSearchCenter = {
-                                    lat: currentBestVenue.location.lat,
-                                    lng: currentBestVenue.location.lng
-                                };
-                            }
-                        } else {
-                            console.log(`❌ No good venues found around MRT, staying with original venue`);
-                            currentSearchCenter = {
-                                lat: currentBestVenue.location.lat,
-                                lng: currentBestVenue.location.lng
-                            };
-                        }
-                    } else {
-                        console.log(`❌ Not enough venues around MRT (${mrtVenues.length}), staying with original venue`);
-                        currentSearchCenter = {
-                            lat: currentBestVenue.location.lat,
-                            lng: currentBestVenue.location.lng
-                        };
-                    }
-                    
-                    searchRadius = Math.max(400, searchRadius * 0.6);
-                    console.log(`🎯 Focusing search around chosen venue, radius now ${searchRadius}m`);
-                } else {
-                    // No common MRT found, continue with normal venue-based search
-                    currentSearchCenter = {
-                        lat: currentBestVenue.location.lat,
-                        lng: currentBestVenue.location.lng
-                    };
-                    searchRadius = Math.max(400, searchRadius * 0.6);
-                    console.log(`🎯 Focusing search around best venue, radius now ${searchRadius}m`);
-                }
-            } else {
-                searchRadius *= this.radiusIncrementFactor;
-                console.log(`🔄 No improvement found, expanding to ${searchRadius}m`);
-            }
-            
-            if (bestMidpoint && currentBestVenue && 
-                currentBestVenue.timeVariance < 4.0 && 
-                currentBestVenue.timeRange <= this.maxAcceptableTimeDifference) {
-                console.log(`🏆 Excellent equity found (variance < 4min², range ≤ ${this.maxAcceptableTimeDifference}min), stopping early!`);
-                break;
+    /**
+     * Detect area characteristics and adjust algorithm parameters accordingly
+     */
+    detectAreaCharacteristics(midpoint) {
+        // Check if midpoint is in a high-density area
+        for (let zone of this.cbdZones) {
+            const distance = this.calculateDistance(midpoint, zone);
+            if (distance <= zone.radius) {
+                console.log(`🏙️ Detected ${zone.name} area - using strict fairness criteria`);
+                return {
+                    type: "CBD", 
+                    name: zone.name, 
+                    strictness: zone.strictness,
+                    venueMultiplier: 1.0
+                };
             }
         }
         
-        setTimeout(() => {
-            if (radiusCircle) radiusCircle.setMap(null);
-        }, 3000);
+        // Check if we're near major MRT hubs (good connectivity)
+        const majorHubs = [
+            {name: "Jurong East", lat: 1.3329, lng: 103.7421, radius: 1500},
+            {name: "Tampines", lat: 1.3527, lng: 103.9453, radius: 1500},
+            {name: "Bishan", lat: 1.3513, lng: 103.8483, radius: 1200},
+            {name: "Serangoon", lat: 1.3498, lng: 103.8736, radius: 1200}
+        ];
         
-        if (bestMidpoint) {
-            console.log(`✅ Algorithm complete! Best location found with equity score: ${bestScore.toFixed(2)}`);
-            console.log(`🎯 Final coordinates: lat=${bestMidpoint.lat}, lng=${bestMidpoint.lng}`);
-            const finalResult = new google.maps.LatLng(bestMidpoint.lat, bestMidpoint.lng);
-            console.log(`🎯 Returning LatLng object:`, finalResult.toString());
-            return finalResult;
-        } else {
-            console.log(`⚠️ No suitable location found, falling back to geometric midpoint`);
-            console.log(`🎯 Fallback coordinates: lat=${currentSearchCenter.lat}, lng=${currentSearchCenter.lng}`);
-            const fallbackResult = new google.maps.LatLng(currentSearchCenter.lat, currentSearchCenter.lng);
-            console.log(`🎯 Returning fallback LatLng object:`, fallbackResult.toString());
-            return fallbackResult;
-        }
-    }
-
-    async findCommonMRTStation(startingLocations, venueLocation) {
-        if (startingLocations.length !== 2) return null;
-        
-        console.log('🚇 Checking if routes to venue pass through common transit stops...');
-        
-        try {
-            const directionsService = new google.maps.DirectionsService();
-            const routes = [];
-            
-            // Get transit routes from each starting location to the venue
-            for (let i = 0; i < startingLocations.length; i++) {
-                try {
-                    const route = await new Promise((resolve, reject) => {
-                        directionsService.route({
-                            origin: startingLocations[i],
-                            destination: venueLocation,
-                            travelMode: google.maps.TravelMode.TRANSIT,
-                            transitOptions: {
-                                modes: [google.maps.TransitMode.RAIL, google.maps.TransitMode.BUS], // Added BUS
-                                routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
-                            }
-                        }, function(result, status) {
-                            if (status === google.maps.DirectionsStatus.OK) {
-                                resolve(result);
-                            } else {
-                                reject(new Error(`Route ${i + 1} failed: ${status}`));
-                            }
-                        });
-                    });
-                    routes.push(route);
-                } catch (error) {
-                    console.log(`   Route ${i + 1} failed: ${error.message}`);
-                    return null; // If any route fails, can't find common station
-                }
+        for (let hub of majorHubs) {
+            const distance = this.calculateDistance(midpoint, hub);
+            if (distance <= hub.radius) {
+                console.log(`🚇 Detected ${hub.name} MRT hub area - using balanced criteria`);
+                return {
+                    type: "MRT_Hub", 
+                    name: hub.name, 
+                    strictness: 1.3,
+                    venueMultiplier: 1.2
+                };
             }
-            
-            // Extract all transit stops (MRT, LRT, and major bus interchanges) from each route
-            const allStationsInRoutes = routes.map(route => {
-                const stations = [];
-                route.routes[0].legs[0].steps.forEach(step => {
-                    if (step.travel_mode === 'TRANSIT' && step.transit) {
-                        const transitLine = step.transit.line;
-                        const vehicleType = transitLine?.vehicle?.type;
-                        
-                        // Include MRT/LRT stations and major bus interchanges
-                        const isMajorTransitStop = 
-                            vehicleType === 'HEAVY_RAIL' ||  // MRT
-                            vehicleType === 'METRO_RAIL' ||  // LRT  
-                            (vehicleType === 'BUS' && (
-                                step.transit.departure_stop?.name?.toLowerCase().includes('interchange') ||
-                                step.transit.departure_stop?.name?.toLowerCase().includes('terminal') ||
-                                step.transit.arrival_stop?.name?.toLowerCase().includes('interchange') ||
-                                step.transit.arrival_stop?.name?.toLowerCase().includes('terminal')
-                            ));
-                        
-                        if (isMajorTransitStop) {
-                            // Add both departure and arrival stops
-                            if (step.transit.departure_stop) {
-                                stations.push({
-                                    name: step.transit.departure_stop.name,
-                                    location: {
-                                        lat: step.transit.departure_stop.location.lat(),
-                                        lng: step.transit.departure_stop.location.lng()
-                                    },
-                                    type: vehicleType
-                                });
-                            }
-                            if (step.transit.arrival_stop) {
-                                stations.push({
-                                    name: step.transit.arrival_stop.name,
-                                    location: {
-                                        lat: step.transit.arrival_stop.location.lat(),
-                                        lng: step.transit.arrival_stop.location.lng()
-                                    },
-                                    type: vehicleType
-                                });
-                            }
-                        }
-                    }
-                });
-                return stations;
-            });
-            
-            console.log(`   Route 1 transit stops: ${allStationsInRoutes[0].map(s => `${s.name} (${s.type})`).join(', ')}`);
-            console.log(`   Route 2 transit stops: ${allStationsInRoutes[1].map(s => `${s.name} (${s.type})`).join(', ')}`);
-            
-            // Find common transit stops (prioritize MRT/LRT over bus interchanges)
-            const commonStations = allStationsInRoutes[0].filter(station1 => 
-                allStationsInRoutes[1].some(station2 => 
-                    station1.name === station2.name
-                )
-            );
-            
-            if (commonStations.length > 0) {
-                // Prioritize MRT/LRT stations over bus interchanges
-                const mrtStations = commonStations.filter(s => s.type === 'HEAVY_RAIL' || s.type === 'METRO_RAIL');
-                const busInterchanges = commonStations.filter(s => s.type === 'BUS');
-                
-                const bestStation = mrtStations.length > 0 ? mrtStations[0] : busInterchanges[0];
-                console.log(`   ✅ Found common transit stop: ${bestStation.name} (${bestStation.type})`);
-                return bestStation;
-            } else {
-                console.log('   No common major transit stops found on routes');
-                return null;
-            }
-            
-        } catch (error) {
-            console.log(`   Common MRT check failed: ${error.message}`);
-            return null;
-        }
-    }
-
-    async findTransitLineMidpoint(startingLocations) {
-        if (startingLocations.length !== 2) return null;
-        
-        console.log('🚇 Checking for MRT stations on direct transit route...');
-        
-        try {
-            const directionsService = new google.maps.DirectionsService();
-            
-            console.log('   Getting transit directions...');
-            const transitRoute = await new Promise((resolve, reject) => {
-                directionsService.route({
-                    origin: startingLocations[0],
-                    destination: startingLocations[1],
-                    travelMode: google.maps.TravelMode.TRANSIT,
-                    transitOptions: {
-                        modes: [google.maps.TransitMode.RAIL],
-                        routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
-                    }
-                }, function(result, status) {
-                    console.log(`   Transit directions status: ${status}`);
-                    if (status === google.maps.DirectionsStatus.OK) {
-                        resolve(result);
-                    } else {
-                        reject(new Error(`Transit route failed: ${status}`));
-                    }
-                });
-            });
-            
-            const route = transitRoute.routes[0];
-            const leg = route.legs[0];
-            console.log(`   Route found with ${leg.steps.length} steps`);
-            
-            const transitSteps = leg.steps.filter(step => step.travel_mode === 'TRANSIT');
-            console.log(`   Found ${transitSteps.length} transit steps`);
-            
-            if (transitSteps.length === 0) {
-                console.log('   No transit steps found, trying different approach...');
-                // Fallback: search for MRT stations along the geometric midpoint
-                return await this.findMRTNearGeometricMidpoint(startingLocations);
-            }
-            
-            // Log transit step details for debugging
-            transitSteps.forEach((step, i) => {
-                const transit = step.transit;
-                if (transit) {
-                    console.log(`   Transit step ${i + 1}: ${transit.line?.name || transit.line?.short_name || 'Unknown line'}`);
-                    console.log(`     From: ${transit.departure_stop?.name || 'Unknown'}`);
-                    console.log(`     To: ${transit.arrival_stop?.name || 'Unknown'}`);
-                }
-            });
-            
-            // If we have transit steps, try to find midpoint station
-            if (transitSteps.length >= 1) {
-                const firstTransitStep = transitSteps[0];
-                const transitDetails = firstTransitStep.transit;
-                
-                if (transitDetails && transitDetails.departure_stop && transitDetails.arrival_stop) {
-                    console.log(`   Analyzing transit line: ${transitDetails.line?.name || transitDetails.line?.short_name}`);
-                    
-                    // Calculate midpoint between start and end stations
-                    const startStation = transitDetails.departure_stop;
-                    const endStation = transitDetails.arrival_stop;
-                    
-                    const routeMidpoint = this.calculateGeometricMidpoint([
-                        startStation.location,
-                        endStation.location
-                    ]);
-                    
-                    console.log(`   Route midpoint: ${routeMidpoint.lat}, ${routeMidpoint.lng}`);
-                    
-                    // Search for MRT stations near this midpoint
-                    const nearbyStations = await this.findNearbyMRTStations(routeMidpoint, 3000); // Increased radius
-                    
-                    if (nearbyStations.length > 0) {
-                        const bestStation = nearbyStations[0];
-                        console.log(`   🏆 Optimal transit station found: ${bestStation.name}`);
-                        return new google.maps.LatLng(
-                            bestStation.geometry.location.lat(),
-                            bestStation.geometry.location.lng()
-                        );
-                    } else {
-                        console.log('   No MRT stations found near route midpoint');
-                    }
-                }
-            }
-            
-            console.log('   Falling back to geometric midpoint approach...');
-            return await this.findMRTNearGeometricMidpoint(startingLocations);
-            
-        } catch (error) {
-            console.log(`   Transit analysis failed: ${error.message}`);
-            console.log('   Trying fallback MRT search...');
-            return await this.findMRTNearGeometricMidpoint(startingLocations);
-        }
-    }
-
-    async findMRTNearGeometricMidpoint(startingLocations) {
-        console.log('   🔄 Fallback: Searching for MRT stations near geometric midpoint...');
-        
-        const geometricMidpoint = this.calculateGeometricMidpoint(startingLocations);
-        console.log(`   Geometric midpoint: ${geometricMidpoint.lat}, ${geometricMidpoint.lng}`);
-        
-        const nearbyStations = await this.findNearbyMRTStations(geometricMidpoint, 5000); // Large radius
-        
-        if (nearbyStations.length > 0) {
-            const bestStation = nearbyStations[0];
-            console.log(`   🏆 Found nearby MRT station: ${bestStation.name}`);
-            return new google.maps.LatLng(
-                bestStation.geometry.location.lat(),
-                bestStation.geometry.location.lng()
-            );
         }
         
-        console.log('   No MRT stations found near geometric midpoint either');
-        return null;
-    }
-
-    async findNearbyMRTStations(center, radius) {
-        const self = this;
-        return new Promise((resolve) => {
-            if (!window.placesService) {
-                console.log('   Places service not available');
-                resolve([]);
-                return;
-            }
-    
-            console.log(`   Searching for MRT stations within ${radius}m...`);
-            
-            window.placesService.nearbySearch({
-                location: new google.maps.LatLng(center.lat, center.lng),
-                radius: radius,
-                types: ['subway_station', 'transit_station'],
-                keyword: 'MRT station Singapore'
-            }, function(results, status) {
-                console.log(`   Places API status: ${status}`);
-                console.log(`   Raw results count: ${results ? results.length : 0}`);
-                
-                if (status === google.maps.places.PlacesServiceStatus.OK) {
-                    // Enhanced Singapore MRT station detection
-                    const stations = results.filter(place => {
-                        const name = place.name.toLowerCase();
-                        const types = place.types.join(' ').toLowerCase();
-                        
-                        // Singapore-specific MRT station patterns
-                        const isMRTStation = 
-                            // Explicit MRT mentions
-                            name.includes('mrt') || 
-                            name.includes('station') ||
-                            name.includes('interchange') ||
-                            
-                            // Google Places types
-                            types.includes('subway_station') ||
-                            types.includes('transit_station') ||
-                            
-                            // Major interchange stations (even without MRT in name)
-                            ['dhoby ghaut', 'raffles place', 'city hall', 'bugis', 'outram park', 
-                             'paya lebar', 'jurong east', 'bishan', 'tampines', 'ang mo kio',
-                             'serangoon', 'marina bay', 'bayfront', 'promenade', 'esplanade'].some(station => 
-                                name.includes(station.replace(' ', '')) || name.includes(station)
-                            ) ||
-                            
-                            // Line-specific patterns (for stations that don't say "MRT")
-                            name.match(/\b(ns|ew|cc|ne|dt|te|ce|cp)\d+\b/i) || // Station codes
-                            
-                            // Common Singapore station naming patterns
-                            name.match(/\w+\s+(mrt|station)/) ||
-                            
-                            // Shopping malls that are MRT stations
-                            ['vivocity', 'marina square', 'citylink', 'raffles city'].some(mall => 
-                                name.includes(mall.replace(' ', ''))
-                            );
-                        
-                        // Exclude false positives
-                        const isFalsePositive = 
-                            name.includes('bus') && !name.includes('mrt') ||
-                            name.includes('taxi') ||
-                            name.includes('parking') ||
-                            name.includes('hotel') ||
-                            name.includes('restaurant') ||
-                            name.includes('mall') && !name.includes('mrt') && !name.includes('station');
-                        
-                        if (isMRTStation && !isFalsePositive) {
-                            console.log(`     ✅ Accepted: ${place.name}`);
-                            return true;
-                        } else {
-                            console.log(`     ❌ Rejected: ${place.name} (${isFalsePositive ? 'false positive' : 'not MRT station'})`);
-                            return false;
-                        }
-                    });
-                    
-                    // Enhanced sorting: prioritize interchange stations, then by distance
-                    stations.sort((a, b) => {
-                        const aName = a.name.toLowerCase();
-                        const bName = b.name.toLowerCase();
-                        
-                        // Major interchanges get priority
-                        const majorInterchanges = [
-                            'dhoby ghaut', 'raffles place', 'city hall', 'bugis', 'outram park',
-                            'paya lebar', 'jurong east', 'bishan', 'serangoon', 'bayfront'
-                        ];
-                        
-                        const aIsInterchange = majorInterchanges.some(station => aName.includes(station.replace(' ', ''))) ||
-                                              aName.includes('interchange');
-                        const bIsInterchange = majorInterchanges.some(station => bName.includes(station.replace(' ', ''))) ||
-                                              bName.includes('interchange');
-                        
-                        if (aIsInterchange && !bIsInterchange) return -1;
-                        if (!aIsInterchange && bIsInterchange) return 1;
-                        
-                        // If both or neither are interchanges, sort by distance
-                        const distA = self.calculateDistance(center, {
-                            lat: a.geometry.location.lat(),
-                            lng: a.geometry.location.lng()
-                        });
-                        const distB = self.calculateDistance(center, {
-                            lat: b.geometry.location.lat(),
-                            lng: b.geometry.location.lng()
-                        });
-                        return distA - distB;
-                    });
-                    
-                    console.log(`   Found ${stations.length} MRT stations after enhanced filtering`);
-                    if (stations.length > 0) {
-                        console.log(`   Priority stations: ${stations.slice(0, 3).map(s => s.name).join(', ')}`);
-                    }
-                    resolve(stations);
-                } else {
-                    console.log(`   MRT station search failed: ${status}`);
-                    resolve([]);
-                }
-            });
-        });
-    }
-    
-    showRadiusCircle(center, radius, existingCircle) {
-        if (existingCircle) existingCircle.setMap(null);
-        
-        const circle = new google.maps.Circle({
-            strokeColor: '#8B5DB8',
-            strokeOpacity: 0.6,
-            strokeWeight: 2,
-            fillColor: '#8B5DB8',
-            fillOpacity: 0.1,
-            map: window.midwhereahMap,
-            center: new google.maps.LatLng(center.lat, center.lng),
-            radius: radius
-        });
-        
-        return circle;
-    }
-
-    calculateGeometricMidpoint(locations) {
-        let totalLat = 0, totalLng = 0;
-        locations.forEach(location => {
-            totalLat += typeof location.lat === 'function' ? location.lat() : location.lat;
-            totalLng += typeof location.lng === 'function' ? location.lng() : location.lng;
-        });
-        return { 
-            lat: totalLat / locations.length, 
-            lng: totalLng / locations.length 
+        // Default to residential area (more lenient)
+        console.log(`🏘️ Detected residential area - using lenient criteria`);
+        return {
+            type: "Residential", 
+            name: "Residential", 
+            strictness: 1.8,
+            venueMultiplier: 1.5
         };
     }
 
+    /**
+     * Dynamically adjust algorithm parameters based on area and group characteristics
+     */
+    adjustParameters(startingLocations, areaInfo) {
+        const groupSize = startingLocations.length;
+        
+        // Base fairness threshold by group size
+        let baseFairness = groupSize <= 2 ? 12 :  // Increased from 10
+                          groupSize <= 4 ? 18 :  // Increased from 15
+                          groupSize <= 6 ? 24 :  // Increased from 20
+                          30;                    // Increased from 25
+        
+        // Apply area-specific multiplier
+        this.fairnessThreshold = baseFairness * areaInfo.strictness;
+        
+        // Adjust travel time limits based on distance
+        const maxDistance = this.calculateMaxDistance(startingLocations);
+        const distanceKm = maxDistance / 1000;
+        
+        if (distanceKm > 30) {
+            this.maxTravelTimeMinutes = 90;
+        } else if (distanceKm > 15) {
+            this.maxTravelTimeMinutes = 75;
+        } else {
+            this.maxTravelTimeMinutes = this.baseMaxTravelTimeMinutes;
+        }
+        
+        // Adjust minimum venues required based on area
+        this.minVenuesRequired = Math.ceil(5 * areaInfo.venueMultiplier);
+        
+        console.log(`⚙️ Algorithm parameters adjusted:`);
+        console.log(`   Area: ${areaInfo.name} (${areaInfo.type})`);
+        console.log(`   Group size: ${groupSize} people`);
+        console.log(`   Fairness threshold: ${this.fairnessThreshold.toFixed(1)} minutes`);
+        console.log(`   Max travel time: ${this.maxTravelTimeMinutes} minutes`);
+        console.log(`   Min venues required: ${this.minVenuesRequired}`);
+        console.log(`   Geographic spread: ${distanceKm.toFixed(1)}km`);
+    }
+
+    calculateMaxDistance(locations) {
+        let maxDist = 0;
+        for (let i = 0; i < locations.length; i++) {
+            for (let j = i + 1; j < locations.length; j++) {
+                const dist = this.calculateDistance(
+                    { lat: locations[i].lat(), lng: locations[i].lng() },
+                    { lat: locations[j].lat(), lng: locations[j].lng() }
+                );
+                maxDist = Math.max(maxDist, dist);
+            }
+        }
+        return maxDist;
+    }
+
+    /**
+     * Enhanced venue search with accessibility scoring
+     */
     async findSocialVenues(center, radius) {
         return new Promise((resolve) => {
             if (!window.placesService) {
+                console.warn('Places service not available');
                 resolve([]);
                 return;
             }
-
+    
             window.placesService.nearbySearch({
                 location: new google.maps.LatLng(center.lat, center.lng),
                 radius: radius,
-                types: this.socialPlaceTypes,
-                openNow: true
+                types: this.socialPlaceTypes
             }, (results, status) => {
                 if (status === google.maps.places.PlacesServiceStatus.OK) {
-                    const filtered = results.filter(place => {
-                        if (!place.rating || place.rating < 3.8) return false;
-                        if (!place.user_ratings_total || place.user_ratings_total < 5) return false;
+                    // Enhanced filtering with accessibility scoring
+                    const scoredVenues = results.map(venue => {
+                        venue.accessibilityScore = this.calculateAccessibilityScore(venue);
+                        return venue;
+                    }).filter(venue => {
+                        // More lenient basic filtering
+                        if (!venue.rating || venue.rating < 3.5) return false; // Lowered from 4.0
+                        if (!venue.user_ratings_total || venue.user_ratings_total < 5) return false; // Lowered from 10
                         
-                        const name = place.name.toLowerCase();
+                        const name = venue.name.toLowerCase();
                         const excludeKeywords = [
-                            // Private/Exclusive venues
                             'private', 'club', 'country club', 'golf', 'yacht',
-                            'members only', 'exclusive', 'condo', 'condominium',
-                            
-                            // Singapore club abbreviations (CRITICAL!)
-                            'sicc', 'tcc', 'rcc', 'acc', 'scc', 'sgcc',
-                            'rc ', ' rc', 'cc ', ' cc',
-                            
-                            // Inappropriate/Inaccessible places
-                            'reservoir', 'cemetery', 'hospital', 'clinic', 'hotel room',
-                            'medical', 'dental', 'pharmacy', 'bank', 'atm',
-                            
-                            // Singapore-specific exclusions
-                            'sentosa cove', 'country club', 'golf club', 'polo club',
-                            'raffles country', 'singapore island', 'tanglin club',
-                            'american club', 'singapore cricket', 'orchid country',
-                            'warren golf', 'sembawang country', 'laguna national',
-                            
-                            // Golf-related terms (but not marina - too many false positives)
-                            'look out', 'lookout', 'clubhouse', 'pro shop',
-                            'tee box', 'driving range', 'putting green'
+                            'members only', 'exclusive', 'hospital', 'clinic'
                         ];
-                        
-                        // More precise marina filtering - only exclude actual marinas, not places named after Marina area
-                        const isActualMarina = name.includes('marina') && (
-                            name.includes('yacht') || 
-                            name.includes('boat') || 
-                            name.includes('sailing') ||
-                            place.types.some(type => type.includes('marina'))
-                        );
-                        
-                        if (isActualMarina) {
-                            console.log(`❌ Excluded: ${place.name} (actual marina/yacht facility)`);
-                            return false;
-                        }
                         
                         if (excludeKeywords.some(keyword => name.includes(keyword))) {
-                            console.log(`❌ Excluded: ${place.name} (contains: ${excludeKeywords.find(k => name.includes(k))})`);
-                            return false;
-                        }
-                        
-                        const excludeTypes = [
-                            'country_club', 'golf_course', 'private_club', 'yacht_club',
-                            'health', 'hospital', 'pharmacy', 'bank', 'atm',
-                            'real_estate_agency', 'insurance_agency', 'lawyer'
-                        ];
-                        if (place.types && place.types.some(type => excludeTypes.includes(type))) {
-                            console.log(`❌ Excluded: ${place.name} (type: ${place.types.find(t => excludeTypes.includes(t))})`);
-                            return false;
-                        }
-                        
-                        const goodTypes = [
-                            'restaurant', 'cafe', 'shopping_mall', 'food', 'establishment', 
-                            'store', 'bakery', 'bar', 'movie_theater', 'park', 
-                            'tourist_attraction', 'museum', 'library', 'subway_station',
-                            'point_of_interest', 'meal_takeaway'
-                        ];
-                        const hasGoodType = place.types.some(type => goodTypes.includes(type));
-                        
-                        if (!hasGoodType) {
-                            console.log(`❌ Excluded: ${place.name} (no good types: ${place.types.join(', ')})`);
                             return false;
                         }
                         
                         return true;
                     });
                     
-                    filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-                    const topVenues = filtered.slice(0, 15);
+                    // Sort by accessibility score and rating
+                    scoredVenues.sort((a, b) => {
+                        const scoreA = a.accessibilityScore * 0.6 + (a.rating || 0) * 0.4;
+                        const scoreB = b.accessibilityScore * 0.6 + (b.rating || 0) * 0.4;
+                        return scoreB - scoreA;
+                    });
                     
-                    console.log(`   Filtered to ${topVenues.length} high-quality venues`);
+                    const topVenues = scoredVenues.slice(0, 25); // Increased from 12
+                    
+                    console.log(`   Found ${topVenues.length} accessible venues (from ${results.length} total)`);
                     resolve(topVenues);
                 } else {
                     console.warn(`   Places search failed: ${status}`);
@@ -673,146 +1430,367 @@ class EnhancedSocialMidpointCalculator {
                 }
             });
         });
-
-        
     }
 
-    // 2. Rebalance the equity scoring weights
-    calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange) {
+    /**
+     * Calculate accessibility score for a venue
+     */
+    calculateAccessibilityScore(venue) {
+        let score = 0;
+        
+        // Base rating bonus
+        if (venue.rating >= 4.0) score += 0.3;
+        if (venue.rating >= 4.5) score += 0.2;
+        
+        // Review count bonus (popular venues)
+        if (venue.user_ratings_total >= 50) score += 0.2;
+        if (venue.user_ratings_total >= 200) score += 0.1;
+        
+        // Venue type bonuses
+        if (venue.types.includes('shopping_mall')) {
+            score += 0.4; // Malls usually have good transport access
+        }
+        if (venue.types.includes('subway_station')) {
+            score += 0.5; // Direct MRT access
+        }
+        if (venue.types.includes('restaurant')) {
+            score += 0.2; // Social dining
+        }
+        if (venue.types.includes('cafe')) {
+            score += 0.1; // Good for casual meetings
+        }
+        
+        // Location-based bonuses
+        const name = venue.name.toLowerCase();
+        const vicinity = (venue.vicinity || '').toLowerCase();
+        
+        const transportKeywords = [
+            'mrt', 'station', 'interchange', 'junction', 
+            'hub', 'central', 'plaza', 'mall'
+        ];
+        
+        transportKeywords.forEach(keyword => {
+            if (name.includes(keyword) || vicinity.includes(keyword)) {
+                score += 0.1;
+            }
+        });
+        
+        return Math.min(score, 1.0); // Cap at 1.0
+    }
+
+    /**
+     * Progressive venue analysis with multiple fallback modes
+     */
+    async analyzeVenueTravelEquity(venues, startingLocations) {
+        console.log(`📊 Analyzing travel equity for ${venues.length} venues...`);
+        
+        // Try different analysis modes
+        let analysis = await this.tryAnalysisWithMode(venues, startingLocations, 'optimal');
+        
+        if (analysis.length === 0) {
+            console.log(`⚠️ Optimal analysis found no venues, trying balanced mode...`);
+            analysis = await this.tryAnalysisWithMode(venues, startingLocations, 'balanced');
+        }
+        
+        if (analysis.length === 0) {
+            console.log(`⚠️ Balanced analysis found no venues, trying lenient mode...`);
+            analysis = await this.tryAnalysisWithMode(venues, startingLocations, 'lenient');
+        }
+        
+        return analysis;
+    }
+
+    async tryAnalysisWithMode(venues, startingLocations, mode) {
+        const modeSettings = {
+            'optimal': { timeMultiplier: 1.0, fairnessMultiplier: 1.0 },
+            'balanced': { timeMultiplier: 1.3, fairnessMultiplier: 1.5 },
+            'lenient': { timeMultiplier: 1.6, fairnessMultiplier: 2.0 }
+        };
+        
+        const settings = modeSettings[mode];
+        const results = [];
+        
+        // Limit venues to analyze to prevent API quota issues
+        const venuesToAnalyze = venues.slice(0, Math.min(20, venues.length));
+        
+        for (const venue of venuesToAnalyze) {
+            try {
+                const travelData = await this.calculateTravelTimesForVenue(
+                    new google.maps.DirectionsService(),
+                    startingLocations,
+                    venue.geometry.location,
+                    venue.name
+                );
+                
+                if (travelData) {
+                    const { travelTimes, transportModes } = travelData;
+                    
+                    const maxTime = Math.max(...travelTimes);
+                    const minTime = Math.min(...travelTimes);
+                    const avgTime = travelTimes.reduce((a, b) => a + b, 0) / travelTimes.length;
+                    const timeVariance = this.calculateVariance(travelTimes);
+                    const timeRange = maxTime - minTime;
+                    
+                    // Progressive equity scoring
+                    const equityScore = this.calculateProgressiveEquityScore(
+                        travelTimes, avgTime, transportModes, timeRange, settings
+                    );
+                    
+                    // Accept venue if it meets relaxed criteria
+                    const adjustedFairness = this.fairnessThreshold * settings.fairnessMultiplier;
+                    const adjustedMaxTime = this.maxTravelTimeMinutes * settings.timeMultiplier;
+                    
+                    if (maxTime <= adjustedMaxTime) { // Always include if travel time is reasonable
+                        results.push({
+                            name: venue.name,
+                            location: {
+                                lat: venue.geometry.location.lat(),
+                                lng: venue.geometry.location.lng()
+                            },
+                            travelTimes,
+                            maxTravelTime: maxTime,
+                            minTravelTime: minTime,
+                            avgTravelTime: avgTime,
+                            timeVariance,
+                            timeRange,
+                            equityScore,
+                            rating: venue.rating,
+                            venue: venue,
+                            transportModes,
+                            accessibilityScore: venue.accessibilityScore || 0,
+                            analysisMode: mode
+                        });
+                    }
+                }
+            } catch (error) {
+                console.log(`   ❌ Error analyzing ${venue.name}: ${error.message}`);
+            }
+        }
+        
+        // Sort by equity score
+        results.sort((a, b) => a.equityScore - b.equityScore);
+        
+        console.log(`   ${mode.toUpperCase()} mode: ${results.length} venues passed analysis`);
+        
+        return results;
+    }
+
+    /**
+     * Progressive equity scoring that doesn't reject venues outright
+     */
+    calculateProgressiveEquityScore(travelTimes, avgTime, transportModes, timeRange, settings) {
         const timeVariance = this.calculateVariance(travelTimes);
+        const maxTime = Math.max(...travelTimes);
         
-        // Normalize values to prevent one metric from dominating
-        const normalizedVariance = timeVariance / 100; // Typical variance 0-100
-        const normalizedRange = timeRange / 60; // Typical range 0-60min  
-        const normalizedAvgTime = avgTime / this.maxTravelTimeMinutes; // 0-1 scale
+        // Base score components (normalized 0-1)
+        const normalizedRange = Math.min(timeRange / (this.fairnessThreshold * 2), 1.0);
+        const normalizedVariance = Math.min(timeVariance / 100, 1.0);
+        const normalizedAvgTime = Math.min(avgTime / this.maxTravelTimeMinutes, 1.0);
         
-        // More balanced weights
-        let equityScore = (normalizedVariance * 0.5) + 
-                        (normalizedRange * 0.3) + 
-                        (normalizedAvgTime * 0.4); // Favor efficient locations
+        // Weighted base score
+        let equityScore = (normalizedRange * 0.5) +           // Range most important
+                         (normalizedVariance * 0.3) +        // Variance second
+                         (normalizedAvgTime * 0.2);          // Efficiency third
         
-        // Mixed mode penalty (but less harsh)
-        if (mixedMode && timeRange > this.maxAcceptableTimeDifference * 0.8) {
-            const mixedModePenalty = Math.pow(timeRange / this.maxAcceptableTimeDifference, 1.2) * 0.2;
-            equityScore += mixedModePenalty;
-            console.log(`   ⚠️ Mixed mode penalty: +${mixedModePenalty.toFixed(2)}`);
+        // Progressive penalty for excessive range (instead of rejection)
+        if (timeRange > this.fairnessThreshold) {
+            const excessRange = timeRange - this.fairnessThreshold;
+            const rangePenalty = Math.pow(excessRange / this.fairnessThreshold, 1.2) * 0.4;
+            equityScore += rangePenalty;
+        }
+        
+        // Mixed transport mode penalty (graduated)
+        const uniqueModes = new Set(transportModes);
+        if (uniqueModes.size > 1) {
+            const mixedPenalty = Math.min(0.3, timeRange / 60 * 0.15);
+            equityScore += mixedPenalty;
+        }
+        
+        // Bonus for excellent venues in lenient mode
+        if (settings.fairnessMultiplier > 1.5 && timeRange < this.fairnessThreshold * 0.7) {
+            equityScore *= 0.8; // 20% bonus for fair venues in difficult areas
         }
         
         return equityScore;
     }
 
-    // 3. Update the analysis method to use new scoring
-    async analyzeVenueTravelEquity(venues, startingLocations) {
-        console.log(`📊 Analyzing travel equity for ${venues.length} venues...`);
-        const directionsService = new google.maps.DirectionsService();
-        const analysis = [];
+    /**
+     * Main algorithm with progressive fallback strategy
+     */
+    async calculateSocialMidpoint(startingLocations) {
+        const groupSize = startingLocations.length;
+        console.log(`🚀 Starting Improved Enhanced Social Fairness Algorithm for ${groupSize} people...`);
+        
+        if (groupSize < 2) {
+            throw new Error('Need at least 2 locations for midpoint calculation');
+        }
 
-        for (let i = 0; i < venues.length; i++) {
-            const venue = venues[i];
+        // Detect area characteristics and adjust parameters
+        const geometricCenter = this.calculateGeometricMidpoint(startingLocations);
+        const areaInfo = this.detectAreaCharacteristics(geometricCenter);
+        this.adjustParameters(startingLocations, areaInfo);
+        
+        // Try progressive approaches
+        let result = await this.findOptimalVenueWithFallback(startingLocations, geometricCenter);
+        
+        if (result) {
+            console.log(`✅ Algorithm successful! Found optimal venue: ${result.name || 'Unnamed venue'}`);
+            return new google.maps.LatLng(result.lat, result.lng);
+        } else {
+            console.log(`⚠️ All approaches failed, using enhanced geometric midpoint`);
+            return new google.maps.LatLng(geometricCenter.lat, geometricCenter.lng);
+        }
+    }
+
+    async findOptimalVenueWithFallback(startingLocations, initialCenter) {
+        const approaches = [
+            { name: 'Strict', radiusMultiplier: 1.0, venueLimit: 15 },
+            { name: 'Balanced', radiusMultiplier: 1.3, venueLimit: 20 },
+            { name: 'Lenient', radiusMultiplier: 1.6, venueLimit: 25 },
+            { name: 'Emergency', radiusMultiplier: 2.0, venueLimit: 30 }
+        ];
+
+        for (let approach of approaches) {
+            console.log(`\n🎯 Trying ${approach.name} approach...`);
             
-            const modeResult = await this.findPerUserTransportMode(
-                directionsService, 
+            const result = await this.runAlgorithmApproach(
                 startingLocations, 
-                venue.geometry.location,
-                venue.name
+                initialCenter, 
+                approach
             );
             
-            if (!modeResult) {
-                console.log(`❌ ${venue.name}: Cannot reach with selected transport modes`);
+            if (result) {
+                console.log(`✅ ${approach.name} approach successful!`);
+                this.logDetailedResults(result, approach.name);
+                return result.location;
+            }
+        }
+        
+        return null;
+    }
+
+    async runAlgorithmApproach(startingLocations, initialCenter, approach) {
+        let currentSearchCenter = initialCenter;
+        let searchRadius = this.initialRadius * approach.radiusMultiplier;
+        let bestVenue = null;
+        let bestScore = Infinity;
+        let iteration = 0;
+        let noImprovementCount = 0;
+        
+        const maxRadius = this.maxSearchRadius * approach.radiusMultiplier;
+        
+        while (iteration < this.maxIterations && searchRadius <= maxRadius) {
+            iteration++;
+            console.log(`   🔍 Iteration ${iteration}: Searching ${searchRadius.toFixed(0)}m radius`);
+            
+            // Find venues
+            const venues = await this.findSocialVenues(currentSearchCenter, searchRadius);
+            
+            if (venues.length < Math.ceil(this.minVenuesRequired * 0.6)) {
+                console.log(`   ❌ Only ${venues.length} venues found, expanding search...`);
+                searchRadius *= this.radiusIncrementFactor;
                 continue;
             }
             
-            const { travelTimes, transportModes, mixedMode } = modeResult;
+            console.log(`   ✅ Analyzing ${venues.length} venues...`);
             
-            const maxTime = Math.max(...travelTimes);
-            const minTime = Math.min(...travelTimes);
-            const avgTime = travelTimes.reduce((a, b) => a + b, 0) / travelTimes.length;
-            const timeVariance = this.calculateVariance(travelTimes);
-            const timeRange = maxTime - minTime;
+            // Analyze venues
+            const analysis = await this.analyzeVenueTravelEquity(venues, startingLocations);
             
-            // Use the new balanced scoring system
-            const equityScore = this.calculateEquityScore(travelTimes, avgTime, mixedMode, timeRange);
+            if (analysis.length === 0) {
+                console.log(`   ❌ No venues passed analysis, expanding search...`);
+                searchRadius *= this.radiusIncrementFactor;
+                continue;
+            }
             
-            analysis.push({
-                name: venue.name,
-                location: {
-                    lat: venue.geometry.location.lat(),
-                    lng: venue.geometry.location.lng()
-                },
-                travelTimes: travelTimes,
-                maxTravelTime: maxTime,
-                minTravelTime: minTime,
-                avgTravelTime: avgTime,
-                timeVariance: timeVariance,
-                timeRange: timeRange,
-                equityScore: equityScore,
-                rating: venue.rating,
-                types: venue.types,
-                venue: venue,
-                transportModes: transportModes,
-                mixedMode: mixedMode
-            });
+            // Find best venue in this iteration
+            const currentBest = analysis[0]; // Already sorted by equity score
+            
+            if (currentBest.equityScore < bestScore) {
+                const improvement = bestScore - currentBest.equityScore;
+                bestScore = currentBest.equityScore;
+                bestVenue = currentBest;
+                noImprovementCount = 0;
+                
+                console.log(`   ⭐ New best: ${currentBest.name}`);
+                console.log(`   📊 Travel times: [${currentBest.travelTimes.map(t => t.toFixed(1)).join(', ')}] min`);
+                console.log(`   📈 Equity score: ${currentBest.equityScore.toFixed(3)} (improvement: ${improvement.toFixed(3)})`);
+                console.log(`   🎯 Time range: ${currentBest.timeRange.toFixed(1)} min (threshold: ${this.fairnessThreshold.toFixed(1)} min)`);
+                
+                // Focus search around best venue
+                currentSearchCenter = currentBest.location;
+                searchRadius = Math.max(800, searchRadius * 0.7);
+                
+                // Early exit for excellent results
+                if (currentBest.timeRange <= this.fairnessThreshold * 0.8 && 
+                    currentBest.avgTravelTime < 45) {
+                    console.log(`   🏆 Excellent result found, stopping early!`);
+                    break;
+                }
+            } else {
+                noImprovementCount++;
+                searchRadius *= this.radiusIncrementFactor;
+                console.log(`   📈 No improvement (${noImprovementCount} iterations), expanding to ${searchRadius.toFixed(0)}m`);
+            }
+            
+            // Stop if no improvement for several iterations
+            if (noImprovementCount >= 3) {
+                console.log(`   ⏹️ Stopping after ${noImprovementCount} iterations without improvement`);
+                break;
+            }
         }
-
-        analysis.sort((a, b) => a.equityScore - b.equityScore);
         
-        console.log(`   ✅ Successfully analyzed ${analysis.length} venues`);
-        
-        analysis.slice(0, 3).forEach((venue, idx) => {
-            const modeText = venue.mixedMode ? 
-                `${venue.transportModes[0]}/${venue.transportModes[1]}` : 
-                venue.transportModes[0];
-            console.log(`   ${idx + 1}. ${venue.name} [${modeText}]: equity=${venue.equityScore.toFixed(2)}, variance=${venue.timeVariance.toFixed(1)}min², range=${venue.timeRange.toFixed(1)}min, avg=${venue.avgTravelTime.toFixed(1)}min`);
-        });
-        
-        return analysis;
+        return bestVenue;
     }
 
-    // NEW METHOD: Find a transport mode that works for everyone
-    async findPerUserTransportMode(directionsService, startingLocations, destination, venueName) {
-        console.log(`🚌 Calculating travel times using each person's preferred transport mode for ${venueName}...`);
-        
-        const userModes = [
-            window.userTransportModes['location-1'] || 'TRANSIT',
-            window.userTransportModes['location-2'] || 'TRANSIT'
-        ];
-        
-        console.log(`   Person 1 prefers: ${userModes[0]}`);
-        console.log(`   Person 2 prefers: ${userModes[1]}`);
+    /**
+     * Enhanced geometric midpoint calculation
+     */
+    calculateGeometricMidpoint(locations) {
+        let totalLat = 0, totalLng = 0;
+        locations.forEach(location => {
+            const lat = typeof location.lat === 'function' ? location.lat() : location.lat;
+            const lng = typeof location.lng === 'function' ? location.lng() : location.lng;
+            totalLat += lat;
+            totalLng += lng;
+        });
+        return { 
+            lat: totalLat / locations.length, 
+            lng: totalLng / locations.length 
+        };
+    }
+
+    /**
+     * Travel time calculation with caching
+     */
+    async calculateTravelTimesForVenue(directionsService, startingLocations, destination, venueName) {
+        console.log(`   🚌 Calculating travel times for ${venueName}...`);
         
         const travelTimes = [];
         const actualModes = [];
         
-        // Calculate travel time for each person using their preferred mode
         for (let personIdx = 0; personIdx < startingLocations.length; personIdx++) {
-            const preferredMode = userModes[personIdx];
+            const locationId = `location-${personIdx + 1}`;
+            const preferredMode = window.userTransportModes.get(locationId) || 'TRANSIT';
             const googleMapsMode = this.convertToGoogleMapsMode(preferredMode);
             
             try {
-                const time = await this.getTravelTime(
+                const time = await this.getTravelTimeWithCache(
                     directionsService,
                     startingLocations[personIdx],
                     destination,
                     googleMapsMode
                 );
                 
-                if (!time) {
-                    console.log(`     ❌ Person ${personIdx + 1}: ${preferredMode} route failed`);
+                if (!time || time > this.maxTravelTimeMinutes * 1.5) {
+                    console.log(`     ❌ Person ${personIdx + 1}: ${preferredMode} time ${time?.toFixed(1) || 'null'}min exceeds limit`);
                     return null;
                 }
                 
-                // Apply mode-specific multipliers and limits
-                const modeConfig = this.getTransportModeConfig(preferredMode);
-                const adjustedTime = time * modeConfig.multiplier;
-                
-                if (adjustedTime > modeConfig.maxTime) {
-                    console.log(`     ❌ Person ${personIdx + 1}: ${preferredMode} ${adjustedTime.toFixed(1)}min > ${modeConfig.maxTime}min limit`);
-                    return null;
-                }
-                
-                console.log(`     ✅ Person ${personIdx + 1}: ${preferredMode} ${adjustedTime.toFixed(1)}min`);
-                travelTimes.push(adjustedTime);
+                travelTimes.push(time);
                 actualModes.push(preferredMode);
+                
+                console.log(`     ✅ Person ${personIdx + 1}: ${time.toFixed(1)}min via ${preferredMode}`);
                 
             } catch (error) {
                 console.log(`     ❌ Person ${personIdx + 1}: ${preferredMode} error - ${error.message}`);
@@ -820,21 +1798,27 @@ class EnhancedSocialMidpointCalculator {
             }
         }
         
-        const maxTime = Math.max(...travelTimes);
-        const minTime = Math.min(...travelTimes);
-        const range = maxTime - minTime;
-        
-        console.log(`   ✅ Mixed modes work! Person 1: ${actualModes[0]} ${travelTimes[0].toFixed(1)}min, Person 2: ${actualModes[1]} ${travelTimes[1].toFixed(1)}min (range: ${range.toFixed(1)}min)`);
-        
         return {
             travelTimes: travelTimes,
-            transportModes: actualModes, // Array of modes used
-            mixedMode: actualModes[0] !== actualModes[1]
+            transportModes: actualModes
         };
     }
 
-
-    async getTravelTime(directionsService, origin, destination, travelMode) {
+    async getTravelTimeWithCache(directionsService, origin, destination, travelMode) {
+        // Create cache key
+        const originLat = typeof origin.lat === 'function' ? origin.lat() : origin.lat;
+        const originLng = typeof origin.lng === 'function' ? origin.lng() : origin.lng;
+        const destLat = typeof destination.lat === 'function' ? destination.lat() : destination.lat;
+        const destLng = typeof destination.lng === 'function' ? destination.lng() : destination.lng;
+        
+        const cacheKey = `${originLat.toFixed(4)},${originLng.toFixed(4)}_${destLat.toFixed(4)},${destLng.toFixed(4)}_${travelMode}`;
+        
+        // Check cache
+        if (this.travelTimeCache.has(cacheKey)) {
+            return this.travelTimeCache.get(cacheKey);
+        }
+        
+        // Calculate travel time
         return new Promise((resolve, reject) => {
             const request = {
                 origin: origin,
@@ -852,6 +1836,10 @@ class EnhancedSocialMidpointCalculator {
             directionsService.route(request, (result, status) => {
                 if (status === google.maps.DirectionsStatus.OK) {
                     const durationMinutes = result.routes[0].legs[0].duration.value / 60;
+                    
+                    // Cache result
+                    this.travelTimeCache.set(cacheKey, durationMinutes);
+                    
                     resolve(durationMinutes);
                 } else {
                     reject(new Error(`Directions failed: ${status}`));
@@ -860,126 +1848,6 @@ class EnhancedSocialMidpointCalculator {
         });
     }
 
-    findParetoOptimalVenues(analysis) {
-        console.log('🎯 Finding Pareto optimal venues (mathematically fair solutions)...');
-        
-        if (analysis.length === 0) return [];
-        
-        // Create points for Pareto analysis: [person1_time, person2_time, venue_data]
-        const points = analysis.map(venue => ({
-            person1Time: venue.travelTimes[0],
-            person2Time: venue.travelTimes[1],
-            venue: venue
-        }));
-        
-        // Find Pareto front: points where no other point dominates
-        const paretoFront = [];
-        
-        for (let i = 0; i < points.length; i++) {
-            const currentPoint = points[i];
-            let isDominated = false;
-            
-            // Check if any other point dominates this one
-            for (let j = 0; j < points.length; j++) {
-                if (i === j) continue;
-                
-                const otherPoint = points[j];
-                
-                // Point A dominates point B if A is better in all objectives
-                const dominatesInTime1 = otherPoint.person1Time <= currentPoint.person1Time;
-                const dominatesInTime2 = otherPoint.person2Time <= currentPoint.person2Time;
-                const strictlyBetterInOne = otherPoint.person1Time < currentPoint.person1Time || 
-                                           otherPoint.person2Time < currentPoint.person2Time;
-                
-                if (dominatesInTime1 && dominatesInTime2 && strictlyBetterInOne) {
-                    isDominated = true;
-                    console.log(`   ${currentPoint.venue.name} dominated by ${otherPoint.venue.name}`);
-                    break;
-                }
-            }
-            
-            if (!isDominated) {
-                paretoFront.push(currentPoint);
-            }
-        }
-        
-        console.log(`   🏆 Found ${paretoFront.length} Pareto optimal venues from ${analysis.length} candidates`);
-        
-        // Sort Pareto front by "closeness to ideal" (equal travel times + minimal total time)
-        paretoFront.sort((a, b) => {
-            const idealDistance_a = Math.sqrt(
-                Math.pow(a.person1Time - a.person2Time, 2) + // Fairness: prefer equal times
-                Math.pow((a.person1Time + a.person2Time) / 2 - 30, 2) // Efficiency: prefer ~30min total
-            );
-            
-            const idealDistance_b = Math.sqrt(
-                Math.pow(b.person1Time - b.person2Time, 2) + 
-                Math.pow((b.person1Time + b.person2Time) / 2 - 30, 2)
-            );
-            
-            return idealDistance_a - idealDistance_b;
-        });
-        
-        // Log the Pareto front for debugging
-        console.log('   📊 Pareto optimal solutions:');
-        paretoFront.slice(0, 5).forEach((point, idx) => {
-            const venue = point.venue;
-            const fairnessGap = Math.abs(point.person1Time - point.person2Time);
-            console.log(`   ${idx + 1}. ${venue.name}: [${point.person1Time.toFixed(1)}min, ${point.person2Time.toFixed(1)}min] gap=${fairnessGap.toFixed(1)}min`);
-        });
-        
-        return paretoFront.map(point => point.venue);
-    }
-    
-    /**
-     * Enhanced version of findMostEquitableVenue using Pareto optimization
-     */
-    findMostEquitableVenue(analysis) {
-        if (analysis.length === 0) return null;
-        
-        const paretoOptimal = this.findParetoOptimalVenues(analysis);
-        
-        if (paretoOptimal.length === 0) {
-            console.warn('No Pareto optimal venues found, falling back to best single venue');
-            return analysis[0];
-        }
-        
-        const best = paretoOptimal[0];
-        
-        console.log(`🎯 Selected Pareto optimal venue: ${best.name}`);
-        console.log(`   Travel times: [${best.travelTimes.map(t => t.toFixed(1)).join(', ')}] minutes`);
-        console.log(`   Fairness gap: ${Math.abs(best.travelTimes[0] - best.travelTimes[1]).toFixed(1)} minutes`);
-        console.log(`   Average time: ${best.avgTravelTime.toFixed(1)} minutes`);
-        
-        // 🔥 NEW: Store the algorithm's calculated times globally
-        window.algorithmCalculatedTimes = {
-            venue: best,
-            travelTimes: best.travelTimes,
-            transportModes: best.transportModes,
-            mixedMode: best.mixedMode
-        };
-        
-        return best;
-    }
-
-    calculateVariance(values) {
-        const mean = values.reduce((a, b) => a + b, 0) / values.length;
-        const squaredDiffs = values.map(value => Math.pow(value - mean, 2));
-        return squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
-    }
-
-    calculateDistance(p1, p2) {
-        const R = 6371000;
-        const lat1Rad = p1.lat * Math.PI / 180;
-        const lat2Rad = p2.lat * Math.PI / 180;
-        const deltaLat = (p2.lat - p1.lat) * Math.PI / 180;
-        const deltaLng = (p2.lng - p1.lng) * Math.PI / 180;
-
-        const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
-                Math.cos(lat1Rad) * Math.cos(lat2Rad) *
-                Math.sin(deltaLng/2) * Math.sin(deltaLng/2);
-        return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * R;
-    }
     convertToGoogleMapsMode(uiMode) {
         switch (uiMode) {
             case 'TRANSIT': return google.maps.TravelMode.TRANSIT;
@@ -988,27 +1856,127 @@ class EnhancedSocialMidpointCalculator {
             default: return google.maps.TravelMode.TRANSIT;
         }
     }
-    
-    getTransportModeConfig(mode) {
-        const baseConfigs = {
-            'TRANSIT': { multiplier: 1.0, maxTime: this.maxTravelTimeMinutes },
-            'WALKING': { multiplier: 1.0, maxTime: 45 }, // Walking has shorter limit
-            'DRIVING': { multiplier: 1.3, maxTime: this.maxTravelTimeMinutes } // Driving penalty for traffic
-        };
+
+    calculateDistance(point1, point2) {
+        const lat1 = typeof point1.lat === 'function' ? point1.lat() : point1.lat;
+        const lng1 = typeof point1.lng === 'function' ? point1.lng() : point1.lng;
+        const lat2 = typeof point2.lat === 'function' ? point2.lat() : point2.lat;
+        const lng2 = typeof point2.lng === 'function' ? point2.lng() : point2.lng;
         
-        return baseConfigs[mode] || baseConfigs['TRANSIT'];
+        const R = 6371000; // Earth's radius in meters
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lng2 - lng1) * Math.PI / 180;
+        
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        
+        return R * c;
     }
 
+    calculateVariance(values) {
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        const squaredDiffs = values.map(value => Math.pow(value - mean, 2));
+        return squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
+    }
+
+    /**
+     * Detailed results logging
+     */
+    logDetailedResults(bestVenue, approach) {
+        console.log(`\n🎯 FINAL RESULTS (${approach.toUpperCase()} APPROACH):`);
+        console.log(`   🏆 Selected Venue: ${bestVenue.name}`);
+        console.log(`   📍 Location: ${bestVenue.location.lat.toFixed(6)}, ${bestVenue.location.lng.toFixed(6)}`);
+        console.log(`   ⭐ Rating: ${bestVenue.rating}/5.0`);
+        console.log(`   🚇 Accessibility Score: ${bestVenue.accessibilityScore.toFixed(2)}`);
+        console.log(`   \n⏱️ TRAVEL TIME ANALYSIS:`);
+        console.log(`   📊 Individual times: [${bestVenue.travelTimes.map(t => t.toFixed(1)).join(', ')}] minutes`);
+        console.log(`   📈 Average: ${bestVenue.avgTravelTime.toFixed(1)}min`);
+        console.log(`   📏 Range: ${bestVenue.timeRange.toFixed(1)}min (threshold: ${this.fairnessThreshold.toFixed(1)}min)`);
+        console.log(`   📐 Variance: ${bestVenue.timeVariance.toFixed(1)}min²`);
+        console.log(`   🎯 Equity Score: ${bestVenue.equityScore.toFixed(3)} (lower is better)`);
+        console.log(`   \n🚌 TRANSPORT MODES:`);
+        bestVenue.transportModes.forEach((mode, idx) => {
+            console.log(`   Person ${idx + 1}: ${mode} (${bestVenue.travelTimes[idx].toFixed(1)}min)`);
+        });
+        
+        // Store results globally for route display
+        window.algorithmResults = {
+            venue: bestVenue,
+            calculatedTimes: bestVenue.travelTimes,
+            transportModes: bestVenue.transportModes,
+            equityScore: bestVenue.equityScore,
+            fairnessThreshold: this.fairnessThreshold,
+            approach: approach,
+            timestamp: Date.now()
+        };
+    }
 }
 
 // Replace the existing calculateSocialMidpoint function
 async function calculateSocialMidpoint(locations) {
-    const calculator = new EnhancedSocialMidpointCalculator();
-    const result = await calculator.calculateSocialMidpoint(locations);
-    return result;
+    if (!locations || !Array.isArray(locations) || locations.length < 2) {
+        throw new Error('Invalid locations provided for midpoint calculation');
+    }
+    
+    try {
+        console.log(`🚀 Starting improved social midpoint calculation for ${locations.length} people...`);
+        
+        const validLocations = locations.filter(loc => {
+            if (!loc) return false;
+            if (typeof loc.lat !== 'function' && typeof loc.lat !== 'number') return false;
+            if (typeof loc.lng !== 'function' && typeof loc.lng !== 'number') return false;
+            return true;
+        });
+        
+        if (validLocations.length < 2) {
+            throw new Error('Not enough valid locations for calculation');
+        }
+        
+        // Use the improved calculator
+        const calculator = new ImprovedSocialMidpointCalculator();
+        const result = await calculator.calculateSocialMidpoint(validLocations);
+        
+        if (result && result.lat && result.lng) {
+            console.log(`🎯 Improved algorithm successful for ${validLocations.length} people`);
+            return result;
+        } else {
+            throw new Error('Improved algorithm returned invalid result');
+        }
+    } catch (error) {
+        console.warn(`Improved algorithm failed:`, error);
+        showErrorNotification('Using geometric midpoint fallback');
+        
+        // Ultimate fallback to geometric midpoint
+        let totalLat = 0, totalLng = 0;
+        locations.forEach(location => {
+            const lat = typeof location.lat === 'function' ? location.lat() : location.lat;
+            const lng = typeof location.lng === 'function' ? location.lng() : location.lng;
+            totalLat += lat;
+            totalLng += lng;
+        });
+        
+        return new google.maps.LatLng(
+            totalLat / locations.length, 
+            totalLng / locations.length
+        );
+    }
 }
 
-// Initialize map with Singapore as default center
+function calculateMidpointFromMarkers() {
+    const markers = Object.values(window.locationMarkers || {}).filter(marker => marker);
+    
+    if (markers.length >= 2) {
+        const locations = markers.map(marker => marker.getPosition());
+        window.calculatedMidpoint = calculateMidpoint(locations);
+        console.log('Geometric midpoint calculated:', window.calculatedMidpoint);
+    }
+}
+
+// CLEAN Map initialization
 async function initMap() {
     console.log('initMap called');
 
@@ -1022,7 +1990,6 @@ async function initMap() {
         }
         
         console.log('Map container found:', mapContainer);
-        console.log('Map container dimensions:', mapContainer.offsetWidth, mapContainer.offsetHeight);
         
         if (mapContainer.offsetWidth === 0 || mapContainer.offsetHeight === 0) {
             console.log('Fixing map container dimensions');
@@ -1039,9 +2006,14 @@ async function initMap() {
             center: singapore,
             zoom: 10,
             mapTypeControl: false,
-            fullscreenControl: false,
+            fullscreenControl: false,    // ✅ Already disabled
             streetViewControl: false,
-            zoomControl: false
+            zoomControl: false,
+            // Additional controls to ensure clean interface
+            gestureHandling: 'greedy',   // Allow smooth touch gestures
+            clickableIcons: false,       // Disable POI clicks for cleaner UX
+            disableDefaultUI: false,     // Keep some default UI but customize
+            keyboardShortcuts: false,    // Disable keyboard shortcuts
         });
         
         window.midwhereahMap = map;
@@ -1054,7 +2026,12 @@ async function initMap() {
         
         window.placesService = new google.maps.places.PlacesService(map);
         
-        console.log("Google Maps initialized successfully");
+        console.log("Google Maps initialized successfully - No fullscreen control");
+        
+        // Initialize hybrid location manager after map is ready
+        if (window.hybridLocationManager) {
+            window.hybridLocationManager.initialize();
+        }
     } catch (error) {
         console.error("Error initializing Google Maps:", error);
     }
@@ -1108,8 +2085,25 @@ async function initWithPlaceAutocompleteElement(locationInputs) {
                         return;
                     }
                     
-                    addLocationMarker(place.geometry.location, input.id);
-                    checkBothLocationsAndShowButton();
+                    // Store location data
+                    window.locationData.set(input.id, {
+                        place: place,
+                        position: place.geometry.location,
+                        transportMode: window.userTransportModes.get(input.id) || 'TRANSIT',
+                        address: place.formatted_address || place.name
+                    });
+                    
+                    // Get person color for marker
+                    const container = input.closest('.location-container');
+                    const colorElement = container?.querySelector('.location-icon');
+                    const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+                    
+                    addLocationMarker(place.geometry.location, input.id, personColor);
+                    
+                    // Use the hybrid manager's debounced method
+                    if (window.hybridLocationManager) {
+                        window.hybridLocationManager.debouncedLocationCheck();
+                    }
                 } catch (error) {
                     console.error('Error handling place selection:', error);
                 }
@@ -1125,7 +2119,7 @@ function initWithLegacyAutocomplete(locationInputs) {
         locationInputs.forEach(input => {
             const autocomplete = new window.Autocomplete(input, {
                 componentRestrictions: { country: "sg" },
-                fields: ["address_components", "geometry", "name"],
+                fields: ["address_components", "geometry", "name", "formatted_address"],
                 types: ["address"]
             });
             
@@ -1134,12 +2128,29 @@ function initWithLegacyAutocomplete(locationInputs) {
             autocomplete.addListener('place_changed', function() {
                 const place = autocomplete.getPlace();
                 if (!place.geometry) {
-                    window.alert("No details available for: '" + place.name + "'");
+                    console.warn("No details available for: '" + place.name + "'");
                     return;
                 }
                 
-                addLocationMarker(place.geometry.location, input.id);
-                checkBothLocationsAndShowButton();
+                // Store location data
+                window.locationData.set(input.id, {
+                    place: place,
+                    position: place.geometry.location,
+                    transportMode: window.userTransportModes.get(input.id) || 'TRANSIT',
+                    address: place.formatted_address || place.name
+                });
+                
+                // Get person color for marker
+                const container = input.closest('.location-container');
+                const colorElement = container?.querySelector('.location-icon');
+                const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+                
+                addLocationMarker(place.geometry.location, input.id, personColor);
+                
+                // Use the hybrid manager's debounced method
+                if (window.hybridLocationManager) {
+                    window.hybridLocationManager.debouncedLocationCheck();
+                }
             });
         });
     } catch (error) {
@@ -1150,181 +2161,11 @@ function initWithLegacyAutocomplete(locationInputs) {
 function setupMapMarkers() {
     window.locationMarkers = {};
     window.midpointMarker = null;
+    window.directionsRenderers = [];
 
     if (window.google && window.google.maps) {
         window.geocoder = new google.maps.Geocoder();
     }
-}
-
-function addLocationMarker(location, inputId) {
-    if (window.locationMarkers && window.locationMarkers[inputId]) {
-        window.locationMarkers[inputId].setMap(null);
-    }
-
-    const marker = new google.maps.Marker({
-        position: location,
-        map: window.midwhereahMap,
-        title: document.getElementById(inputId) ? document.getElementById(inputId).value : 'Location',
-        animation: google.maps.Animation.DROP
-    });
-
-    window.locationMarkers[inputId] = marker;
-
-    if (window.midwhereahMap) {
-        window.midwhereahMap.panTo(location);
-    }
-
-    setTimeout(() => {
-        calculateMidpointFromMarkers();
-    }, 100);
-}
-
-function checkBothLocationsAndShowButton() {
-    const location1 = document.getElementById('location-1');
-    const location2 = document.getElementById('location-2');
-    const findCentralBtn = document.getElementById('find-central-btn');
-
-    if (!location1 || !location2 || !findCentralBtn) return;
-
-    const hasValue1 = location1.value.trim() !== '';
-    const hasValue2 = location2.value.trim() !== '';
-
-    if (hasValue1 && hasValue2) {
-        findCentralBtn.classList.add('active');
-        console.log('Both locations filled, showing button');
-        
-        window.calculatedMidpoint = null;
-        
-        if (window.midpointMarker) {
-            window.midpointMarker.setVisible(false);
-        }
-        
-        geocodeAndCreateMarkers();
-    } else {
-        findCentralBtn.classList.remove('active');
-        window.calculatedMidpoint = null;
-        
-        if (!hasValue1 && window.locationMarkers['location-1']) {
-            window.locationMarkers['location-1'].setMap(null);
-            delete window.locationMarkers['location-1'];
-        }
-        if (!hasValue2 && window.locationMarkers['location-2']) {
-            window.locationMarkers['location-2'].setMap(null);
-            delete window.locationMarkers['location-2'];
-        }
-        
-        if (window.midpointMarker) {
-            window.midpointMarker.setVisible(false);
-        }
-    }
-}
-
-function geocodeAndCreateMarkers() {
-    const location1 = document.getElementById('location-1');
-    const location2 = document.getElementById('location-2');
-
-    if (!location1.value.trim() || !location2.value.trim()) return;
-
-    if (!window.geocoder && window.google && window.google.maps) {
-        window.geocoder = new google.maps.Geocoder();
-    }
-
-    if (!window.geocoder) {
-        console.warn('Geocoder not available yet');
-        return;
-    }
-
-    if (window.geocodingTimeout1) {
-        clearTimeout(window.geocodingTimeout1);
-    }
-    if (window.geocodingTimeout2) {
-        clearTimeout(window.geocodingTimeout2);
-    }
-
-    let geocodedCount = 0;
-    const totalNeeded = 2;
-
-    const geocodeLocation1 = () => {
-        if (!location1.value.trim()) return;
-        
-        window.geocoder.geocode({ 
-            address: location1.value.trim() + ', Singapore',
-            componentRestrictions: { country: 'SG' }
-        }, function(results, status) {
-            if (status === 'OK' && results[0]) {
-                if (location1.value.trim() !== '') {
-                    addLocationMarker(results[0].geometry.location, 'location-1');
-                    geocodedCount++;
-                    if (geocodedCount === totalNeeded) {
-                        calculateMidpointFromMarkers();
-                    }
-                }
-            } else {
-                console.warn('Geocoding failed for location 1:', status);
-            }
-        });
-    };
-
-    const geocodeLocation2 = () => {
-        if (!location2.value.trim()) return;
-        
-        window.geocoder.geocode({ 
-            address: location2.value.trim() + ', Singapore',
-            componentRestrictions: { country: 'SG' }
-        }, function(results, status) {
-            if (status === 'OK' && results[0]) {
-                if (location2.value.trim() !== '') {
-                    addLocationMarker(results[0].geometry.location, 'location-2');
-                    geocodedCount++;
-                    if (geocodedCount === totalNeeded) {
-                        calculateMidpointFromMarkers();
-                    }
-                }
-            } else {
-                console.warn('Geocoding failed for location 2:', status);
-            }
-        });
-    };
-
-    window.geocodingTimeout1 = setTimeout(geocodeLocation1, 1000);
-    window.geocodingTimeout2 = setTimeout(geocodeLocation2, 1000);
-}
-
-function calculateMidpointFromMarkers() {
-    const marker1 = window.locationMarkers && window.locationMarkers['location-1'];
-    const marker2 = window.locationMarkers && window.locationMarkers['location-2'];
-
-    if (marker1 && marker2) {
-        const locations = [marker1.getPosition(), marker2.getPosition()];
-        
-        window.calculatedMidpoint = calculateMidpoint(locations);
-        console.log('Geometric midpoint calculated:', window.calculatedMidpoint);
-    }
-}
-
-function calculateMidpoint(locations) {
-    if (!locations || locations.length < 2) {
-        console.warn('calculateMidpoint: Need at least 2 locations');
-        return null;
-    }
-
-    let totalLat = 0;
-    let totalLng = 0;
-
-    locations.forEach(location => {
-        if (typeof location.lat === 'function') {
-            totalLat += location.lat();
-            totalLng += location.lng();
-        } else {
-            totalLat += location.lat;
-            totalLng += location.lng;
-        }
-    });
-
-    const avgLat = totalLat / locations.length;
-    const avgLng = totalLng / locations.length;
-
-    return new google.maps.LatLng(avgLat, avgLng);
 }
 
 function setupMobileMenu() {
@@ -1332,43 +2173,23 @@ function setupMobileMenu() {
 }
 
 function setupLocationInputs() {
-    const locationInputs = document.querySelectorAll('.location-input');
-    locationInputs.forEach(input => {
-        initializeAutocompleteForInput(input);
-    });
-
-    function initializeAutocompleteForInput(input) {
-        try {
-            if (google.maps.places && google.maps.places.Autocomplete) {
-                const autocomplete = new google.maps.places.Autocomplete(input, {
-                    componentRestrictions: { country: "sg" },
-                    fields: ["address_components", "geometry", "name"],
-                    types: ["address"]
-                });
-                
-                input.autocomplete = autocomplete;
-                
-                autocomplete.addListener('place_changed', function() {
-                    const place = autocomplete.getPlace();
-                    if (!place.geometry) {
-                        console.warn("No details available for: '" + place.name + "'");
-                        return;
-                    }
-                    
-                    addLocationMarker(place.geometry.location, input.id);
-                    checkBothLocationsAndShowButton();
-                });
-            } else {
-                console.warn('Google Maps Places API not available yet. Will retry initialization later.');
-                setTimeout(() => {
-                    if (google.maps.places && google.maps.places.Autocomplete) {
-                        initializeAutocompleteForInput(input);
-                    }
-                }, 1000);
-            }
-        } catch (error) {
-            console.error('Error initializing autocomplete:', error);
-        }
+    console.log('📍 Setting up location inputs...');
+    
+    // Initialize window.directionsRenderers if not already done
+    if (!window.directionsRenderers) {
+        window.directionsRenderers = [];
+    }
+    
+    // Initialize the hybrid location manager if not already done
+    if (window.hybridLocationManager && !window.hybridLocationManager.initialized) {
+        console.log('Initializing hybrid location manager...');
+        window.hybridLocationManager.initialize();
+    } else if (window.hybridLocationManager) {
+        console.log('Hybrid location manager already initialized');
+    } else {
+        console.warn('HybridLocationManager not found! Creating new instance...');
+        window.hybridLocationManager = new HybridLocationManager();
+        window.hybridLocationManager.initialize();
     }
 }
 
@@ -1404,11 +2225,13 @@ function setupBottomNavigation() {
 
 function showCreateGroupModal(){
     const menu = document.getElementById('dropdown-menu');
-    menu.classList.toggle('hidden');
+    if (menu) {
+        menu.classList.toggle('hidden');
+    }
 }
 
 function setupUserInfo() {
-    if (firebase.auth) {
+    if (typeof firebase !== 'undefined' && firebase.auth) {
         firebase.auth().onAuthStateChanged(function(user) {
             if (user) {
                 const userAvatar = document.querySelector('.user-avatar');
@@ -1442,53 +2265,70 @@ function setupVenueCard() {
     console.log('Venue cards disabled');
 }
 
+// CLEAN setupFindCentralButton - single version
 function setupFindCentralButton() {
     const findCentralBtn = document.getElementById('find-central-btn');
-    if (!findCentralBtn) return;
+    if (!findCentralBtn) {
+        console.error('Find central button not found!');
+        return;
+    }
 
     findCentralBtn.addEventListener('click', async function() {
         console.log('🔥 Find central button clicked - Starting Enhanced Social Fairness Algorithm!');
         
-        const marker1 = window.locationMarkers && window.locationMarkers['location-1'];
-        const marker2 = window.locationMarkers && window.locationMarkers['location-2'];
+        // Get all location data from the hybrid manager
+        const allLocationData = window.hybridLocationManager ? 
+            window.hybridLocationManager.getAllLocationData() : [];
         
-        if (!marker1 || !marker2) {
-            console.warn('Missing markers for midpoint calculation');
+        if (allLocationData.length < 2) {
+            showErrorNotification('Please enter at least 2 locations and wait for them to be processed');
             return;
         }
         
+        console.log(`📍 Processing ${allLocationData.length} locations for midpoint calculation`);
+        
+        // Clear existing midpoint marker
         if (window.midpointMarker) {
             window.midpointMarker.setMap(null);
         }
         
+        // Show loading state
         const originalButtonContent = findCentralBtn.innerHTML;
         findCentralBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         findCentralBtn.style.pointerEvents = 'none';
+        findCentralBtn.classList.add('processing');
         
         try {
-            const locations = [marker1.getPosition(), marker2.getPosition()];
+            // Extract positions from location data
+            const locations = allLocationData.map(data => data.position);
             
-            console.log('🎯 Running Enhanced Social Fairness Algorithm (Travel Time Equity Focus)...');
+            console.log('🎯 Running Enhanced Social Fairness Algorithm...');
             const socialMidpoint = await calculateSocialMidpoint(locations);
             window.calculatedMidpoint = socialMidpoint;
             console.log('✅ Social optimal location found:', socialMidpoint);
-            console.log('🔍 DEBUG: socialMidpoint coordinates:', socialMidpoint.lat(), socialMidpoint.lng());
             
         } catch (error) {
             console.warn('Enhanced algorithm failed, using geometric midpoint:', error);
-            if (!window.calculatedMidpoint) {
-                window.calculatedMidpoint = calculateMidpoint([marker1.getPosition(), marker2.getPosition()]);
+            
+            // Fallback to geometric midpoint
+            const positions = allLocationData.map(data => data.position);
+            if (positions.length >= 2) {
+                window.calculatedMidpoint = calculateMidpoint(positions);
             }
         }
         
+        // Restore button state
         findCentralBtn.innerHTML = originalButtonContent;
         findCentralBtn.style.pointerEvents = 'auto';
+        findCentralBtn.classList.remove('processing');
         
         if (!window.calculatedMidpoint) {
             console.warn('No midpoint calculated');
+            showErrorNotification('Could not calculate meeting point');
             return;
         }
         
+        // Create enhanced midpoint marker
         window.midpointMarker = new google.maps.Marker({
             position: window.calculatedMidpoint,
             map: window.midwhereahMap,
@@ -1500,194 +2340,214 @@ function setupFindCentralButton() {
                 strokeWeight: 3,
                 scale: 15
             },
-            title: 'Optimal Meeting Spot (Fair Travel Times)',
+            title: `Optimal Meeting Spot for ${allLocationData.length} People`,
             animation: google.maps.Animation.BOUNCE
         });
         
+        // Stop bounce animation after 2 seconds
         setTimeout(() => {
             if (window.midpointMarker) {
                 window.midpointMarker.setAnimation(null);
             }
         }, 2000);
         
+        // Center map on midpoint with appropriate zoom
         window.midwhereahMap.panTo(window.calculatedMidpoint);
-        window.midwhereahMap.setZoom(16);
+        window.midwhereahMap.setZoom(14);
         
-        showRoutes();
+        // Show routes with proper error handling
+        try {
+            showRoutes();
+            console.log('✅ Routes displayed successfully');
+        } catch (error) {
+            console.error('❌ Failed to display routes:', error);
+            showErrorNotification('Routes could not be displayed');
+        }
         
-        findCentralBtn.classList.add('used');
+        // Update button to success state
+        findCentralBtn.classList.add('success');
         findCentralBtn.innerHTML = '<i class="fas fa-check"></i>';
         
+        // Reset button after 3 seconds
         setTimeout(() => {
-            findCentralBtn.classList.remove('active', 'used');
+            findCentralBtn.classList.remove('active', 'success');
+            findCentralBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
         }, 3000);
     });
 }
 
 function showRoutes() {
-    const location1Marker = window.locationMarkers['location-1'];
-    const location2Marker = window.locationMarkers['location-2'];
     const midpoint = window.calculatedMidpoint;
-
-    if (!midpoint || !location1Marker || !location2Marker) return;
-
-    // Clear existing routes
-    if (window.routeRenderers) {
-        window.routeRenderers.forEach(renderer => renderer.setMap(null));
-    }
-    window.routeRenderers = [];
-
-    const directionsService = new google.maps.DirectionsService();
-    const colors = ['#2196F3', '#FF9800'];
-    const markers = [location1Marker, location2Marker];
-
-    // 🔥 NEW: Use algorithm's calculated data if available
-    if (window.algorithmCalculatedTimes) {
-        const algoData = window.algorithmCalculatedTimes;
-        console.log(`🎯 Displaying routes with algorithm's calculated times:`);
-        console.log(`   Person 1 (${algoData.transportModes[0]}): ${algoData.travelTimes[0].toFixed(1)}min`);
-        console.log(`   Person 2 (${algoData.transportModes[1]}): ${algoData.travelTimes[1].toFixed(1)}min`);
-        console.log(`   Gap: ${Math.abs(algoData.travelTimes[0] - algoData.travelTimes[1]).toFixed(1)}min`);
-        
-        // Display routes but show algorithm's times in console/UI
-        showRoutesWithAlgorithmTimes(markers, midpoint, directionsService, colors, algoData);
-    } else {
-        // Fallback to old behavior if no algorithm data
-        console.log(`🚗 Showing routes: Standard calculation (no algorithm data available)`);
-        showRoutesLegacy(markers, midpoint, directionsService, colors);
-    }
-}
-
-function showRoutesWithAlgorithmTimes(markers, midpoint, directionsService, colors, algoData) {
-    markers.forEach((marker, index) => {
-        const algorithmMode = algoData.transportModes[index];
-        const algorithmTime = algoData.travelTimes[index];
-        
-        const googleMapsMode = algorithmMode === 'TRANSIT' ? google.maps.TravelMode.TRANSIT :
-                              algorithmMode === 'DRIVING' ? google.maps.TravelMode.DRIVING :
-                              google.maps.TravelMode.WALKING;
-        
-        const request = {
-            origin: marker.getPosition(),
-            destination: midpoint,
-            travelMode: googleMapsMode
-        };
-
-        if (googleMapsMode === google.maps.TravelMode.TRANSIT) {
-            request.transitOptions = {
-                modes: [google.maps.TransitMode.BUS, google.maps.TransitMode.RAIL],
-                routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
-            };
-        }
-        
-        directionsService.route(request, function(result, status) {
-            if (status === google.maps.DirectionsStatus.OK) {
-                const routeRenderer = new google.maps.DirectionsRenderer({
-                    suppressMarkers: true,
-                    polylineOptions: {
-                        strokeColor: colors[index],
-                        strokeOpacity: 0.8,
-                        strokeWeight: 5
-                    },
-                    map: window.midwhereahMap
-                });
-                
-                routeRenderer.setDirections(result);
-                window.routeRenderers.push(routeRenderer);
-                
-                const actualDuration = result.routes[0].legs[0].duration.text;
-                const actualMinutes = result.routes[0].legs[0].duration.value / 60;
-                
-                console.log(`Route ${index + 1} (${algorithmMode}):`);
-                console.log(`   Algorithm calculated: ${algorithmTime.toFixed(1)}min`);
-                console.log(`   Google Maps says: ${actualDuration} (${actualMinutes.toFixed(1)}min)`);
-                console.log(`   Difference: ${Math.abs(algorithmTime - actualMinutes).toFixed(1)}min`);
-                
-                // 🔥 NEW: Show the ALGORITHM'S time to user, not Google's recalculation
-                console.log(`   📊 Displaying algorithm time: ${algorithmTime.toFixed(0)}min`);
-            } else {
-                console.warn(`Route calculation failed for location ${index + 1}:`, status);
-            }
-        });
-    });
-}
-
-
-// STEP 2: Setup transport mode selection (add to your DOMContentLoaded section)
-function setupTransportModeSelection() {
-    const transportButtons = document.querySelectorAll('.transport-btn');
     
-    transportButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const mode = this.getAttribute('data-mode');
-            const person = this.getAttribute('data-person');
+    if (!midpoint) {
+        console.warn('No midpoint available for route calculation');
+        return;
+    }
+    
+    // Get all location data using the hybrid manager
+    const allLocationData = window.hybridLocationManager ? 
+        window.hybridLocationManager.getAllLocationData() : [];
+    
+    if (allLocationData.length < 2) {
+        console.warn('Not enough locations for route calculation');
+        return;
+    }
+    
+    console.log(`🗺️ Showing routes for ${allLocationData.length} locations to midpoint`);
+    
+    // Call showRoutesLegacy with correct parameters
+    showRoutesLegacy(midpoint, allLocationData);
+}
+
+// Setup transport mode selection
+function setupTransportModeSelection() {
+    // Use event delegation for dynamically created transport buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('transport-btn') || e.target.closest('.transport-btn')) {
+            const btn = e.target.classList.contains('transport-btn') ? e.target : e.target.closest('.transport-btn');
+            const mode = btn.getAttribute('data-mode');
+            const person = btn.getAttribute('data-person');
             const locationId = `location-${person}`;
             
-            // Update active state for this person's buttons
-            const personButtons = document.querySelectorAll(`[data-person="${person}"]`);
-            personButtons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Store preference
-            window.userTransportModes[locationId] = mode;
+            if (window.hybridLocationManager) {
+                window.hybridLocationManager.updateTransportMode(locationId, mode);
+            }
             
             console.log(`🚗 Person ${person} selected: ${mode}`);
-            
-            // Recalculate if both locations are set
-            setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 100);
-        });
+        }
     });
 }
 
+function ensureMapInitialization() {
+    if (!window.midwhereahMap) {
+        console.warn('Map not initialized, attempting to initialize...');
+        if (typeof initMap === 'function') {
+            initMap();
+        }
+        return false;
+    }
+    return true;
+}
 
+// CLEAN ADD PERSON BUTTON SETUP - Single version with cooldown
+let addPersonCooldown = false;
 
+function setupAddPersonButton() {
+    const addPersonBtn = document.getElementById('add-person-btn');
+    if (!addPersonBtn) {
+        console.log('❌ Add person button not found');
+        return;
+    }
+    
+    console.log('✅ Add person button found');
+    
+    // Remove any existing listeners to prevent duplicates
+    addPersonBtn.replaceWith(addPersonBtn.cloneNode(true));
+    const newBtn = document.getElementById('add-person-btn');
+    
+    // Add single event listener with debouncing
+    newBtn.addEventListener('click', function(event) {
+        // Prevent double-clicks
+        if (addPersonCooldown) {
+            console.log('🚫 Button cooldown active');
+            return;
+        }
+        
+        event.preventDefault();
+        event.stopPropagation();
+        
+        console.log('Add person button clicked');
+        
+        // Set cooldown
+        addPersonCooldown = true;
+        newBtn.disabled = true;
+        newBtn.style.opacity = '0.6';
+        
+        // Add person
+        if (window.hybridLocationManager) {
+            try {
+                const result = window.hybridLocationManager.addLocationInput();
+                if (result) {
+                    console.log(`✅ Added person ${result.personId}`);
+                }
+            } catch (error) {
+                console.error('Error adding person:', error);
+            }
+        }
+        
+        // Reset after 600ms
+        setTimeout(() => {
+            addPersonCooldown = false;
+            newBtn.disabled = false;
+            newBtn.style.opacity = '1';
+        }, 600);
+    });
+}
+
+function validateRouteDisplay() {
+    if (window.algorithmResults) {
+        console.log(`🔍 FAIRNESS VALIDATION:`);
+        console.log(`   Algorithm predicted range: ${window.algorithmResults.calculatedRange.toFixed(1)}min`);
+        console.log(`   Algorithm times: [${window.algorithmResults.calculatedTimes.map(t => t.toFixed(1)).join(', ')}]`);
+        console.log(`   Venue: ${window.algorithmResults.venue.name}`);
+        
+        // This will be called after routes are displayed to compare
+        setTimeout(() => {
+            console.log(`\n🚨 ROUTE DISPLAY COMPLETE - Check if times match predictions above!`);
+        }, 5000);
+    }
+}
+// MAIN INITIALIZATION - Single DOMContentLoaded handler
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Initializing MidWhereAh mobile interface...');
+    
+    // Initialize basic functions
     setupMobileMenu();
-    setupLocationInputs();
     setupBottomNavigation();
     setupUserInfo();
     setupVenueCard();
-    setupFindCentralButton();
     setupTransportModeSelection();
+    setupTransportCycling();
+
+    // Initialize location manager
+    if (!window.hybridLocationManager) {
+        window.hybridLocationManager = new HybridLocationManager();
+    }
     
-    const location1 = document.getElementById('location-1');
-    const location2 = document.getElementById('location-2');
-
-    if (location1) {
-        location1.addEventListener('input', function() {
-            if (window.inputTimeout1) {
-                clearTimeout(window.inputTimeout1);
-            }
-            window.inputTimeout1 = setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 300);
-        });
+    setupLocationInputs();
+    
+    // Setup buttons with delay to ensure DOM is ready
+    setTimeout(() => {
+        setupFindCentralButton();
+        setupAddPersonButton(); // Use the clean function
         
-        location1.addEventListener('paste', function() {
-            setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 100);
-        });
-    }
-
-    if (location2) {
-        location2.addEventListener('input', function() {
-            if (window.inputTimeout2) {
-                clearTimeout(window.inputTimeout2);
-            }
-            window.inputTimeout2 = setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 300);
-        });
-        
-        location2.addEventListener('paste', function() {
-            setTimeout(() => {
-                checkBothLocationsAndShowButton();
-            }, 100);
-        });
-    }
-
-    setTimeout(checkBothLocationsAndShowButton, 500);
+        // Verify find button
+        const findBtn = document.getElementById('find-central-btn');
+        if (findBtn) {
+            console.log('✅ Find central button found');
+        } else {
+            console.log('❌ Find central button NOT found');
+        }
+    }, 300);
+    console.log('✅ Transport mode cycling enabled');   
+    console.log('✅ MidWhereAh mobile interface initialized');
 });
+
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-person-btn') || e.target.closest('.remove-person-btn')) {
+        const btn = e.target.classList.contains('remove-person-btn') ? e.target : e.target.closest('.remove-person-btn');
+        const container = btn.closest('.location-container');
+        const personId = parseInt(container.getAttribute('data-person-id'));
+        
+        console.log(`🔴 Remove button clicked for Person ${personId} via delegation`);
+        
+        if (window.hybridLocationManager) {
+            window.hybridLocationManager.removeLocationInput(personId);
+        }
+    }
+});
+
+// Initialize hybrid location manager
+window.hybridLocationManager = new HybridLocationManager();
+console.log('✅ HybridLocationManager initialized');
+

@@ -102,16 +102,14 @@ function signInWithGoogle() {
     console.log('Firebase config before Google sign-in:', safeConfig);
     
     try {
+        // Only use redirect method to avoid popup issues
         const provider = new firebase.auth.GoogleAuthProvider();
-        firebase.auth().signInWithPopup(provider)
-            .then((result) => {
-                // Handle successful sign-in
-                console.log("Google sign-in successful", result.user.email);
-                window.location.href = "/dashboard";
-            })
+        
+        // Directly use redirect without checking for previous redirects
+        // This prevents the dual-window issue
+        firebase.auth().signInWithRedirect(provider)
             .catch((error) => {
-                // Handle errors
-                console.error("Google sign-in error:", error);
+                console.error("Google sign-in redirect error:", error);
                 console.error("Error code:", error.code);
                 console.error("Error message:", error.message);
                 
@@ -1421,6 +1419,36 @@ function setupGoogleSignIn() {
     const googleBtn = document.getElementById('google-signin');
     if (!googleBtn) return;
     
+    // Handle redirect result when returning from Google authentication
+    firebase.auth().getRedirectResult().then((result) => {
+        if (result.user) {
+            console.log('Google sign-in successful via redirect');
+            // Check if user is new
+            const isNewUser = result.additionalUserInfo.isNewUser;
+            
+            if (isNewUser) {
+                // Create user document in Firestore
+                return firebase.firestore().collection('users').doc(result.user.uid).set({
+                    name: result.user.displayName,
+                    email: result.user.email,
+                    photoURL: result.user.photoURL,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    showNotification('Account created successfully!', 'success');
+                    window.location.href = '/dashboard';
+                });
+            } else {
+                showNotification('Login successful!', 'success');
+                window.location.href = '/dashboard';
+            }
+        }
+    }).catch((error) => {
+        console.error('Google redirect result error:', error);
+        if (error.code && error.message) {
+            showNotification('Authentication error: ' + error.message, 'danger');
+        }
+    });
+    
     googleBtn.addEventListener('click', function() {
         // Log the current Firebase config (safely)
         const safeConfig = {...window.firebaseConfig};
@@ -1436,30 +1464,10 @@ function setupGoogleSignIn() {
             googleBtn.disabled = true;
             googleBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Signing in...';
             
-            firebase.auth().signInWithPopup(provider)
-                .then((result) => {
-                    console.log('Google sign-in successful');
-                    // Check if user is new
-                    const isNewUser = result.additionalUserInfo.isNewUser;
-                    
-                    if (isNewUser) {
-                        // Create user document in Firestore
-                        return firebase.firestore().collection('users').doc(result.user.uid).set({
-                            name: result.user.displayName,
-                            email: result.user.email,
-                            photoURL: result.user.photoURL,
-                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                        }).then(() => {
-                            showNotification('Account created successfully!', 'success');
-                            window.location.href = '/dashboard';
-                        });
-                    } else {
-                        showNotification('Login successful!', 'success');
-                        window.location.href = '/dashboard';
-                    }
-                })
+            // Use redirect instead of popup to avoid dual-window issue
+            firebase.auth().signInWithRedirect(provider)
                 .catch((error) => {
-                    console.error('Google sign-in error:', error);
+                    console.error('Google sign-in redirect error:', error);
                     console.error('Error code:', error.code);
                     console.error('Error message:', error.message);
                     
