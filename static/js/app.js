@@ -27,26 +27,95 @@ function initializeFirebase() {
 
 // Set up Firebase authentication state observer
 function setupAuthObserver() {
+    console.log('Setting up auth observer and checking for redirect result');
+    
+    // First check for any redirect result
+    // This must be done before any other auth operations
+    firebase.auth().getRedirectResult().then((result) => {
+        if (result.user) {
+            console.log('Google sign-in successful via redirect:', result.user.email);
+            // Check if user is new
+            const isNewUser = result.additionalUserInfo && result.additionalUserInfo.isNewUser;
+            
+            if (isNewUser) {
+                // Create user document in Firestore
+                return firebase.firestore().collection('users').doc(result.user.uid).set({
+                    name: result.user.displayName,
+                    email: result.user.email,
+                    photoURL: result.user.photoURL,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    showNotification('Account created successfully!', 'success');
+                    // Force redirect to dashboard
+                    console.log('Redirecting new user to dashboard');
+                    setTimeout(() => {
+                        window.location.replace('/dashboard');
+                    }, 500); // Small delay to ensure notification is shown
+                });
+            } else {
+                showNotification('Login successful!', 'success');
+                // Force redirect to dashboard
+                console.log('Redirecting existing user to dashboard');
+                setTimeout(() => {
+                    window.location.replace('/dashboard');
+                }, 500); // Small delay to ensure notification is shown
+            }
+        } else {
+            console.log('No redirect result or user already handled');
+        }
+    }).catch((error) => {
+        console.error('Google redirect result error:', error);
+        if (error.code && error.message) {
+            showNotification('Authentication error: ' + error.message, 'danger');
+        }
+    });
+
+    // Define protected paths globally for consistency
+    const protectedPaths = [
+        '/dashboard',
+        '/map',
+        '/app',
+        '/mobile_interface',
+        '/venues',
+        '/profile',
+        '/groups',
+        '/group/',
+        '/swipe/'
+    ];
+
+    // Then set up the auth state observer
     firebase.auth().onAuthStateChanged(function(user) {
+        const currentPath = window.location.pathname;
+        console.log('Auth state changed. Path:', currentPath, 'User:', user ? user.email : 'signed out');
+        
         if (user) {
             // User is signed in
             currentUser = user;
-            console.log('User is signed in:', user.displayName || user.email);
             
             // Update UI for authenticated user
             updateUIForAuthenticatedUser(user);
             
             // Handle page-specific authenticated user actions
             handleAuthenticatedUserActions(user);
+            
+            // If we're on the login page, redirect to dashboard
+            if (currentPath === '/login' || currentPath === '/') {
+                console.log('User is authenticated on login/home page, redirecting to dashboard');
+                window.location.replace('/dashboard');
+            }
         } else {
             // User is signed out
             currentUser = null;
-            console.log('User is signed out');
+            
             // Update UI for unauthenticated user
             updateUIForUnauthenticatedUser();
             
-            // Redirect to login page if on a protected page
-            redirectIfProtectedPage();
+            // Check if current path is protected
+            if (protectedPaths.some(path => currentPath.startsWith(path))) {
+                console.log('Unauthenticated user on protected page:', currentPath);
+                console.log('Redirecting to login page');
+                window.location.replace('/login');
+            }
         }
     });
 }
@@ -515,31 +584,60 @@ function addVenueToVoting(venueId, groupId) {
             console.error('Error adding venue to voting:', error);
             button.disabled = false;
             button.innerHTML = originalText;
-            showNotification('Error adding venue to voting', 'danger');
-        });
-    }
-}
-
 // Redirect if on a protected page and not authenticated
 function redirectIfProtectedPage() {
+    console.log('redirectIfProtectedPage called - this function is now integrated into auth observer');
     // Get current page path
     const path = window.location.pathname;
     
-    // List of paths that require authentication
-    const protectedPaths = ['/dashboard', '/group/', '/venues/', '/swipe/'];
+    // List of paths that require authentication - should match the ones in setupAuthObserver
+    const protectedPaths = [
+        '/dashboard',
+        '/map',
+        '/app',
+        '/mobile_interface',
+        '/venues',
+        '/profile',
+        '/groups',
+        '/group/',
+        '/swipe/'
+    ];
     
     // Check if current path is protected
     const isProtected = protectedPaths.some(protectedPath => path.startsWith(protectedPath));
     
-    if (isProtected) {
-        // Redirect to login page
-        window.location.href = '/login';
+    if (isProtected && !firebase.auth().currentUser) {
+        console.log('User is not authenticated on protected page, redirecting to login');
+        // Redirect to login page with force replace to prevent back button issues
+        window.location.replace('/login');
     }
 }
 
-// Show notification toast
-function showNotification(message, type = 'success') {
-    const toastElement = document.getElementById('notification-toast') || document.getElementById('auth-toast');
+// Auth state observer
+function setupAuthObserver() {
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) {
+            // User is signed in
+            const path = window.location.pathname;
+            const protectedPaths = [
+                '/dashboard',
+                '/map',
+                '/app',
+                '/mobile_interface',
+                '/venues',
+                '/profile',
+                '/groups',
+                '/group/',
+                '/swipe/'
+            ];
+            const isProtected = protectedPaths.some(protectedPath => path.startsWith(protectedPath));
+            if (isProtected) {
+                // User is on a protected page, check if they were redirected from a login attempt
+                const redirectResult = firebase.auth().getRedirectResult();
+                if (redirectResult) {
+                    // User was redirected from a login attempt, handle the result
+                    handleRedirectResult(redirectResult);
+                }
     if (!toastElement) return;
     
     // Set toast color based on type
@@ -1419,35 +1517,8 @@ function setupGoogleSignIn() {
     const googleBtn = document.getElementById('google-signin');
     if (!googleBtn) return;
     
-    // Handle redirect result when returning from Google authentication
-    firebase.auth().getRedirectResult().then((result) => {
-        if (result.user) {
-            console.log('Google sign-in successful via redirect');
-            // Check if user is new
-            const isNewUser = result.additionalUserInfo.isNewUser;
-            
-            if (isNewUser) {
-                // Create user document in Firestore
-                return firebase.firestore().collection('users').doc(result.user.uid).set({
-                    name: result.user.displayName,
-                    email: result.user.email,
-                    photoURL: result.user.photoURL,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                }).then(() => {
-                    showNotification('Account created successfully!', 'success');
-                    window.location.href = '/dashboard';
-                });
-            } else {
-                showNotification('Login successful!', 'success');
-                window.location.href = '/dashboard';
-            }
-        }
-    }).catch((error) => {
-        console.error('Google redirect result error:', error);
-        if (error.code && error.message) {
-            showNotification('Authentication error: ' + error.message, 'danger');
-        }
-    });
+    // We'll handle the redirect result in the auth state change observer
+    // This ensures we don't have multiple places handling the same authentication event
     
     googleBtn.addEventListener('click', function() {
         // Log the current Firebase config (safely)
@@ -1458,31 +1529,52 @@ function setupGoogleSignIn() {
         console.log('Firebase config before Google sign-in:', safeConfig);
         
         try {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            
-            // Show loading state
+            // Show loading state immediately
             googleBtn.disabled = true;
             googleBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Signing in...';
             
-            // Use redirect instead of popup to avoid dual-window issue
-            firebase.auth().signInWithRedirect(provider)
-                .catch((error) => {
-                    console.error('Google sign-in redirect error:', error);
-                    console.error('Error code:', error.code);
-                    console.error('Error message:', error.message);
-                    
-                    // Reset button
-                    googleBtn.disabled = false;
-                    googleBtn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18" height="18" class="me-2">Continue with Google';
-                    
-                    if (error.code === 'auth/api-key-not-valid') {
-                        showNotification('Invalid API key. Please check your Firebase configuration.', 'danger');
-                    } else if (error.code === 'auth/network-request-failed') {
-                        showNotification('Network error. Please check your internet connection.', 'danger');
-                    } else {
-                        showNotification(error.message, 'danger');
-                    }
-                });
+            // Create provider with all necessary scopes and parameters
+            const provider = new firebase.auth.GoogleAuthProvider();
+            
+            // Add scopes for better user data
+            provider.addScope('profile');
+            provider.addScope('email');
+            
+            // Set custom parameters
+            provider.setCustomParameters({
+                'prompt': 'select_account'
+            });
+            
+            // First clear any pending redirects
+            firebase.auth().getRedirectResult().then(() => {
+                console.log('Cleared any pending redirect results');
+                
+                // Then ensure persistence is set to LOCAL
+                return firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+            })
+            .then(() => {
+                console.log('Auth persistence set to LOCAL before redirect');
+                // Use redirect instead of popup to avoid dual-window issue
+                console.log('Starting Google sign-in redirect flow...');
+                return firebase.auth().signInWithRedirect(provider);
+            })
+            .catch((error) => {
+                console.error('Google sign-in setup error:', error);
+                console.error('Error code:', error.code);
+                console.error('Error message:', error.message);
+                
+                // Reset button
+                googleBtn.disabled = false;
+                googleBtn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18" height="18" class="me-2">Continue with Google';
+                
+                if (error.code === 'auth/api-key-not-valid') {
+                    showNotification('Invalid API key. Please check your Firebase configuration.', 'danger');
+                } else if (error.code === 'auth/network-request-failed') {
+                    showNotification('Network error. Please check your internet connection.', 'danger');
+                } else {
+                    showNotification('Error signing in with Google: ' + error.message, 'danger');
+                }
+            });
         } catch (e) {
             console.error('Exception during Google sign-in setup:', e);
             showNotification('Error initializing Google sign-in. Please try again later.', 'danger');

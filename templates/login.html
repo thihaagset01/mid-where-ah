@@ -115,19 +115,8 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        // Handle Google redirect result
-        firebase.auth().getRedirectResult().then((result) => {
-            if (result.user) {
-                // User successfully signed in after redirect
-                console.log("Google sign-in successful", result.user.email);
-                window.location.href = "/dashboard";
-            }
-        }).catch((error) => {
-            console.error("Google redirect result error:", error);
-            if (error.code && error.message) {
-                showAuthToast("Authentication error: " + error.message, "danger");
-            }
-        });
+        // We'll handle auth state in the global auth observer in app.js
+        // This ensures consistent auth handling across the application
         
         // Section toggle functionality
         document.getElementById('show-signup').addEventListener('click', function(e) {

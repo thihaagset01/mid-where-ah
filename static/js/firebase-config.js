@@ -43,6 +43,14 @@ const initFirebase = () => {
             // Initialize Authentication with error handling
             try {
                 const auth = firebase.auth();
+                // Set persistence to LOCAL to persist across page reloads and browser sessions
+                auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+                    .then(() => {
+                        console.log('Firebase Authentication persistence set to LOCAL');
+                    })
+                    .catch((error) => {
+                        console.error('Error setting authentication persistence:', error);
+                    });
                 window.auth = auth; // Make auth accessible globally
                 console.log('Firebase Authentication initialized');
             } catch (authError) {
