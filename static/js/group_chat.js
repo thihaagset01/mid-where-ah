@@ -2,23 +2,45 @@ function toolbar(){
     const toggleBtn = document.getElementById("toggleButton");
     const toolbar = document.getElementById("toolbar");
 
-    toggleBtn.addEventListener("click", () => {
-    toolbar.style.display = toolbar.style.display === "flex" ? "none" : "flex";
-  })
+    toggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toolbar.style.display = toolbar.style.display === "flex" ? "none" : "flex";
+    });
+    
+    // Close toolbar when clicking outside
+    document.addEventListener("click", (e) => {
+        if (toolbar.style.display === "flex" && 
+            !toolbar.contains(e.target) && 
+            e.target !== toggleBtn) {
+            toolbar.style.display = "none";
+        }
+    });
 };
 
 function eventbtn(){
-
     const toolbar = document.getElementById("toolbar");
-    
     const eventbtn = document.getElementById("newevent");
     const eventpop = document.getElementById("eventpop");
+    const cancelBtn = document.getElementById("cancel");
 
-    eventbtn.addEventListener("click", () => {
-    eventpop.style.display ="inherit";
-    toolbar.style.display = toolbar.style.display === "flex" ? "none" : "flex";})
+    // Show event popup when clicking the event button
+    eventbtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        eventpop.style.display = "inherit";
+        toolbar.style.display = "none";
+        
+        // Clear previous input values
+        document.getElementById("eventname").value = "";
+        document.getElementById("eventdescription").value = "";
+        document.getElementById("eventdate").value = "";
+        document.getElementById("eventtime").value = "";
+    });
+    
+    // Close event popup when clicking the cancel button
+    cancelBtn.addEventListener("click", () => {
+        eventpop.style.display = "none";
+    });
 };
-document.getElementById("save").addEventListener("click", saveevent);
 
 function saveevent() {
     const eventname = document.getElementById("eventname").value.trim();
@@ -28,21 +50,63 @@ function saveevent() {
     const eventcard = document.getElementById("eventcard");
     const eventpop = document.getElementById("eventpop");
     const eventcardcontainer = document.getElementById("eventcardcontainer");
+    
+    // Validate input fields
+    if (!eventname) {
+        alert("Please enter an event name");
+        return;
+    }
+    
+    if (!eventdate) {
+        alert("Please select a date for the event");
+        return;
+    }
 
     // Only show the card if all fields are filled
     if (eventname && eventdescription && eventdate && eventtime) {
-        const outputtext = `${eventname} on ${eventdate} at ${eventtime}`;
-        eventcard.textContent = outputtext;
+        // Format the date and time for display
+        const dateObj = new Date(eventdate);
+        const day = dateObj.getDate().toString().padStart(2, '0');
+        const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+        const year = dateObj.getFullYear();
+        const formattedDate = `${day}/${month}/${year}`;
+        
+        // Create the event card HTML
+        const cardHTML = `
+            <div class="event-card">
+                <div class="event-card-header">You started a new meet up!</div>
+                <div class="event-card-date">
+                    <div class="event-card-date-icon">
+                        <i class="far fa-calendar-alt"></i>
+                    </div>
+                    <div class="event-card-date-text">TODAY ${formattedDate} ${eventtime}</div>
+                </div>
+                <div class="event-card-description">${eventdescription}</div>
+                <button class="event-card-join">Join</button>
+                
+            </div>
+        `;
+        /* <div class="event-card-footer">
+                    <i class="far fa-clock"></i> Indicate by ${eventtime}
+        </div> 
+        ADD THIS IN FUTURE
+        
+        */
+        // Update the event card and show it
+        eventcard.innerHTML = cardHTML;
         eventcard.style.display = "block";
-        eventcard.style.alignSelf="center";
-        eventcard.style.color="white";
         eventpop.style.display = "none";
-        eventcardcontainer.style.display= "flex";
-    } 
+        eventcardcontainer.style.display = "flex";
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
     toolbar();
     eventbtn();
-    saveevent();
+    
+    // Add event listener for save button
+    const saveBtn = document.getElementById("save");
+    if (saveBtn) {
+        saveBtn.addEventListener("click", saveevent);
+    }
 });

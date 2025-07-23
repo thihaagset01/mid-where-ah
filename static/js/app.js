@@ -46,10 +46,10 @@ function setupAuthObserver() {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 }).then(() => {
                     showNotification('Account created successfully!', 'success');
-                    // Force redirect to dashboard
-                    console.log('Redirecting new user to dashboard');
+                    // Force redirect to app (mobile interface)
+                    console.log('Redirecting new user to app');
                     setTimeout(() => {
-                        window.location.replace('/dashboard');
+                        window.location.replace('/app');
                     }, 500); // Small delay to ensure notification is shown
                 });
             } else {
@@ -57,7 +57,8 @@ function setupAuthObserver() {
                 // Force redirect to dashboard
                 console.log('Redirecting existing user to dashboard');
                 setTimeout(() => {
-                    window.location.replace('/dashboard');
+                    // Redirect to app instead of dashboard for better user experience
+                    window.location.replace('/app');
                 }, 500); // Small delay to ensure notification is shown
             }
         } else {
@@ -98,10 +99,10 @@ function setupAuthObserver() {
             // Handle page-specific authenticated user actions
             handleAuthenticatedUserActions(user);
             
-            // If we're on the login page, redirect to dashboard
+            // If we're on the login page or root page, redirect to app (mobile interface)
             if (currentPath === '/login' || currentPath === '/') {
-                console.log('User is authenticated on login/home page, redirecting to dashboard');
-                window.location.replace('/dashboard');
+                console.log('User is authenticated on login/home page, redirecting to app');
+                window.location.replace('/app');
             }
         } else {
             // User is signed out
@@ -151,7 +152,7 @@ function setupLogout() {
             firebase.auth().signOut().then(function() {
                 // Sign-out successful
                 showNotification('You have been logged out successfully', 'success');
-                window.location.href = '/';
+                window.location.href = '/login';
             }).catch(function(error) {
                 // An error happened
                 console.error('Logout error:', error);
@@ -584,6 +585,13 @@ function addVenueToVoting(venueId, groupId) {
             console.error('Error adding venue to voting:', error);
             button.disabled = false;
             button.innerHTML = originalText;
+        });
+    }
+}
+
+
+
+
 // Redirect if on a protected page and not authenticated
 function redirectIfProtectedPage() {
     console.log('redirectIfProtectedPage called - this function is now integrated into auth observer');
@@ -638,21 +646,10 @@ function setupAuthObserver() {
                     // User was redirected from a login attempt, handle the result
                     handleRedirectResult(redirectResult);
                 }
-    if (!toastElement) return;
-    
-    // Set toast color based on type
-    toastElement.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info');
-    toastElement.classList.add(`bg-${type}`);
-    
-    // Set message
-    const messageElement = document.getElementById('notification-message') || document.getElementById('auth-toast-message');
-    if (messageElement) {
-        messageElement.textContent = message;
-    }
-    
-    // Show toast
-    const toast = new bootstrap.Toast(toastElement);
-    toast.show();
+            }
+        }
+    });
+    // Auth observer setup complete
 }
 
 // Placeholder functions for page-specific functionality
@@ -1609,4 +1606,4 @@ function setupForgotPassword() {
                 showNotification(error.message, 'danger');
             });
     });
-}
+} // End of setupForgotPassword

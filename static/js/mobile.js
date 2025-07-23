@@ -2195,17 +2195,39 @@ function setupLocationInputs() {
 
 function setupBottomNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
-
+    const currentPath = window.location.pathname;
+    
+    // Set active state based on current path
     navItems.forEach(item => {
+        const page = item.getAttribute('data-page');
+        
+        // Mark the appropriate nav item as active based on current path
+        if ((page === 'home' && (currentPath === '/' || currentPath === '/app' || currentPath === '/dashboard')) ||
+            (page === 'groups' && currentPath === '/groups') ||
+            (page === 'profile' && currentPath === '/profile')) {
+            item.classList.add('active');
+        }
+        
+        // Add click event listeners
         item.addEventListener('click', function() {
-            navItems.forEach(navItem => navItem.classList.remove('active'));
+            // Don't do anything if already on this page
+            if (this.classList.contains('active') && page !== 'create') {
+                return;
+            }
             
+            navItems.forEach(navItem => navItem.classList.remove('active'));
             this.classList.add('active');
             
             const page = this.getAttribute('data-page');
             
             switch(page) {
                 case 'home':
+                    // Check if user is authenticated before redirecting
+                    if (firebase.auth().currentUser) {
+                        window.location.href = '/app';
+                    } else {
+                        window.location.href = '/login';
+                    }
                     break;
                 case 'groups':
                     window.location.href = '/groups';
@@ -2214,6 +2236,7 @@ function setupBottomNavigation() {
                     window.location.href = '/profile';
                     break;
                 case 'compass':
+                    // Not implemented yet
                     break;
                 case 'create':
                     showCreateGroupModal();
@@ -2223,10 +2246,45 @@ function setupBottomNavigation() {
     });
 }
 
-function showCreateGroupModal(){
+function showCreateGroupModal(event){
+    if (event) {
+        event.stopPropagation(); // Prevent immediate propagation to document
+    }
+    
     const menu = document.getElementById('dropdown-menu');
     if (menu) {
         menu.classList.toggle('hidden');
+        
+        // Add click-outside-to-close handler if menu is visible
+        if (!menu.classList.contains('hidden')) {
+            setTimeout(() => {
+                document.addEventListener('click', closeCreateGroupModal);
+            }, 10);
+        } else {
+            document.removeEventListener('click', closeCreateGroupModal);
+        }
+    }
+}
+
+function closeCreateGroupModal(event) {
+    const menu = document.getElementById('dropdown-menu');
+    const createButton = document.querySelector('.nav-item[data-page="create"]');
+    
+    // Check if click is outside the menu and not on the create button
+    if (menu && !menu.contains(event.target) && 
+        createButton && !createButton.contains(event.target)) {
+        menu.classList.add('hidden');
+        document.removeEventListener('click', closeCreateGroupModal);
+        
+        // Revert back to home nav item being active
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => item.classList.remove('active'));
+        
+        // Find the home nav item and make it active
+        const homeNavItem = document.querySelector('.nav-item[data-page="home"]');
+        if (homeNavItem) {
+            homeNavItem.classList.add('active');
+        }
     }
 }
 

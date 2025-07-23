@@ -4,7 +4,9 @@
 
 {% block head %}
 {{ super() }}
-<!-- NO CONFLICTING CSS - Using only the clean CSS from mobile.css -->
+<!-- Page specific CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -14,7 +16,7 @@
 <!-- Fixed Location Input Header -->
 <div class="group-header-container">
   <div class="group-logo">
-    <a href="/">
+    <a href="javascript:void(0)" onclick="handleLogoClick()">
         <img src="static/images/logo.png" alt="Logo" />
     </a>
   </div>
@@ -124,7 +126,7 @@
       <i class="fa-regular fa-calendar-plus"></i>
     </div>
     <div class="pop-icon pop3">
-      <i class="fa-regular fa-circle-up"></i>
+      <i class="fas fa-compass"></i>
     </div>
   </div>
 </div>
@@ -137,6 +139,15 @@
 
 <!-- Google Maps API -->
 <script>
+  // Handle logo click with authentication check
+  function handleLogoClick() {
+    if (firebase.auth().currentUser) {
+      window.location.href = '/app';
+    } else {
+      window.location.href = '/login';
+    }
+  }
+
   window.initMap = initMap;
   
   document.addEventListener('DOMContentLoaded', function() {

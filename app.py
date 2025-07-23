@@ -59,9 +59,14 @@ def inject_config():
 # MAIN ROUTES - Proper separation
 @app.route('/')
 def index():
-    """Landing page - Now redirects to login page"""
-    print('Redirecting to login page')
-    return redirect(url_for('login'))
+    """Landing page - Serves login page for new users, redirects authenticated users to dashboard
+    
+    This is the entry point for all users. The login page has client-side Firebase auth
+    that will handle redirecting authenticated users to the dashboard.
+    """
+    print('Serving login page from root route')
+    # Serve the login page - client-side Firebase auth will handle redirects for authenticated users
+    return render_template('login.html')
 
 @app.route('/app')
 def mobile_interface():

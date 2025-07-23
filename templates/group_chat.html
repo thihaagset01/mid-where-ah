@@ -1,71 +1,89 @@
 {% extends "mobile_base.html" %}
 
-{% block title %}MidWhereAh - Find Your Midpoint{% endblock %}
+{% block title %}MidWhereAh - The Biceps{% endblock %}
+
+{% block head %}
+{{ super() }}
+<!-- Page specific CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
-<!-- Header -->
-<div class="group-header-container">
-  <div class="group-logo">
-    <a href="/">
-        <img src="static/images/logo.png" alt="Logo" style="cursor: pointer;" />
-    </a>
+<!-- Chat Header -->
+<div class="chat-header">
+  <a href="/groups" class="back-button">
+    <i class="fas fa-chevron-left"></i>
+  </a>
+  <div class="group-title">The Biceps</div>
+</div>
+
+<!-- Group Avatar Row -->
+<div class="group-avatar-container">
+  <img src="static/images/group-bar-placeholder.png" alt="Group Members" class="group-avatar-bar">
+</div>
+
+<!-- Chat Content -->
+<div class="chat-content">
+  <div class="creation-message">
+    Joshua created this Group "The Biceps"
   </div>
-  <div class="group-text">
-    <span>Mid-Where-Ah</span>
+  
+  <!-- Event Card Container -->
+  <div class="eventcardcontainer middle group-col" id="eventcardcontainer">
+    <div id="eventcard" style="display: none;"></div>
   </div>
 </div>
 
+<!-- Event Pop Up -->
+<div class="eventpop group-col" id="eventpop">
+  <span class="event-title">New Event</span>
+  <input type="text" placeholder="Event Name" id="eventname" class="event-input">
+  <input type="text" placeholder="Event Description" id="eventdescription" class="event-input">
 
-<div class="group groupbg group-col" >
-    <div class = "group-row" >
-        <a href ="groups" class = "inline-left group-logo" style="max-height: 60px;">
-            <img src="static/images/back-placeholder.png" alt = "back-button" style="cursor: pointer; padding-left: 20px;"/>
-        </a>
-        <span style = "font-size: 50px; max-height: 60px; color: white;" class = "center">Group Name</span>
-    </div>
-    <img src="static/images/group-bar-placeholder.png" style="width: 25%; align-self:center; margin: 5px;">
-    <div class="eventcardcontainer middle group-col" id="eventcardcontainer">
-        <div id="eventcard" style="display: none;"></div>
-        <div class="group-row">
-            <button>✅</button>
-            <button>❌</button>
+  <div class="event-date-time">
+    <input type="date" placeholder="Event Date" id="eventdate" class="event-date-input">
+    <input type="time" placeholder="Event Time" id="eventtime" class="event-time-input">
+  </div>
+  <div class="event-buttons">
+    <button class="event-cancel-btn" id="cancel">Cancel</button>
+    <button class="event-save-btn" id="save">Save</button>
+  </div>
+</div>
+
+<!-- Message Input with Toolbar -->
+<div class="message-input-container">
+  <div class="toolbar" id="toolbar">
+    <div class="toolbar-content">
+      <button class="toolbar-item">
+        <div class="icon-container">
+          <i class="fas fa-image"></i>
         </div>
-    </div>
-
-    <!-- event pop up -->
-    <div class="eventpop group-col" id="eventpop" style="gap: 10px;">
-        <span style="color: white; font-size: 30px;">New Event</span>
-        <input type="text" placeholder="Event Name" id="eventname" class="search-bar-container" style="height: 35px;">
-        <input type="text" placeholder="Event Description" id="eventdescription" class="search-bar-container" style="height: 35px;">
-
-        <div class="group-row" style="width: 75%; display: flex; justify-items: center; align-items: center; gap:5%">  
-            <input type="date" placeholder="Event Date" id="eventdate" style="height: 35px; width: 47.5%; display: inline;" class="search-bar-container">
-            <input type="time" placeholder="Event Time" id="eventtime" style="height: 35px; width: 47.5%; display: inline;" class="search-bar-container">
+        <span>Photos</span>
+      </button>
+      <button class="toolbar-item">
+        <div class="icon-container">
+          <i class="fas fa-poll-h"></i>
         </div>
-        <button class="toolbar-item" style="background-color: white; padding: 1%; border-radius: 10px;" id="save">Save</button>
+        <span>Poll</span>
+      </button>
+      <button class="toolbar-item" id="newevent">
+        <div class="icon-container">
+          <i class="fas fa-map-marker-alt"></i>
+        </div>
+        <span>Event</span>
+      </button>
     </div>
-
-
-<!-- bottom container -->
-<div class="group-col bottom-container center">
-  <div class="search-bar-container">
-    <div class="toolbar left" id="toolbar" style="transform: translateY(-100%);">
-        <button class="toolbar-item">
-            <i class="fas fa-image"></i><span>Photos</span>
-        </button>
-        <button class="toolbar-item">
-            <i class="fas fa-poll"></i><span>Poll</span>
-        </button>
-        <button class="toolbar-item" id="newevent">
-            <i class="fas fa-map-marker-alt"></i><span>Event</span>
-        </button>
-    </div>
-
-    <button class="search-button" id="toggleButton" style="font-size: 25px;">+</button>
-    <input type="text" class="search-input" placeholder="Search...">
-    <button class="search-button">➡</button>
+  </div>
+  
+  <div class="message-input-group">
+    <button class="toggle-button" id="toggleButton">
+      <i class="fas fa-paperclip"></i>
+    </button>
+    <input type="text" class="message-input" placeholder="Send Message...">
+    <button class="send-button">
+      <i class="fas fa-arrow-right"></i>
+    </button>
   </div>
 </div>
 
