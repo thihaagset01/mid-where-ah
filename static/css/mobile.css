@@ -73,7 +73,9 @@ body {
   left: 0;
   width: 100vw;
   padding: 8px 16px;
-  background: linear-gradient(135deg, #8B5DB8, #6A4A8C);
+  background: linear-gradient(135deg, rgba(139, 93, 184, 0.85), rgba(106, 74, 140, 0.85));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 1002 !important; /* Higher than map controls */
   display: flex;
   align-items: center;
@@ -96,39 +98,42 @@ body {
   margin-left: 8px;
 }
 
-/* LOCATION INPUTS - Ultra compact */
-.group.group-col.center {
+/* LOCATION INPUTS - Ultra compact and fully transparent */
+.locations-container {
   position: fixed;
   top: 48px; /* Right after header */
   left: 0;
   right: 0;
   z-index: 15;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+  background: transparent !important;
   padding: 8px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: none;
   max-height: 35vh;
   overflow-y: auto;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
   width: 100vw;
   box-sizing: border-box;
 }
 
-/* INDIVIDUAL LOCATION CONTAINER - Much smaller */
+/* INDIVIDUAL LOCATION CONTAINER - Transparent with minimal spacing */
 .location-container {
-  margin-bottom: 6px;
-  background: rgba(255, 255, 255, 0.95);
+  margin-bottom: 3px;
+  background: transparent !important;
   border-radius: 16px;
-  padding: 10px;
-  border: 1px solid rgba(139, 93, 184, 0.1);
+  padding: 8px;
+  border: 1px solid rgba(139, 93, 184, 0.15);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  position: relative;
 }
 
 .location-container:hover {
   border-color: rgba(139, 93, 184, 0.3);
-  box-shadow: 0 4px 20px rgba(139, 93, 184, 0.08);
+  background: rgba(255, 255, 255, 0.05);
   transform: translateY(-1px);
 }
 
@@ -136,8 +141,8 @@ body {
 
 /* CYCLEABLE TRANSPORT MODE ICONS */
 .transport-icon {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -149,25 +154,29 @@ body {
   border: 2px solid transparent;
   position: relative;
   background: #f0f0f0;
+  margin-right: 8px;
 }
 
 /* Transport mode styles */
 .transport-icon.transit {
-  background: linear-gradient(135deg, #4CAF50, #45a049);
+  background: linear-gradient(135deg, #673AB7, #512DA8);
   color: white;
-  border-color: #4CAF50;
+  border-color: #673AB7;
+  box-shadow: 0 2px 5px rgba(103, 58, 183, 0.3);
 }
 
 .transport-icon.driving {
   background: linear-gradient(135deg, #2196F3, #1976D2);
   color: white;
   border-color: #2196F3;
+  box-shadow: 0 2px 5px rgba(33, 150, 243, 0.3);
 }
 
 .transport-icon.walking {
   background: linear-gradient(135deg, #FF9800, #F57F17);
   color: white;
   border-color: #FF9800;
+  box-shadow: 0 2px 5px rgba(255, 152, 0, 0.3);
 }
 
 /* Hover and interaction states */
@@ -237,14 +246,7 @@ body {
 }
 
 
-/* Updated location item to accommodate new icon */
-.location-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  position: relative;
-}
+/* Location item styles merged into location-container */
 
 /* REMOVE BUTTON STYLING */
 .remove-person-btn {
@@ -290,6 +292,7 @@ body {
   outline: none;
   color: #333;
   font-weight: 400;
+  border-radius: 10px;
 }
 
 .location-input::placeholder {
@@ -297,39 +300,40 @@ body {
   font-size: 12px;
 }
 
-/* ADD PERSON BUTTON - Clean inline design */
-.add-person-container {
-  margin: 4px 0;
-  text-align: center;
-  padding: 4px;
-}
-
-#add-person-btn {
-  background: #f8f8f8;
-  border: 1px solid var(--primary-color);
-  border-radius: 6px;
-  padding: 6px 12px;
-  color: var(--primary-color);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s ease;
-}
-
-#add-person-btn:hover:not(:disabled) {
+/* ADD PERSON BUTTON - Circular floating design */
+.add-person-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   background: var(--primary-color);
   color: white;
+  border: none;
+  box-shadow: 0 2px 8px rgba(139, 93, 184, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  position: fixed;
+  right: 16px;
+  bottom: 160px;
+  transition: all 0.2s ease;
+  z-index: 20;
 }
 
-#add-person-btn:disabled {
+.add-person-circle:hover:not(:disabled) {
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 4px 12px rgba(139, 93, 184, 0.6);
+}
+
+.add-person-circle:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.add-person-circle:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #f5f5f5;
-  border-color: #ccc;
-  color: #999;
+  background: #ccc;
 }
 
 .person-count-display {

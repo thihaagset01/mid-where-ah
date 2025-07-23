@@ -13,19 +13,19 @@ window.locationMarkers = window.locationMarkers || {};
 const TRANSPORT_MODES = [
     {
         mode: 'TRANSIT',
-        icon: '🚇',
+        icon: '<i class="fas fa-subway"></i>',
         name: 'Public Transport',
         class: 'transit'
     },
     {
         mode: 'DRIVING', 
-        icon: '🚗',
+        icon: '<i class="fas fa-car"></i>',
         name: 'Car/Taxi',
         class: 'driving'
     },
     {
         mode: 'WALKING',
-        icon: '🚶',
+        icon: '<i class="fas fa-walking"></i>',
         name: 'Walking', 
         class: 'walking'
     }
@@ -33,8 +33,13 @@ const TRANSPORT_MODES = [
 
 function setupTransportCycling() {
     document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('transport-icon')) {
-            cycleTransportMode(e.target);
+        // Check if the clicked element is the transport icon or a child of it
+        const transportIcon = e.target.classList.contains('transport-icon') ? 
+                             e.target : 
+                             e.target.closest('.transport-icon');
+        
+        if (transportIcon) {
+            cycleTransportMode(transportIcon);
         }
     });
 }
@@ -66,7 +71,7 @@ function updateTransportIcon(iconElement, modeConfig, person) {
     const locationId = `location-${person}`;
     
     // Update icon appearance
-    iconElement.textContent = modeConfig.icon;
+    iconElement.innerHTML = modeConfig.icon;
     iconElement.setAttribute('data-current-mode', modeConfig.mode);
     iconElement.setAttribute('data-tooltip', modeConfig.name);
     
@@ -329,14 +334,14 @@ class HybridLocationManager {
         let container = document.getElementById('locations-container');
         
         if (!container) {
-            const existingContainer = document.querySelector('.group.group-col.center');
+            const existingContainer = document.querySelector('.locations-container');
             if (existingContainer) {
                 container = existingContainer;
                 container.id = 'locations-container';
             } else {
                 container = document.createElement('div');
                 container.id = 'locations-container';
-                container.className = 'group group-col center';
+                container.className = 'locations-container';
                 document.body.appendChild(container);
             }
         }
@@ -350,26 +355,24 @@ class HybridLocationManager {
         const colorIndex = (personId - 1) % this.colors.length;
         const personColor = this.colors[colorIndex];
 
-        // NEW ELEGANT HTML STRUCTURE
+        // SIMPLIFIED HTML STRUCTURE
         locationElement.innerHTML = `
-            <div class="location-item">
-                <div class="transport-icon transit" 
-                     data-person="${personId}" 
-                     data-current-mode="TRANSIT"
-                     data-tooltip="Public Transport">
-                    🚇
-                </div>
-                <input type="text" 
-                       class="location-input" 
-                       id="${inputId}" 
-                       placeholder="${personName ? `${personName}'s location` : `Address ${personId}`}" 
-                       autocomplete="off">
-                <button class="remove-person-btn" 
-                        style="display: ${this.getLocationCount() >= this.minLocations ? 'inline-flex' : 'none'};" 
-                        title="Remove Person">
-                    <i class="fas fa-times"></i>
-                </button>
+            <div class="transport-icon transit" 
+                 data-person="${personId}" 
+                 data-current-mode="TRANSIT"
+                 data-tooltip="Public Transport">
+                <i class="fas fa-subway"></i>
             </div>
+            <input type="text" 
+                   class="location-input" 
+                   id="${inputId}" 
+                   placeholder="${personName ? `${personName}'s location` : `Address ${personId}`}" 
+                   autocomplete="off">
+            <button class="remove-person-btn" 
+                    style="display: ${this.getLocationCount() >= this.minLocations ? 'inline-flex' : 'none'};" 
+                    title="Remove Person">
+                <i class="fas fa-times"></i>
+            </button>
         `;
 
         // Insert before the add-person-container
@@ -505,7 +508,6 @@ class HybridLocationManager {
     updateUIState() {
         const count = this.getLocationCount();
         const addBtn = document.getElementById('add-person-btn');
-        const removeBtns = document.querySelectorAll('.remove-person-btn');
         const personCountSpan = document.getElementById('person-count');
 
         // Update person count display
@@ -515,16 +517,56 @@ class HybridLocationManager {
 
         // Show/hide add button
         if (addBtn) {
-            addBtn.style.display = count < this.maxLocations ? 'inline-flex' : 'none';
+            addBtn.style.display = count < this.maxLocations ? 'flex' : 'none';
             if (count >= this.maxLocations) {
-                addBtn.innerHTML = '<i class="fas fa-users me-1"></i>Max reached';
+                addBtn.innerHTML = '<i class="fas fa-users"></i>';
                 addBtn.disabled = true;
+                addBtn.title = 'Maximum people reached';
             } else {
-                addBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Person';
+                addBtn.innerHTML = '<i class="fas fa-plus"></i>';
                 addBtn.disabled = false;
+                addBtn.title = 'Add person';
             }
+            
+            // Position the button next to the last location container
+            this.positionAddButton();
         }
+        
+        // Update remove buttons visibility
+        this.updateRemoveButtons(count);
+        
+        // Update find button state
+        this.debouncedLocationCheck();
 
+        console.log(`📈 UI updated: ${count} people, next ID would be: ${this.personCounter + 1}`);
+    }
+    
+    // Position the add button next to the last location container
+    positionAddButton() {
+        const addBtn = document.getElementById('add-person-btn');
+        if (!addBtn) return;
+        
+        const containers = document.querySelectorAll('.location-container');
+        if (containers.length === 0) return;
+        
+        // Get the last container
+        const lastContainer = containers[containers.length - 1];
+        
+        // Position the button relative to the last container
+        const rect = lastContainer.getBoundingClientRect();
+        const parentRect = lastContainer.parentElement.getBoundingClientRect();
+        
+        // Calculate position (right side of the last container)
+        addBtn.style.top = `${rect.top + rect.height/2 - parentRect.top}px`;
+        
+        // Reset any previous positioning
+        addBtn.style.position = 'absolute';
+    }
+    
+    // Show/hide remove buttons based on person count
+    updateRemoveButtons(count) {
+        const removeBtns = document.querySelectorAll('.remove-person-btn');
+        
         // Show/hide remove buttons (only show for 3+ people)
         removeBtns.forEach((btn) => {
             const container = btn.closest('.location-container');
@@ -534,11 +576,6 @@ class HybridLocationManager {
             console.log(`🔍 Person ${personId}: shouldShow=${shouldShow}, count=${count}`);
             btn.style.display = shouldShow ? 'inline-flex' : 'none';
         });
-
-        // Update find button state
-        this.debouncedLocationCheck();
-
-        console.log(`📊 UI updated: ${count} people, next ID would be: ${this.personCounter + 1}`);
     }
 
     setupInputEventListeners(input) {
@@ -1074,6 +1111,17 @@ generateLocationSuggestions(input) {
 
     initializeAutocompleteForInput(input) {
         try {
+            // Check if Google Maps API is available
+            if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
+                console.warn('Google Maps Places API not available yet. Will retry initialization later.');
+                
+                // Retry after a delay
+                setTimeout(() => {
+                    this.initializeAutocompleteForInput(input);
+                }, 1000);
+                return;
+            }
+            
             if (google.maps.places && google.maps.places.Autocomplete) {
                 const autocomplete = new google.maps.places.Autocomplete(input, {
                     componentRestrictions: { country: "sg" },

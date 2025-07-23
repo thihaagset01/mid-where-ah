@@ -5,8 +5,8 @@
 {% block head %}
 {{ super() }}
 <!-- Page specific CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/autofill.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -21,69 +21,58 @@
     </a>
   </div>
   <div class="group-text">
-    <span>Mid-Where-Ah</span>
+    <span>MidWhereAh</span>
   </div>
 </div>
 
-<!-- FIXED: Compact location inputs container -->
-<div class="group group-col center" id="locations-container">
-  <!-- Location 1 - NEW STRUCTURE -->
+<!-- Redesigned location inputs container -->
+<div class="locations-container">
+  <!-- Location 1 - SIMPLIFIED STRUCTURE -->
   <div class="location-container" data-person-id="1">
-      <div class="location-item">
-          <!-- Transport icon replaces colored dot -->
-          <div class="transport-icon transit" 
-               data-person="1" 
-               data-current-mode="TRANSIT"
-               data-tooltip="Public Transport">
-              🚇
-          </div>
-          
-          <input type="text" 
-                 id="location-1" 
-                 class="location-input" 
-                 placeholder="Enter first location" 
-                 autocomplete="off">
-                 
-          <button class="remove-person-btn" style="display: none;" title="Remove Person">
-              <i class="fas fa-times"></i>
-          </button>
+      <!-- Transport icon with more obvious icon -->
+      <div class="transport-icon transit" 
+           data-person="1" 
+           data-current-mode="TRANSIT"
+           data-tooltip="Public Transport">
+          <i class="fas fa-subway"></i>
       </div>
-      <!-- REMOVE the transport-selector div entirely -->
+      
+      <input type="text" 
+             id="location-1" 
+             class="location-input" 
+             placeholder="Address 1" 
+             autocomplete="off">
+      
+      <button class="remove-person-btn" style="display: none;" title="Remove Person">
+          <i class="fas fa-times"></i>
+      </button>
   </div>
     
-  <!-- Location 2 - NEW STRUCTURE -->
+  <!-- Location 2 - SIMPLIFIED STRUCTURE -->
   <div class="location-container" data-person-id="2">
-      <div class="location-item">
-          <!-- Transport icon replaces colored dot -->
-          <div class="transport-icon transit" 
-               data-person="2" 
-               data-current-mode="TRANSIT"
-               data-tooltip="Public Transport">
-              🚇
-          </div>
-          
-          <input type="text" 
-                 id="location-2" 
-                 class="location-input" 
-                 placeholder="Enter second location" 
-                 autocomplete="off">
-                 
-          <button class="remove-person-btn" style="display: none;" title="Remove Person">
-              <i class="fas fa-times"></i>
-          </button>
+      <!-- Transport icon with more obvious icon -->
+      <div class="transport-icon transit" 
+           data-person="2" 
+           data-current-mode="TRANSIT"
+           data-tooltip="Public Transport">
+          <i class="fas fa-subway"></i>
       </div>
-      <!-- REMOVE the transport-selector div entirely -->
-  </div>
-
-  <!-- Add Person Button (keep as is) -->
-  <div class="add-person-container">
-      <button id="add-person-btn">
-          <i class="fas fa-plus"></i>Add Person
+      
+      <input type="text" 
+             id="location-2" 
+             class="location-input" 
+             placeholder="Address 2" 
+             autocomplete="off">
+      
+      <button class="remove-person-btn" style="display: none;" title="Remove Person">
+          <i class="fas fa-times"></i>
       </button>
-      <div class="person-count-display">
-          <span id="person-count">2</span> people
-      </div>
   </div>
+  
+  <!-- Floating Add Person Button -->
+  <button id="add-person-btn" class="add-person-circle">
+      <i class="fas fa-plus"></i>
+  </button>
 </div>
 
 <!-- Find Central Button -->
@@ -91,51 +80,16 @@
   <i class="fas fa-location-arrow"></i>
 </div>
 
-<!-- Bottom Navigation -->
-<div class="bottom-container">
-  <div class="bottom-navigation">
-    <div class="nav-item active" data-page="home">
-      <i class="fas fa-home"></i>
-      <span>Home</span>
-    </div>
-    <div class="nav-item" data-page="compass">
-      <i class="fas fa-compass"></i>
-      <span>Explore</span>
-    </div>
-    <div class="nav-item nav-item-center" data-page="create">
-      <div class="center-fab">
-        <i class="fas fa-plus"></i>
-      </div>
-    </div>
-    <div class="nav-item" data-page="groups">
-      <i class="fas fa-users"></i>
-      <span>Groups</span>
-    </div>
-    <div class="nav-item" data-page="profile">
-      <i class="fas fa-user"></i>
-      <span>Profile</span>
-    </div>
-  </div>
-  
-  <!-- Create popup -->
-  <div class="nav-create-popup hidden" id="dropdown-menu">
-    <div class="pop-icon pop1">
-      <i class="fas fa-user"></i>
-    </div>
-    <div class="pop-icon pop2">
-      <i class="fa-regular fa-calendar-plus"></i>
-    </div>
-    <div class="pop-icon pop3">
-      <i class="fas fa-compass"></i>
-    </div>
-  </div>
-</div>
+<!-- Bottom Navigation is now in base template -->
 {% endblock %}
 
 {% block scripts %}
-<!-- Load JavaScript -->
+<!-- Load JavaScript (order matters) -->
 <script src="{{ url_for('static', filename='js/maps.js') }}"></script>
 <script src="{{ url_for('static', filename='js/mobile.js') }}"></script>
+
+<!-- Stylized autofill script (must be loaded after mobile.js) -->
+<script defer src="{{ url_for('static', filename='js/autofill.js') }}"></script>
 
 <!-- Google Maps API -->
 <script>
@@ -162,25 +116,26 @@
     }
   });
   
-  // Load Google Maps API
-  (g=>{
-    var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;
-    b=b[c]||(b[c]={});
-    var d=b.maps||(b.maps={});
-    r=new Set,e=new URLSearchParams;
-    u=()=>h||(h=new Promise(async(f,n)=>{
-      await (a=m.createElement("script"));
-      e.set("libraries",[...r]+"");
-      for(k in g)e.set(k.replace(/[A-Z]/g,t=>"-"+t[0].toLowerCase()),g[k]);
-      e.set("callback",c+".maps."+q);
-      a.src=`https://maps.googleapis.com/maps/api/js?`+e;
-      d[q]=f;
-      a.onerror=()=>h=n(Error(p+" could not load."));
-      a.nonce=m.querySelector("script[nonce]")?.nonce||"";
-      m.head.append(a);
-    }));
-    d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));
-  })({key: "{{ google_maps_api_key }}"});
+  // Load Google Maps API with callback
+  function loadGoogleMapsAPI() {
+    // Create the script element
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&callback=initMapWhenReady`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+  
+  // This function will be called when the API is loaded
+  function initMapWhenReady() {
+    console.log('Google Maps API loaded successfully');
+    if (typeof initMap === 'function') {
+      initMap();
+    }
+  }
+  
+  // Load the API
+  loadGoogleMapsAPI();
   
   window.addEventListener('load', function() {
     setTimeout(function() {

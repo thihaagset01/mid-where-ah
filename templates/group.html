@@ -25,7 +25,7 @@
     <!-- Group Item 1 (Clickable) -->
     <a href="/group_chat" class="group-item">
       <div class="group-avatar">
-        <img src="static/images/group-placeholder.png" alt="Group">
+        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
       </div>
       <div class="group-details">
         <h3 class="group-name">The Biceps</h3>
@@ -37,7 +37,7 @@
     <!-- Group Item 2 -->
     <a href="/group_chat" class="group-item">
       <div class="group-avatar">
-        <img src="static/images/group-placeholder.png" alt="Group">
+        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
       </div>
       <div class="group-details">
         <h3 class="group-name">The Elbows</h3>
@@ -49,7 +49,7 @@
     <!-- Group Item 3 -->
     <a href="/group_chat" class="group-item">
       <div class="group-avatar">
-        <img src="static/images/group-placeholder.png" alt="Group">
+        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
       </div>
       <div class="group-details">
         <h3 class="group-name">The Knees</h3>
@@ -61,7 +61,7 @@
     <!-- Group Item 4 -->
     <a href="/group_chat" class="group-item">
       <div class="group-avatar">
-        <img src="static/images/group-placeholder.png" alt="Group">
+        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
       </div>
       <div class="group-details">
         <h3 class="group-name">The Eyelids</h3>
@@ -73,7 +73,7 @@
     <!-- Group Item 5 -->
     <a href="/group_chat" class="group-item">
       <div class="group-avatar">
-        <img src="static/images/group-placeholder.png" alt="Group">
+        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
       </div>
       <div class="group-details">
         <h3 class="group-name">The Shoulders</h3>
@@ -84,32 +84,7 @@
   </div>
 </div>
 
-<!-- Bottom Navigation -->
-<div class="group-col bottom-container center">
-  <div class="bottom-navigation">
-    <div class="nav-item" data-page="home">
-      <i class="fas fa-home"></i>
-      <span>Home</span>
-    </div>
-    <div class="nav-item" data-page="compass">    
-      <i class="fas fa-compass"></i>
-      <span>Explore</span>
-    </div>
-    <div class="nav-item nav-item-center" data-page="create">
-      <div class="center-fab">
-        <i class="fas fa-plus"></i>
-      </div>
-    </div>
-    <div class="nav-item active" data-page="groups">
-      <i class="fas fa-users"></i>
-      <span>Groups</span>
-    </div>
-    <div class="nav-item" data-page="profile">
-      <i class="fas fa-user"></i>
-      <span>Profile</span>
-    </div>
-  </div>
-</div>
+<!-- Bottom Navigation is now in base template -->
 {% endblock %}
 
 {% block scripts %}

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>MidWhereAh - Find the perfect meetup spot</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 0 20px;
+            text-align: center;
+            opacity: 1;
+            transition: opacity 0.8s ease-in-out;
+        }
+        
+        body.fade-out {
+            opacity: 0;
+        }
+        
+        .logo-container {
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            width: 120px;
+            height: auto;
+        }
+        
+        h1 {
+            color: #8B5DB8;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        p {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+            max-width: 500px;
+        }
+        
+        .btn-primary {
+            background-color: #8B5DB8;
+            border-color: #8B5DB8;
+            padding: 10px 24px;
+            font-weight: 500;
+            border-radius: 8px;
+            margin: 0 10px;
+        }
+        
+        .btn-outline-primary {
+            color: #8B5DB8;
+            border-color: #8B5DB8;
+            padding: 10px 24px;
+            font-weight: 500;
+            border-radius: 8px;
+            margin: 0 10px;
+        }
+        
+        .btn-primary:hover, .btn-primary:focus {
+            background-color: #7a4ea3;
+            border-color: #7a4ea3;
+        }
+        
+        .btn-outline-primary:hover, .btn-outline-primary:focus {
+            background-color: #8B5DB8;
+            border-color: #8B5DB8;
+            color: white;
+        }
+        
+        .buttons {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        /* For mobile devices */
+        @media (max-width: 576px) {
+            .logo {
+                width: 100px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            p {
+                font-size: 14px;
+            }
+            
+            .buttons {
+                flex-direction: column;
+            }
+            
+            .btn {
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Firebase App (the core Firebase SDK) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    
+    <div class="logo-container">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="MidWhereAh Logo" class="logo">
+    </div>
+    
+    <h1>MidWhereAh</h1>
+    <p>Find the perfect meetup spot for you and your friends. No more arguing about where to meet - let us find the middle ground!</p>
+
+    <!-- Firebase Configuration -->
+    <script>
+        // Firebase configuration injected from server
+        window.firebaseConfig = JSON.parse('{{ firebase_config | tojson | safe }}');
+        
+        // Initialize Firebase
+        firebase.initializeApp(window.firebaseConfig);
+        
+        // Function to handle redirect with animation
+        function animateAndRedirect(url) {
+            document.body.classList.add('fade-out');
+            setTimeout(function() {
+                // Store animation state in session storage
+                sessionStorage.setItem('comingFromLanding', 'true');
+                window.location.href = url;
+            }, 800); // Match the transition time in CSS
+        }
+        
+        // Check if user is already authenticated
+        document.addEventListener('DOMContentLoaded', function() {
+            firebase.auth().onAuthStateChanged(function(user) {
+                if (user) {
+                    // User is signed in, redirect to app
+                    animateAndRedirect("{{ url_for('home') }}");
+                } else {
+                    // User is not signed in, redirect to login page
+                    animateAndRedirect("{{ url_for('auth.login') }}");
+                }
+            });
+        });
+    </script>
+    
+    <!-- Bootstrap 5 JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -7,6 +7,9 @@
     <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
     <title>MidWhereAh - {% block title %}Find the perfect meetup spot{% endblock %}</title>
     
+    <!-- Block for controlling navigation visibility -->
+    {% block show_navigation %}{% set show_navigation = true %}{% endblock %}
+    
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     
@@ -319,6 +322,48 @@
     <!-- Mobile content - full screen -->
     {% block content %}{% endblock %}
 
+    {% block bottom_navigation %}
+    <!-- Bottom Navigation -->
+    <div class="bottom-container">
+      <div class="bottom-navigation">
+        <div class="nav-item" data-page="home">
+          <i class="fas fa-home"></i>
+          <span>Home</span>
+        </div>
+        <div class="nav-item" data-page="compass">
+          <i class="fas fa-compass"></i>
+          <span>Explore</span>
+        </div>
+        <div class="nav-item nav-item-center" data-page="create">
+          <div class="center-fab">
+            <i class="fas fa-plus"></i>
+          </div>
+        </div>
+        <div class="nav-item" data-page="groups">
+          <i class="fas fa-users"></i>
+          <span>Groups</span>
+        </div>
+        <div class="nav-item" data-page="profile">
+          <i class="fas fa-user"></i>
+          <span>Profile</span>
+        </div>
+      </div>
+      
+      <!-- Create popup -->
+      <div class="nav-create-popup hidden" id="dropdown-menu">
+        <div class="pop-icon pop1">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="pop-icon pop2">
+          <i class="fa-regular fa-calendar-plus"></i>
+        </div>
+        <div class="pop-icon pop3">
+          <i class="fas fa-compass"></i>
+        </div>
+      </div>
+    </div>
+    {% endblock %}
+
     <!-- Bootstrap 5 JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -345,6 +390,9 @@
     
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block mobile_js %}
+    <script src="{{ url_for('static', filename='js/mobile.js') }}"></script>
+    {% endblock %}
     
     <!-- Service Worker Registration -->
     <script>
@@ -362,5 +410,13 @@
     </script>
     
     {% block scripts %}{% endblock %}
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof setupBottomNavigation === 'function') {
+                setupBottomNavigation();
+            }
+        });
+    </script>
 </body>
 </html>

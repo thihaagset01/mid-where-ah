@@ -644,7 +644,12 @@ function setupAuthObserver() {
                 const redirectResult = firebase.auth().getRedirectResult();
                 if (redirectResult) {
                     // User was redirected from a login attempt, handle the result
-                    handleRedirectResult(redirectResult);
+                    // Safe fallback if handleRedirectResult is not defined
+                    if (typeof handleRedirectResult === 'function') {
+                        handleRedirectResult(redirectResult);
+                    } else {
+                        console.log('Login redirect successful');
+                    }
                 }
             }
         }

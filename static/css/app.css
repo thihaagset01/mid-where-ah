@@ -1,0 +1,446 @@
+/* 
+ * MidWhereAh - Combined Mobile-First CSS
+ * This file combines styles from both mobile.css and home.css
+ * Optimized for mobile-only usage
+ */
+
+/* RESET & BASE STYLES */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Roboto', sans-serif;
+}
+
+body {
+  background-color: #f5f5f5;
+  color: #333;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  position: relative;
+  min-height: 100vh;
+}
+
+:root {
+  --primary-color: #673AB7;
+  --secondary-color: #512DA8;
+  --accent-color: #FF4081;
+  --text-color: #333;
+  --light-text: #757575;
+  --border-color: #E0E0E0;
+  --background-color: #F5F5F5;
+  --card-color: #FFFFFF;
+  --shadow: 0 2px 5px rgba(0,0,0,0.1);
+  --header-height: 48px;
+  --bottom-nav-height: 56px;
+}
+
+/* HEADER - Translucent with blur effect */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--header-height);
+  background: linear-gradient(135deg, rgba(103, 58, 183, 0.85), rgba(81, 45, 168, 0.85));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header span {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* MAP - Full screen background */
+#map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  background-color: #f0f0f0;
+}
+
+/* Google Maps Controls Styling */
+.gm-style-cc {
+  display: none !important; /* Hide copyright */
+}
+
+.gm-style .gm-style-mtc {
+  display: none !important; /* Hide map type controls */
+}
+
+.gm-style .gmnoprint {
+  z-index: 10 !important; /* Ensure map controls stay below navbar */
+}
+
+/* Force all Google Maps controls to stay below navigation */
+.gm-control-active {
+  z-index: 10 !important;
+}
+
+.gm-svpc {
+  z-index: 10 !important;
+}
+
+/* Override any Google Maps controls that might interfere */
+.gm-fullscreen-control {
+  display: none !important;
+}
+
+.gm-bundled-control {
+  margin: 0 !important;
+}
+
+.gmnoprint {
+  z-index: 10 !important; /* Lower than navbar */
+}
+
+/* LOCATION INPUTS - Ultra compact and fully transparent */
+.locations-container {
+  position: fixed;
+  top: 48px; /* Right after header */
+  left: 0;
+  right: 0;
+  z-index: 15;
+  background: transparent !important;
+  padding: 8px;
+  border-bottom: none;
+  max-height: 35vh;
+  overflow-y: auto;
+  box-shadow: none;
+  width: 100vw;
+  box-sizing: border-box;
+}
+
+/* INDIVIDUAL LOCATION CONTAINER - Transparent with minimal spacing */
+.location-container {
+  margin-bottom: 3px;
+  background: transparent !important;
+  border-radius: 16px;
+  padding: 8px;
+  border: 1px solid rgba(139, 93, 184, 0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  position: relative;
+}
+
+.location-container:hover {
+  border-color: rgba(139, 93, 184, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-1px);
+}
+
+/* CYCLEABLE TRANSPORT MODE ICONS - More obvious */
+.transport-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  position: relative;
+  background: #f0f0f0;
+}
+
+/* Transport mode styles - More obvious icons */
+.transport-icon.transit {
+  background: linear-gradient(135deg, #673AB7, #512DA8);
+  color: white;
+  border-color: #673AB7;
+  box-shadow: 0 2px 5px rgba(103, 58, 183, 0.3);
+}
+
+.transport-icon.driving {
+  background: linear-gradient(135deg, #2196F3, #1976D2);
+  color: white;
+  border-color: #2196F3;
+  box-shadow: 0 2px 5px rgba(33, 150, 243, 0.3);
+}
+
+.transport-icon.walking {
+  background: linear-gradient(135deg, #FF9800, #F57F17);
+  color: white;
+  border-color: #FF9800;
+  box-shadow: 0 2px 5px rgba(255, 152, 0, 0.3);
+}
+
+/* Hover and interaction states */
+.transport-icon:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.transport-icon:active {
+  transform: scale(0.95);
+}
+
+/* Tap animation */
+.transport-icon.tap-animation {
+  animation: tapPulse 0.3s ease;
+}
+
+@keyframes tapPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* Person identification with colored rings */
+.location-container[data-person-id="1"] .transport-icon {
+  box-shadow: 0 0 0 2px #FF6B6B;
+}
+
+.location-container[data-person-id="2"] .transport-icon {
+  box-shadow: 0 0 0 2px #4ECDC4;
+}
+
+.location-container[data-person-id="3"] .transport-icon {
+  box-shadow: 0 0 0 2px #45B7D1;
+}
+
+.location-container[data-person-id="4"] .transport-icon {
+  box-shadow: 0 0 0 2px #96CEB4;
+}
+
+.location-container[data-person-id="5"] .transport-icon {
+  box-shadow: 0 0 0 2px #FFEAA7;
+}
+
+/* Tooltip for current mode */
+.transport-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 1000;
+  margin-bottom: 4px;
+}
+
+.transport-icon:hover::after {
+  opacity: 1;
+}
+
+/* REMOVE BUTTON STYLING */
+.remove-person-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.remove-person-btn:hover {
+  background: #ff4444;
+  color: white;
+  border-color: #ff4444;
+}
+
+/* LOCATION INPUT - Compact */
+.location-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  padding: 4px 6px;
+  outline: none;
+  color: #333;
+  font-weight: 400;
+  border-radius: 10px;
+}
+
+.location-input::placeholder {
+  color: #9E9E9E;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* FLOATING ADD PERSON BUTTON */
+#add-person-btn {
+  position: fixed;
+  bottom: calc(var(--bottom-nav-height) + 16px);
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #673AB7, #512DA8);
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 4px 12px rgba(103, 58, 183, 0.4);
+  cursor: pointer;
+  z-index: 20;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#add-person-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(103, 58, 183, 0.5);
+}
+
+#add-person-btn:active {
+  transform: scale(0.95);
+}
+
+/* BOTTOM NAVIGATION */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--bottom-nav-height);
+  background: white;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--light-text);
+  text-decoration: none;
+  font-size: 10px;
+  padding: 8px 0;
+  transition: all 0.2s ease;
+}
+
+.bottom-nav-item.active {
+  color: var(--primary-color);
+}
+
+.bottom-nav-icon {
+  font-size: 20px;
+  margin-bottom: 2px;
+}
+
+/* CONTENT AREA - Adjusted for fixed header and bottom nav */
+.content {
+  padding-top: calc(var(--header-height) + 8px);
+  padding-bottom: calc(var(--bottom-nav-height) + 8px);
+  min-height: calc(100vh - var(--header-height) - var(--bottom-nav-height));
+}
+
+/* LOADING INDICATOR */
+.loading-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(103, 58, 183, 0.3);
+  border-top: 4px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* UTILITY CLASSES */
+.hidden {
+  display: none !important;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-out {
+  animation: fadeOut 0.3s ease forwards;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* SCROLLBAR STYLING */
+.locations-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.locations-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.locations-container::-webkit-scrollbar-thumb {
+  background: rgba(103, 58, 183, 0.3);
+  border-radius: 4px;
+}
+
+/* RESPONSIVE ADJUSTMENTS */
+@media (min-width: 768px) {
+  .locations-container {
+    max-width: 600px;
+    margin: 0 auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  
+  #add-person-btn {
+    right: calc(50% - 300px + 16px);
+  }
+}

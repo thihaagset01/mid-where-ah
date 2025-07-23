@@ -1,39 +1,5 @@
 /*this is for group page*/
-function setupBottomNavigation() {
-    const navItems = document.querySelectorAll('.nav-item');
-
-    navItems.forEach(item => {
-        item.addEventListener('click', function() {
-            navItems.forEach(navItem => navItem.classList.remove('active'));
-            
-            this.classList.add('active');
-            
-            const page = this.getAttribute('data-page');
-            
-            switch(page) {
-                case 'home':
-                    // Check if user is authenticated before redirecting
-                    if (firebase.auth().currentUser) {
-                        window.location.href = '/app';
-                    } else {
-                        window.location.href = '/login';
-                    }
-                    break;
-                case 'groups':
-                    window.location.href = '/groups';
-                    break;
-                case 'profile':
-                    window.location.href = '/profile';
-                    break;
-                case 'compass':
-                    break;
-                case 'create':
-                    showCreateGroupModal();
-                    break;
-            }
-        });
-    });
-}
+// Bottom navigation is now handled by mobile.js
 
 function showCreateGroupModal(event){
     if (event) {
@@ -71,6 +37,5 @@ function closeCreateGroupModal(event) {
         document.removeEventListener('click', closeCreateGroupModal);
     }
 }
-document.addEventListener('DOMContentLoaded', function () {
-    setupBottomNavigation();
-});
+// Navigation is now initialized in the base template
+// No need for additional initialization here

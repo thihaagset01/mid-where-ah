@@ -14,11 +14,20 @@ let infoWindow = null;
 
 // Initialize the map when the page loads
 function initMap() {
+    console.log('Initializing map...');
     // Default center on Singapore
     const singapore = { lat: 1.3521, lng: 103.8198 };
     
+    // Check if map container exists
+    const mapContainer = document.getElementById("map");
+    if (!mapContainer) {
+        console.error('Map container not found. Please check the HTML.');
+        return;
+    }
+    
     // Create the map
-    map = new google.maps.Map(document.getElementById("map"), {
+    try {
+        map = new google.maps.Map(mapContainer, {
         center: singapore,
         zoom: 12,
         mapTypeControl: false,
@@ -59,6 +68,10 @@ function initMap() {
         initializeGroupMap();
     } else if (path.startsWith('/venues/')) {
         initializeVenuesMap();
+    }
+    } catch (error) {
+        console.error('Error initializing Google Maps:', error);
+        // Don't retry - the callback approach should handle this properly
     }
 }
 

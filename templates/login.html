@@ -1,14 +1,31 @@
 {% extends "mobile_base.html" %}
 
+{% block bottom_navigation %}{% endblock %}
+
+{% block mobile_js %}{% endblock %}
+
 {% block title %}Login or Sign Up{% endblock %}
+
+{% block is_auth_page %}{% set is_auth_page = true %}{% endblock %}
 
 {% block head %}
 <!-- Add auth.css for login/signup styling -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+<style>
+    .auth-container {
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+    }
+    .auth-container.fade-in {
+        opacity: 1;
+        transform: translateY(0);
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="auth-container">
+<div class="auth-container" id="authContainer">
     <div class="auth-content">
         <div class="logo-container">
             <img src="{{ url_for('static', filename='images/logo.png') }}" alt="MidWhereAh Logo" class="logo-image">
@@ -270,5 +287,22 @@
             });
         });
     }
+    
+    // Animation for smooth transition from landing page
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if we're coming from the landing page
+        if (sessionStorage.getItem('comingFromLanding') === 'true') {
+            // Clear the flag
+            sessionStorage.removeItem('comingFromLanding');
+            
+            // Trigger animation after a short delay
+            setTimeout(function() {
+                document.getElementById('authContainer').classList.add('fade-in');
+            }, 100);
+        } else {
+            // If not coming from landing, show immediately
+            document.getElementById('authContainer').classList.add('fade-in');
+        }
+    });
 </script>
 {% endblock %}

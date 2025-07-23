@@ -1,0 +1,67 @@
+/* Stylized autofill dropdown */
+.location-autofill {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 4px;
+  border: 1px solid rgba(139, 93, 184, 0.1);
+  padding: 8px 0;
+}
+
+.autofill-header {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #9E9E9E;
+  font-weight: 500;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 4px;
+}
+
+.autofill-item {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.autofill-item:hover {
+  background-color: #f5f5f5;
+}
+
+.autofill-item i {
+  margin-right: 12px;
+  color: #673AB7;
+  font-size: 16px;
+  width: 16px;
+  text-align: center;
+}
+
+.autofill-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+.autofill-main {
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.autofill-secondary {
+  font-size: 12px;
+  color: #757575;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
