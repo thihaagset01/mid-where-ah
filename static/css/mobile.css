@@ -619,3 +619,138 @@ body {
 .pac-container {
   display: none !important;
 }
+
+.toolbar {
+  background: white;
+  padding: 10px 15px;
+  border-radius: 10px;
+  display: none;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  gap: 20px;
+  display: None;
+  z-index: 100;
+}
+
+.toolbar-item {
+  all:unset;
+  cursor: pointer;
+  text-align: center;
+  color: #a782c7;
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.toolbar-item i {
+  font-size: 1.3rem;
+  margin-bottom: 4px;
+}
+
+.left{
+  position: absolute;
+  margin: 0 auto;
+  z-index: 5;
+}
+
+.eventpop{
+  align-items: center;
+  justify-content: center;
+  padding: 2%;
+  border-radius: 30px;
+  width: 50%;
+  display: none;
+  background-color: #575757;
+  left: -50%;
+  transform: translateX(50%);
+}
+
+.eventcardcontainer{
+  display: none;
+  justify-content: center;
+  align-items: center;
+  background-color: #575757;
+  width: 50%;
+  transform:translateX(50%);
+  border-radius: 30px;
+}
+
+.eventcard{
+  color:white;
+}
+
+.toolbar {
+  background: white;
+  padding: 10px 15px;
+  border-radius: 10px;
+  display: none;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  gap: 20px;
+  display: None;
+  z-index: 100;
+}
+
+.toolbar-item {
+  all:unset;
+  cursor: pointer;
+  text-align: center;
+  color: #a782c7;
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.toolbar-item i {
+  font-size: 1.3rem;
+  margin-bottom: 4px;
+}
+
+.left{
+  position: absolute;
+  margin: 0 auto;
+  z-index: 5;
+}
+
+.eventpop{
+  align-items: center;
+  justify-content: center;
+  padding: 2%;
+  border-radius: 30px;
+  width: 50%;
+  display: none;
+  background-color: #575757;
+  left: -50%;
+  transform: translateX(50%);
+}
+
+.eventcardcontainer{
+  display: none;
+  justify-content: center;
+  align-items: center;
+  background-color: #575757;
+  width: 50%;
+  transform:translateX(50%);
+  border-radius: 30px;
+}
+
+.eventcard{
+  color:white;
+}
+
+.pop3{
+  transform: translate(-50%,-50%) translate(76px, 43.75px);
+}
+
+.pop-icon {
+  background: white;
+  color: white;
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(139, 93, 184, 0.3);
+  margin-bottom: -8px;
+}
