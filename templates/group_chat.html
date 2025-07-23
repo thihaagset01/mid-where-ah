@@ -19,50 +19,59 @@
 
 
 <div class="group groupbg group-col" >
-    <div class = "group-row">
+    <div class = "group-row" >
         <a href ="groups" class = "inline-left group-logo" style="max-height: 60px;">
             <img src="static/images/back-placeholder.png" alt = "back-button" style="cursor: pointer; padding-left: 20px;"/>
         </a>
         <span style = "font-size: 50px; max-height: 60px; color: white;" class = "center">Group Name</span>
     </div>
     <img src="static/images/group-bar-placeholder.png" style="width: 25%; align-self:center; margin: 5px;">
-</div>
+    <div class="eventcardcontainer middle group-col" id="eventcardcontainer">
+        <div id="eventcard" style="display: none;"></div>
+        <div class="group-row">
+            <button>✅</button>
+            <button>❌</button>
+        </div>
+    </div>
+
+    <!-- event pop up -->
+    <div class="eventpop group-col" id="eventpop" style="gap: 10px;">
+        <span style="color: white; font-size: 30px;">New Event</span>
+        <input type="text" placeholder="Event Name" id="eventname" class="search-bar-container" style="height: 35px;">
+        <input type="text" placeholder="Event Description" id="eventdescription" class="search-bar-container" style="height: 35px;">
+
+        <div class="group-row" style="width: 75%; display: flex; justify-items: center; align-items: center; gap:5%">  
+            <input type="date" placeholder="Event Date" id="eventdate" style="height: 35px; width: 47.5%; display: inline;" class="search-bar-container">
+            <input type="time" placeholder="Event Time" id="eventtime" style="height: 35px; width: 47.5%; display: inline;" class="search-bar-container">
+        </div>
+        <button class="toolbar-item" style="background-color: white; padding: 1%; border-radius: 10px;" id="save">Save</button>
+    </div>
+
 
 <!-- bottom container -->
-<div class = "group-col bottom-container center">
-    <div class="search-bar-container">
-      <input type="text" class="search-input" placeholder="Search...">
-      <button class="search-button">🔍</button>
+<div class="group-col bottom-container center">
+  <div class="search-bar-container">
+    <div class="toolbar left" id="toolbar" style="transform: translateY(-100%);">
+        <button class="toolbar-item">
+            <i class="fas fa-image"></i><span>Photos</span>
+        </button>
+        <button class="toolbar-item">
+            <i class="fas fa-poll"></i><span>Poll</span>
+        </button>
+        <button class="toolbar-item" id="newevent">
+            <i class="fas fa-map-marker-alt"></i><span>Event</span>
+        </button>
     </div>
 
-    <!-- Bottom Navigation -->
-    <div class="bottom-navigation">
-        <div class="nav-item" data-page="home">
-            <i class="fas fa-home"></i>
-            <span>Home</span>
-        </div>
-        <div class="nav-item" data-page="compass">    
-            <i class="fas fa-compass"></i>
-            <span>Explore</span>
-        </div>
-        <div class="nav-item nav-item-center" data-page="create">
-            <div class="center-fab">
-                <i class="fas fa-plus"></i>
-            </div>
-        </div>
-        <div class="nav-item active" data-page="groups">
-            <i class="fas fa-users"></i>
-            <span>Groups</span>
-        </div>
-        <div class="nav-item" data-page="profile">
-            <i class="fas fa-user"></i>
-            <span>Profile</span>
-        </div>
-    </div>
+    <button class="search-button" id="toggleButton" style="font-size: 25px;">+</button>
+    <input type="text" class="search-input" placeholder="Search...">
+    <button class="search-button">➡</button>
+  </div>
 </div>
 
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/group.js') }}"></script>
+<script src="{{ url_for('static', filename='js/group_chat.js') }}"></script>
 {% endblock %}
