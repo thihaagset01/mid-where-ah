@@ -137,6 +137,9 @@ def index():
     print('Serving landing page from root route')
     return render_template('landing.html')
 
+@app.route('/view_map')
+def view_map():
+    return render_template('view_map.html')
 @app.route('/app')
 @login_required
 def home():
