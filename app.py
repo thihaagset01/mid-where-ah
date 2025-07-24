@@ -153,9 +153,7 @@ def index():
     print('Serving landing page from root route')
     return render_template('landing.html')
 
-@app.route('/view_map')
-def view_map():
-    return render_template('view_map.html')
+
 @app.route('/app')
 @login_required
 def home():
@@ -644,6 +642,17 @@ def remove_friend(friend_id):
         print(f"Error removing friend: {e}")
         return jsonify({'error': 'Failed to remove friend'}), 500
 
+@app.route('/join/<invite_code>')
+def join_group_direct(invite_code):
+    """Handle direct invite links"""
+    return render_template('groups.html', invite_code=invite_code)
+
+@app.route('/view_map')
+def view_map():
+    event_id = request.args.get('eventId')
+    return render_template('view_map.html', event_id=event_id)
+
+    
 # Helper function to update user search index when user profile is updated
 def update_user_search_index(user_id, user_data):
     """Update the user search index when user profile changes"""
@@ -688,11 +697,20 @@ def profile():
     """Profile page - mobile interface"""
     return render_template('profile.html')
 
+
 @mobile_bp.route('/group_chat')
 @login_required
 def group_chat():
-    """Group chat - mobile interface"""
-    return render_template('group_chat.html')
+    """Group chat - mobile interface - ENHANCED to accept group ID"""
+    # Get group ID from query parameter
+    group_id = request.args.get('groupId')
+    
+    if not group_id:
+        # If no group ID provided, redirect to groups page
+        return redirect(url_for('mobile.groups'))
+    
+    # Pass group_id to template
+    return render_template('group_chat.html', group_id=group_id)
 
 @mobile_bp.route('/venues/<group_id>')
 @login_required

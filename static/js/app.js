@@ -97,61 +97,33 @@ function setupAuthObserver() {
     // Then set up the auth state observer
     firebase.auth().onAuthStateChanged(function(user) {
         const currentPath = window.location.pathname;
-        console.log('Auth state changed. Path:', currentPath, 'User:', user ? user.email : 'signed out');
-        
+        console.log('Auth state changed. Path:', currentPath, 'User:', user ? user.email : 'none');
+    
         if (user) {
             // User is signed in
-            console.log('User is signed in:', user.email);
-            currentUser = user;
+            console.log('User authenticated:', user.email);
             
-            // Get and store the ID token for server-side auth
-            user.getIdToken().then(function(idToken) {
-                setAuthCookie('id_token', idToken);
-                console.log('ID token stored in cookie for server authentication');
-                
-                // Force a server request to sync the token with the backend session
-                fetch('/api/user', {
-                    headers: {
-                        'Authorization': 'Bearer ' + idToken
-                    }
-                }).then(response => {
-                    console.log('Backend session synced with token');
-                }).catch(error => {
-                    console.error('Error syncing backend session:', error);
-                });
-            });
+            // Simple route-specific handling for your current structure
+            if (currentPath === '/groups') {
+                // The group-creation.js will handle loading groups
+                console.log('On groups page - group-creation.js will handle this');
+            } else if (currentPath === '/group_chat') {
+                // The group_chat.js will handle chat functionality
+                console.log('On group chat page - group_chat.js will handle this');
+            }
             
-            // Set up token refresh
-            setInterval(() => {
-                user.getIdToken(true).then(function(refreshedToken) {
-                    setAuthCookie('id_token', refreshedToken);
-                    console.log('ID token refreshed');
-                }).catch(function(error) {
-                    console.error('Error refreshing token:', error);
-                });
-            }, 30 * 60 * 1000); // Refresh every 30 minutes
+            // Remove the old handleAuthenticatedUserActions call
+            // handleAuthenticatedUserActions(user); // DELETE THIS LINE
             
-            // Update UI for authenticated user
-            updateUIForAuthenticatedUser(user);
-            
-            // Handle page-specific actions for authenticated users
-            handleAuthenticatedUserActions(user);
         } else {
             // User is signed out
-            console.log('User is signed out');
-            currentUser = null;
+            console.log('User not authenticated');
             
-            // Clear the auth cookie
-            setAuthCookie('id_token', '', -1); // Expire the cookie
-            
-            // Update UI for unauthenticated user
-            updateUIForUnauthenticatedUser();
-            
-            // Check if current path is protected
+            // Redirect to login if on protected pages
+            const protectedPaths = ['/groups', '/group_chat', '/profile', '/venues'];
             if (protectedPaths.some(path => currentPath.startsWith(path))) {
-                console.log('Unauthenticated user on protected page:', currentPath);
-                console.log('Redirecting to login page');
-                window.location.replace('/login');
+                console.log('Redirecting to login from protected path:', currentPath);
+                window.location.href = '/login';
             }
         }
     });
@@ -228,47 +200,6 @@ function signInWithGoogle() {
     } catch (e) {
         console.error("Exception during Google sign-in setup:", e);
         showToast("Error initializing Google sign-in. Please try again later.", "error");
-    }
-}
-
-// Handle page-specific actions for authenticated users
-function handleAuthenticatedUserActions(user) {
-    // Get current page path
-    const path = window.location.pathname;
-    
-    // Login page
-    if (path === '/login') {
-        // Redirect to app if already logged in
-        window.location.href = '/app';
-        return;
-    }
-    
-    // App page
-    if (path === '/app') {
-        loadUserGroups(user.uid);
-        setupCreateGroupForm(user);
-    }
-    
-    // Group page
-    if (path.startsWith('/group/')) {
-        const groupId = path.split('/').pop();
-        loadGroupDetails(groupId);
-        setupLocationForm(groupId, user.uid);
-    }
-    
-    // Venues page
-    if (path.startsWith('/venues/')) {
-        const groupId = path.split('/').pop();
-        loadGroupDetails(groupId);
-        loadVenueRecommendations(groupId);
-    }
-    
-    // Swipe page
-    if (path.startsWith('/swipe/')) {
-        const groupId = path.split('/').pop();
-        loadGroupDetails(groupId);
-        loadVenuesForVoting(groupId);
-        setupChatFunctionality(groupId, user);
     }
 }
 
@@ -696,53 +627,6 @@ function setupAuthObserver() {
 // Placeholder functions for page-specific functionality
 // These will be implemented as the project progresses
 
-function loadUserGroups(userId) {
-    console.log('Loading groups for user:', userId);
-    
-    const groupsContainer = document.getElementById('groups-container');
-    const loadingElement = document.getElementById('groups-loading');
-    const emptyElement = document.getElementById('groups-empty');
-    
-    if (!groupsContainer || !loadingElement || !emptyElement) return;
-    
-    // Show loading state
-    groupsContainer.innerHTML = '';
-    loadingElement.style.display = 'block';
-    emptyElement.style.display = 'none';
-    
-    // Query Firestore for groups where the user is a member
-    const db = firebase.firestore();
-    db.collection('groups')
-        .where(`members.${userId}`, '!=', null)
-        .orderBy(`members.${userId}.joinedAt`, 'desc')
-        .get()
-        .then((querySnapshot) => {
-            // Hide loading state
-            loadingElement.style.display = 'none';
-            
-            if (querySnapshot.empty) {
-                // Show empty state if no groups
-                emptyElement.style.display = 'block';
-                return;
-            }
-            
-            // Process each group
-            querySnapshot.forEach((doc) => {
-                const group = doc.data();
-                group.id = doc.id;
-                
-                // Create group card
-                const groupCard = createGroupCard(group);
-                groupsContainer.appendChild(groupCard);
-            });
-        })
-        .catch((error) => {
-            console.error('Error loading groups:', error);
-            loadingElement.style.display = 'none';
-            showNotification('Error loading groups: ' + error.message, 'danger');
-        });
-}
-
 // Create a group card element
 function createGroupCard(group) {
     const card = document.createElement('div');
@@ -897,81 +781,7 @@ function joinGroupWithCode(inviteCode, user, submitBtn, originalBtnText) {
         });
 }
 
-function setupCreateGroupForm(user) {
-    const form = document.getElementById('create-group-form');
-    if (!form) return;
-    
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Get form values
-        const groupName = document.getElementById('group-name').value.trim();
-        const groupDescription = document.getElementById('group-description').value.trim();
-        
-        if (!groupName) {
-            showNotification('Please enter a group name', 'warning');
-            return;
-        }
-        
-        // Show loading state
-        const submitBtn = form.querySelector('button[type="submit"]');
-        const originalBtnText = submitBtn.innerHTML;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
-        
-        // Generate a random 6-character invite code
-        const inviteCode = generateInviteCode();
-        
-        // Create group document in Firestore
-        const db = firebase.firestore();
-        const groupData = {
-            name: groupName,
-            description: groupDescription,
-            admin: user.uid,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            members: {
-                [user.uid]: {
-                    name: user.displayName || user.email.split('@')[0],
-                    email: user.email,
-                    photoURL: user.photoURL || null,
-                    joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    role: 'admin'
-                }
-            },
-            inviteCode: inviteCode,
-            status: 'planning'
-        };
-        
-        db.collection('groups').add(groupData)
-            .then((docRef) => {
-                console.log('Group created with ID:', docRef.id);
-                showNotification('Group created successfully!', 'success');
-                
-                // Reset form
-                form.reset();
-                
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('create-group-modal'));
-                modal.hide();
-                
-                // Refresh groups list
-                loadUserGroups(user.uid);
-                
-                // Reset button
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalBtnText;
-            })
-            .catch((error) => {
-                console.error('Error creating group:', error);
-                showNotification('Error creating group: ' + error.message, 'danger');
-                
-                // Reset button
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalBtnText;
-            });
-    });
-}
+
 
 // Generate a random 6-character invite code
 function generateInviteCode() {
@@ -981,146 +791,6 @@ function generateInviteCode() {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return code;
-}
-
-function loadGroupDetails(groupId) {
-    console.log('Loading details for group:', groupId);
-    
-    const groupNameElement = document.getElementById('group-name-display');
-    const groupDescriptionElement = document.getElementById('group-description');
-    const groupMembersElement = document.getElementById('group-members');
-    const groupStatusElement = document.getElementById('group-status');
-    const inviteCodeElement = document.getElementById('invite-code');
-    const loadingElement = document.getElementById('group-loading');
-    
-    // Show loading state if element exists
-    if (loadingElement) {
-        loadingElement.style.display = 'block';
-    }
-    
-    // Hide content elements while loading
-    [groupNameElement, groupDescriptionElement, groupMembersElement, groupStatusElement].forEach(el => {
-        if (el) el.style.display = 'none';
-    });
-    
-    // Get group document from Firestore
-    const db = firebase.firestore();
-    db.collection('groups').doc(groupId).get()
-        .then((doc) => {
-            // Hide loading state
-            if (loadingElement) {
-                loadingElement.style.display = 'none';
-            }
-            
-            // Show content elements
-            [groupNameElement, groupDescriptionElement, groupMembersElement, groupStatusElement].forEach(el => {
-                if (el) el.style.display = 'block';
-            });
-            
-            if (!doc.exists) {
-                console.error('Group not found');
-                showNotification('Group not found', 'danger');
-                return;
-            }
-            
-            const group = doc.data();
-            group.id = doc.id;
-            
-            // Update group name
-            if (groupNameElement) {
-                groupNameElement.textContent = group.name;
-                document.title = `${group.name} - MidWhereAh`;
-            }
-            
-            // Update group description
-            if (groupDescriptionElement) {
-                groupDescriptionElement.textContent = group.description || 'No description';
-            }
-            
-            // Update group status
-            if (groupStatusElement) {
-                const statusBadge = document.createElement('span');
-                statusBadge.className = `badge bg-${getStatusColor(group.status)}`;
-                statusBadge.textContent = capitalizeFirstLetter(group.status || 'planning');
-                groupStatusElement.innerHTML = '';
-                groupStatusElement.appendChild(statusBadge);
-            }
-            
-            // Update invite code
-            if (inviteCodeElement) {
-                inviteCodeElement.textContent = group.inviteCode;
-                
-                // Set up copy button
-                const copyBtn = document.getElementById('copy-invite-btn');
-                if (copyBtn) {
-                    copyBtn.addEventListener('click', function() {
-                        const inviteUrl = `${window.location.origin}/join/${group.inviteCode}`;
-                        navigator.clipboard.writeText(inviteUrl).then(() => {
-                            showNotification('Invitation link copied to clipboard!', 'success');
-                        });
-                    });
-                }
-            }
-            
-            // Update members list
-            if (groupMembersElement) {
-                groupMembersElement.innerHTML = '';
-                
-                // Convert members object to array
-                const members = Object.entries(group.members || {}).map(([id, data]) => {
-                    return { id, ...data };
-                });
-                
-                // Sort members by role (admin first) then by join date
-                members.sort((a, b) => {
-                    if (a.role === 'admin' && b.role !== 'admin') return -1;
-                    if (a.role !== 'admin' && b.role === 'admin') return 1;
-                    return (a.joinedAt?.seconds || 0) - (b.joinedAt?.seconds || 0);
-                });
-                
-                // Add each member to the list
-                members.forEach(member => {
-                    const memberItem = document.createElement('div');
-                    memberItem.className = 'list-group-item d-flex justify-content-between align-items-center';
-                    memberItem.setAttribute('data-user-id', member.id);
-                    
-                    // Format joined date
-                    const joinedDate = member.joinedAt ? new Date(member.joinedAt.seconds * 1000).toLocaleDateString() : 'Unknown';
-                    
-                    // Create content
-                    memberItem.innerHTML = `
-                        <div class="d-flex align-items-center">
-                            ${member.photoURL ? 
-                                `<img src="${escapeHtml(member.photoURL)}" class="rounded-circle me-2 member-avatar" width="40" height="40" alt="${escapeHtml(member.name)}">` : 
-                                `<div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2 member-avatar" style="width: 40px; height: 40px;">
-                                    <span>${member.name.charAt(0).toUpperCase()}</span>
-                                </div>`
-                            }
-                            <div>
-                                <div class="fw-bold member-name">${escapeHtml(member.name)}</div>
-                                <div class="small text-muted">
-                                    ${member.role === 'admin' ? '<span class="badge bg-danger me-1">Admin</span>' : ''}
-                                    Joined: ${joinedDate}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    
-                    // Add to list
-                    groupMembersElement.appendChild(memberItem);
-                });
-            }
-            
-            // Load group locations
-            loadGroupLocations(groupId);
-        })
-        .catch((error) => {
-            console.error('Error loading group details:', error);
-            if (loadingElement) {
-                loadingElement.style.display = 'none';
-            }
-            showNotification('Error loading group details: ' + error.message, 'danger');
-        });
 }
 
 // Helper function to get status color
@@ -1435,42 +1105,9 @@ function setupLocationForm(groupId, userId) {
     });
 }
 
-function loadVenueRecommendations(groupId) {
-    console.log('Loading venue recommendations for group:', groupId);
-    // TODO: Implement venue recommendations using Google Places API
-}
 
-function loadVenuesForVoting(groupId) {
-    if (!groupId) {
-        console.error('Missing group ID');
-        return;
-    }
-    
-    // Get current user ID
-    const userId = firebase.auth().currentUser?.uid;
-    if (!userId) {
-        console.error('User not authenticated');
-        return;
-    }
-    
-    // Initialize swipe interface
-    if (typeof initSwipeInterface === 'function') {
-        initSwipeInterface(groupId, userId);
-    } else {
-        console.error('Swipe interface not loaded');
-    }
-}
 
-function setupChatFunctionality(groupId, user) {
-    const form = document.getElementById('chat-form');
-    if (!form) return;
-    
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        console.log('Sending chat message from user:', user.displayName || user.email, 'in group:', groupId);
-        // TODO: Implement chat functionality using Firestore
-    });
-}
+
 
 // Login page specific functionality
 if (window.location.pathname === '/login') {

@@ -1,10 +1,12 @@
+
 {% extends "mobile_base.html" %}
 
-{% block title %}MidWhereAh - Find Your Midpoint{% endblock %}
+{% block title %}MidWhereAh - Groups{% endblock %}
 {% block mobile_js %}{% endblock %}
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/groups.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/group-creation.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -12,84 +14,67 @@
 <div class="groups-header">
   <h1>Groups</h1>
   <div class="search-container">
-    <input type="text" class="search-input" placeholder="Search">
+    <input type="text" class="search-input" placeholder="Search groups...">
     <i class="fas fa-search search-icon"></i>
   </div>
 </div>
 
-<!-- Groups List -->
+<!-- Groups List Container -->
 <div class="groups-container">
-  <div class="group-list">
-    <!-- Group Item 1 (Clickable) -->
-    <a href="/group_chat" class="group-item">
-      <div class="group-avatar">
-        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
-      </div>
-      <div class="group-details">
-        <h3 class="group-name">The Biceps</h3>
-        <p class="group-message">Joshua</p>
-        <p class="group-message-text">hey, let's meet up today!</p>
-      </div>
-    </a>
-    
-    <!-- Group Item 2 -->
-    <a href="/group_chat" class="group-item">
-      <div class="group-avatar">
-        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
-      </div>
-      <div class="group-details">
-        <h3 class="group-name">The Elbows</h3>
-        <p class="group-message">Kyeisour</p>
-        <p class="group-message-text">yesterday was so fun :D</p>
-      </div>
-    </a>
-    
-    <!-- Group Item 3 -->
-    <a href="/group_chat" class="group-item">
-      <div class="group-avatar">
-        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
-      </div>
-      <div class="group-details">
-        <h3 class="group-name">The Knees</h3>
-        <p class="group-message">Eliza</p>
-        <p class="group-message-text">HAHAHA check this</p>
-      </div>
-    </a>
-    
-    <!-- Group Item 4 -->
-    <a href="/group_chat" class="group-item">
-      <div class="group-avatar">
-        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
-      </div>
-      <div class="group-details">
-        <h3 class="group-name">The Eyelids</h3>
-        <p class="group-message">Leo</p>
-        <p class="group-message-text">omg so cool</p>
-      </div>
-    </a>
-    
-    <!-- Group Item 5 -->
-    <a href="/group_chat" class="group-item">
-      <div class="group-avatar">
-        <img src="{{ url_for('static', filename='images/group-placeholder.png') }}" alt="Group">
-      </div>
-      <div class="group-details">
-        <h3 class="group-name">The Shoulders</h3>
-        <p class="group-message">Jeremy</p>
-        <p class="group-message-text">WOW thats amazing!</p>
-      </div>
-    </a>
+  <div class="group-list" id="groupsList">
+    <!-- Groups will be loaded here dynamically -->
+    <!-- Loading state -->
+    <div class="loading-groups" id="loadingGroups">
+      <div class="loading-spinner"></div>
+      <p>Loading your groups...</p>
+    </div>
   </div>
 </div>
 
-<!-- Bottom Navigation is now in base template -->
+<!-- Create Group Button -->
+<button class="create-group-btn" onclick="showCreateGroupModal()" id="createGroupBtn">
+  <i class="fas fa-plus"></i>
+</button>
+
+<!-- Join Group Button -->
+<button class="join-group-btn" onclick="showJoinGroupModal()" id="joinGroupBtn">
+  <i class="fas fa-sign-in-alt"></i>
+</button>
+
+<!-- Create Group Modal (will be injected by JavaScript) -->
+<div id="createGroupModalContainer"></div>
+
+<!-- Join Group Modal -->
+<div class="modal-overlay hidden" id="joinGroupOverlay">
+  <div class="join-group-modal">
+    <div class="modal-header">
+      <h2>Join Group</h2>
+      <button class="close-btn" onclick="closeJoinGroupModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Enter Invite Code</label>
+        <input type="text" id="inviteCodeInput" placeholder="e.g., ABC123" 
+               maxlength="6" style="text-transform: uppercase;">
+        <small class="form-help">Ask a group member for the 6-character invite code</small>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="cancel-btn" onclick="closeJoinGroupModal()">Cancel</button>
+      <button class="join-btn" id="submitJoinGroup">Join Group</button>
+    </div>
+  </div>
+</div>
+
+<!-- Success/Error Messages -->
+<div class="toast-container" id="toastContainer"></div>
 {% endblock %}
 
 {% block scripts %}
-<!-- Load mobile.js and maps.js first -->
-<script src="{{ url_for('static', filename='js/maps.js') }}"></script>
-<script src="{{ url_for('static', filename='js/group.js') }}"></script>
-
-<!-- Load Google Maps API following official best practices -->
-
+<script src="{{ url_for('static', filename='js/mobile.js') }}"></script>
+<script src="{{ url_for('static', filename='js/group-creation.js') }}"></script>
+<script src="{{ url_for('static', filename='js/group-invitation.js') }}"></script>
+<!-- <script src="{{ url_for('static', filename='js/groups-enhanced.js') }}"></script> -->
 {% endblock %}

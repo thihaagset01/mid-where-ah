@@ -1,11 +1,12 @@
 {% extends "mobile_base.html" %}
 
-{% block title %}MidWhereAh - The Biceps{% endblock %}
+{% block title %}MidWhereAh - Group Chat{% endblock %}
 
 {% block head %}
 {{ super() }}
 <!-- Page specific CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/event-enhancements.css') }}">
 {% endblock %}
 
 {% block bottom_navigation %}{% endblock %}
@@ -18,18 +19,20 @@
   <a href="/groups" class="back-button">
     <i class="fas fa-chevron-left"></i>
   </a>
-  <div class="group-title">The Biceps</div>
+  <!-- DYNAMIC: Group title will be loaded by JavaScript -->
+  <div class="group-title" id="groupTitle">Loading...</div>
 </div>
 
 <!-- Group Avatar Row -->
 <div class="group-avatar-container">
-  <img src="{{ url_for('static', filename='images/group-bar-placeholder.png') }}" alt="Group Members" class="group-avatar-bar">
+  <img src="{{ url_for('static', filename='images/group-bar-placeholder.png') }}" alt="Group Members" class="group-avatar-bar" id="groupAvatar">
 </div>
 
 <!-- Chat Content -->
 <div class="chat-content">
-  <div class="creation-message">
-    Joshua created this Group "The Biceps"
+  <!-- DYNAMIC: Creation message will be loaded by JavaScript -->
+  <div class="creation-message" id="creationMessage">
+    Loading group information...
   </div>
   
   <!-- Event Card Container -->
@@ -90,9 +93,86 @@
   </div>
 </div>
 
+<!-- Hidden input to store group ID for JavaScript -->
+<input type="hidden" id="currentGroupId" value="{{ group_id }}">
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/group.js') }}"></script>
 <script src="{{ url_for('static', filename='js/group_chat.js') }}"></script>
+
+<!-- Group Data Loading Script -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get group ID from hidden input
+    const groupId = document.getElementById('currentGroupId').value;
+    console.log('Loading group chat for group ID:', groupId);
+    
+    if (!groupId) {
+        console.error('No group ID provided');
+        alert('No group specified. Redirecting to groups page.');
+        window.location.href = '/groups';
+        return;
+    }
+    
+    // Wait for Firebase to be ready
+    firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+            console.log('User authenticated, loading group data');
+            loadGroupData(groupId);
+            
+            // Initialize event manager if available
+            if (typeof initializeEventManager === 'function') {
+                initializeEventManager(groupId);
+            }
+        } else {
+            console.log('User not authenticated, redirecting to login');
+            window.location.href = '/login';
+        }
+    });
+});
+
+async function loadGroupData(groupId) {
+    try {
+        console.log('Loading data for group:', groupId);
+        
+        const db = firebase.firestore();
+        const groupDoc = await db.collection('groups').doc(groupId).get();
+        
+        if (!groupDoc.exists) {
+            console.error('Group not found');
+            alert('Group not found. Redirecting to groups page.');
+            window.location.href = '/groups';
+            return;
+        }
+        
+        const groupData = groupDoc.data();
+        console.log('Group data loaded:', groupData);
+        
+        // Update group title
+        const titleElement = document.getElementById('groupTitle');
+        if (titleElement) {
+            titleElement.textContent = groupData.name;
+        }
+        
+        // Update page title
+        document.title = `${groupData.name} - MidWhereAh`;
+        
+        // Update creation message
+        const creationElement = document.getElementById('creationMessage');
+        if (creationElement && groupData.createdBy) {
+            // Get creator's name from members
+            const creator = groupData.members[groupData.createdBy];
+            const creatorName = creator ? creator.name : 'Someone';
+            creationElement.textContent = `${creatorName} created this group "${groupData.name}"`;
+        }
+        
+        console.log('Group data loaded successfully');
+        
+    } catch (error) {
+        console.error('Error loading group data:', error);
+        alert('Error loading group data: ' + error.message);
+    }
+}
+</script>
 {% endblock %}
