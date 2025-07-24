@@ -1393,6 +1393,7 @@ function setupBottomNavigation() {
                     window.location.href = '/profile';
                     break;
                 case 'compass':
+                    window.location.href = '/home_yuan_test'; // <-- ADD THIS LINE
                     break;
                 case 'create':
                     showCreateGroupModal();

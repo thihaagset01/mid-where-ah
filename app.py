@@ -65,6 +65,13 @@ def index():
     print('activated')
     return render_template('mobile_home.html')
 
+@app.route('/home_yuan_test')
+def home_yuan_test():
+    """
+    Renders the test version of the home page.
+    """
+    return render_template('home_yuan_test.html')
+
 @app.route('/login')
 def login():
     return render_template('login.html')
