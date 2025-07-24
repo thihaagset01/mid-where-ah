@@ -88,7 +88,7 @@ function saveevent() {
                     <button class="event-card-nojoin" id="no-join">No Join</button>
                 </div>
                 <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
-                    <button class="event-card-join" style="width: 100%;" id = "view-map">View Map</button>
+                    <button onclick="window.location.href='/view_map'" class = event-card-join>View Map</button>
                 </div>
                 
             </div>
@@ -109,11 +109,44 @@ function saveevent() {
         if (joinbtn) {
             joinbtn.addEventListener("click", () => joinevent(eventname, formattedDate, eventtime, eventdescription));
         }
+
+        const nojoinbtn = document.getElementById("no-join");
+        if (nojoinbtn) {
+            nojoinbtn.addEventListener("click", () => nojoinevent(eventname, formattedDate, eventtime, eventdescription));
+        }
     }
 }
+function nojoinevent(eventname, formattedDate, eventtime, eventdescription) {
+    const eventcard = document.getElementById("eventcard");
+    const cardHTML = `
+            <div class="event-card">
+                <div class="event-card-header">Ono you will be missing ${eventname}!</div>
+                <div class="event-card-date">
+                    <div class="event-card-date-icon">
+                        <i class="far fa-calendar-alt"></i>
+                    </div>
+                    <div class="event-card-date-text">TODAY ${formattedDate} ${eventtime}</div>
+                </div>
+                <div class="event-card-description">${eventdescription}</div>
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                    <button class="event-card-join" id="view-attendance">View Attendance</button>
+                    <button class="event-card-join" id="join">Join</button>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                    <button onclick="window.location.href='/view_map'" class = event-card-join>View Map</button>
+                </div>
+            </div>`
+    eventcard.innerHTML = cardHTML;
+    eventcard.style.display = "block";
+    const eventcardcontainer = document.getElementById("eventcardcontainer");
+    eventcardcontainer.style.display = "flex";
 
+    const joinbtn = document.getElementById("join");
+        if (joinbtn) {
+            joinbtn.addEventListener("click", () => joinevent(eventname, formattedDate, eventtime, eventdescription));
+        }
+}
 function joinevent(eventname, formattedDate, eventtime, eventdescription) {
-    console.log("triggered")
     const eventcard = document.getElementById("eventcard");
     const cardHTML = `
             <div class="event-card">
@@ -126,16 +159,23 @@ function joinevent(eventname, formattedDate, eventtime, eventdescription) {
                 </div>
                 <div class="event-card-description">${eventdescription}</div>
                 <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
-                    <button class="event-card-join" id="join">Join</button>
+                    <button class="event-card-join" id="view-attendance">View Attendance</button>
                     <button class="event-card-nojoin" id="no-join">No Join</button>
                 </div>
-                
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                    <button onclick="window.location.href='/view_map'" class = event-card-join>View Map</button>
+                </div>
             </div>
     `
     eventcard.innerHTML = cardHTML;
     eventcard.style.display = "block";
     const eventcardcontainer = document.getElementById("eventcardcontainer");
     eventcardcontainer.style.display = "flex";
+
+    const nojoinbtn = document.getElementById("no-join");
+        if (nojoinbtn) {
+            nojoinbtn.addEventListener("click", () => nojoinevent(eventname, formattedDate, eventtime, eventdescription));
+        }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
