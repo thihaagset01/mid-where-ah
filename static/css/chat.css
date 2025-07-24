@@ -56,16 +56,19 @@ body {
 .eventcardcontainer {
   display: none;
   margin: 20px auto;
-  width: 90%;
+  width: 100%;
   max-width: 400px;
+  justify-content: center;
 }
 
 .event-card {
   background-color: white;
   border-radius: 20px;
   padding: 25px 20px;
+  padding-bottom: 10px;
   width: 100%;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  justify-content: center;
 }
 
 .event-card-header {
@@ -104,7 +107,7 @@ body {
   background-color: #f0e6ff;
   color: #8b5db8;
   border: none;
-  border-radius: 50px;
+  border-radius: 50%;
   font-size: 18px;
   font-weight: 600;
   width: 100%;
@@ -114,6 +117,22 @@ body {
 }
 
 .event-card-join:hover {
+  background-color: #e6d9ff;
+}
+
+.event-card-nojoin {
+  background-color: #b8b7ba;
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 600;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 15px;
+}
+.event-card-nojoin:hover {
   background-color: #e6d9ff;
 }
 
@@ -137,9 +156,9 @@ body {
 }
 
 .eventcardcontainer button {
-  width: 40px;
+  width: 45%;
   height: 40px;
-  border-radius: 50%;
+  border-radius: 10px;
   border: none;
   font-size: 16px;
   cursor: pointer;
