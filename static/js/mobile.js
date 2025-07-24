@@ -1,16 +1,9 @@
-// COMPLETELY CLEAN MOBILE.JS - Remove all duplicates and conflicts
 
-// Enhanced global variables for multiple locations
-window.userTransportModes = new Map();
-window.locationData = new Map();
-window.nextPersonId = 1;
-
-// Initialize arrays to prevent errors
 window.directionsRenderers = window.directionsRenderers || [];
-window.locationMarkers = window.locationMarkers || {};
+
 
 // Transport modes configuration
-const TRANSPORT_MODES = [
+window.TRANSPORT_MODES = window.TRANSPORT_MODES || [
     {
         mode: 'TRANSIT',
         icon: '<i class="fas fa-subway"></i>',
@@ -49,11 +42,11 @@ function cycleTransportMode(iconElement) {
     const currentMode = iconElement.getAttribute('data-current-mode');
     
     // Find current mode index
-    const currentIndex = TRANSPORT_MODES.findIndex(mode => mode.mode === currentMode);
+    const currentIndex = window.TRANSPORT_MODES.findIndex(mode => mode.mode === currentMode);
     
     // Get next mode (cycle back to 0 if at end)
-    const nextIndex = (currentIndex + 1) % TRANSPORT_MODES.length;
-    const nextMode = TRANSPORT_MODES[nextIndex];
+    const nextIndex = (currentIndex + 1) % window.TRANSPORT_MODES.length;
+    const nextMode = window.TRANSPORT_MODES[nextIndex];
     
     // Update the icon
     updateTransportIcon(iconElement, nextMode, person);
@@ -239,7 +232,8 @@ function showRoutesLegacy(midpoint, locationArray) {
     });
 }
 
-// CLEAN HybridLocationManager - single version with add person cooldown
+// CLEAN HybridLocationManager - DEPRECATED, replaced by LocationManager and LocationInput
+// This class is kept for reference but is no longer used
 class HybridLocationManager {
     constructor() {
         this.minLocations = 2;
@@ -401,8 +395,16 @@ class HybridLocationManager {
         // Initialize transport mode
         window.userTransportModes.set(inputId, 'TRANSIT');
         
-        // Update UI
-        this.updateUIState();
+        // Update UI state but don't position the button yet
+        this.updateUIState(false);
+        
+        // Position the add button after a consistent delay
+        // This matches the timing used in removeLocationInput
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                this.positionAddButton();
+            }, 100);
+        });
         
         console.log(`➕ Added location input for Person ${personId} (${inputId})`);
         
@@ -438,12 +440,23 @@ class HybridLocationManager {
         container.style.transform = 'translateX(-100%)';
         
         setTimeout(() => {
+            // Remove the container from DOM
             container.remove();
             
             // IMPORTANT: Resequence person IDs after removal
             this.resequencePersonIds();
             
+            // Update UI state which includes button visibility
             this.updateUIState();
+            
+            // Wait for a full animation frame plus a small buffer to ensure
+            // all DOM updates and layout calculations are complete
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    // Now position the add button when we're sure the DOM is stable
+                    this.positionAddButton();
+                }, 100);
+            });
         }, 300);
     }
 
@@ -505,7 +518,7 @@ class HybridLocationManager {
         return document.querySelectorAll('.location-input').length;
     }
 
-    updateUIState() {
+    updateUIState(positionButton = true) {
         const count = this.getLocationCount();
         const addBtn = document.getElementById('add-person-btn');
         const personCountSpan = document.getElementById('person-count');
@@ -528,8 +541,11 @@ class HybridLocationManager {
                 addBtn.title = 'Add person';
             }
             
-            // Position the button next to the last location container
-            this.positionAddButton();
+            // Position the button only if requested
+            // This allows us to control timing of positioning separately
+            if (positionButton) {
+                this.positionAddButton();
+            }
         }
         
         // Update remove buttons visibility
@@ -541,26 +557,44 @@ class HybridLocationManager {
         console.log(`📈 UI updated: ${count} people, next ID would be: ${this.personCounter + 1}`);
     }
     
-    // Position the add button next to the last location container
+    // Position the add button dynamically based on locations container
     positionAddButton() {
         const addBtn = document.getElementById('add-person-btn');
         if (!addBtn) return;
         
+        const locationsContainer = document.querySelector('.locations-container');
+        if (!locationsContainer) return;
+        
+        // Get the number of containers to determine the button position
         const containers = document.querySelectorAll('.location-container');
-        if (containers.length === 0) return;
+        const containerCount = containers.length;
         
-        // Get the last container
-        const lastContainer = containers[containers.length - 1];
+        // Calculate the base position of the button
+        // This is based on the locations container's position and dimensions
+        const locationsRect = locationsContainer.getBoundingClientRect();
         
-        // Position the button relative to the last container
-        const rect = lastContainer.getBoundingClientRect();
-        const parentRect = lastContainer.parentElement.getBoundingClientRect();
+        // Set position to fixed for consistent behavior
+        addBtn.style.position = 'fixed';
         
-        // Calculate position (right side of the last container)
-        addBtn.style.top = `${rect.top + rect.height/2 - parentRect.top}px`;
+        // Clear any previous bottom positioning
+        addBtn.style.bottom = '';
         
-        // Reset any previous positioning
-        addBtn.style.position = 'absolute';
+        // Simply use the bottom of the locations container plus an offset
+        // This is much more reliable as it accounts for all containers automatically
+        const buttonOffset = 20; // Space between container and button
+        
+        // Position directly below the container's bottom edge
+        const topPosition = locationsRect.bottom + buttonOffset;
+        
+        addBtn.style.top = `${topPosition}px`;
+        
+        // Center horizontally
+        addBtn.style.left = '90%';
+        addBtn.style.transform = 'translateX(-50%)';
+        addBtn.style.right = '';
+        
+        // Ensure the button has proper z-index
+        addBtn.style.zIndex = 'var(--z-content)';
     }
     
     // Show/hide remove buttons based on person count
@@ -912,10 +946,24 @@ processGeocodingResult(input, result) {
     
     // Get person color for marker
     const container = input.closest('.location-container');
-    const colorElement = container?.querySelector('.location-icon');
-    const personColor = colorElement?.getAttribute('data-person-color') || '#8B5DB8';
+    console.log('DEBUG: Container found:', container);
+    
+    // Fix: Use transport-icon instead of location-icon
+    const colorElement = container?.querySelector('.transport-icon');
+    console.log('DEBUG: Color element found:', colorElement);
+    
+    // Get color from the transport-icon or use a default
+    const personColor = this.getColorForInput(input.id);
+    console.log('DEBUG: Person color for marker:', personColor);
+    
+    // Check if map exists before adding marker
+    if (!window.midwhereahMap) {
+        console.error('DEBUG: Map object does not exist! Cannot add marker.');
+        return;
+    }
     
     // Add marker to map
+    console.log('DEBUG: Adding marker at position:', latLng.lat(), latLng.lng());
     addLocationMarker(latLng, input.id, personColor);
     
     console.log(`✅ Successfully geocoded ${input.id}: ${result.formatted_address}`);
@@ -1242,12 +1290,22 @@ generateLocationSuggestions(input) {
 
 // CLEAN Enhanced marker function
 function addLocationMarker(location, inputId, color = '#8B5DB8') {
+    console.log('DEBUG: addLocationMarker called for', inputId, 'with color', color);
+    
     if (!window.locationMarkers) {
+        console.log('DEBUG: Initializing locationMarkers object');
         window.locationMarkers = {};
     }
     
     if (window.locationMarkers[inputId]) {
+        console.log('DEBUG: Removing existing marker for', inputId);
         window.locationMarkers[inputId].setMap(null);
+    }
+
+    // Check if map exists
+    if (!window.midwhereahMap) {
+        console.error('DEBUG: Map object does not exist in addLocationMarker! Cannot add marker.');
+        return;
     }
 
     const markerIcon = {
@@ -1259,23 +1317,30 @@ function addLocationMarker(location, inputId, color = '#8B5DB8') {
         scale: 8
     };
 
-    const marker = new google.maps.Marker({
-        position: location,
-        map: window.midwhereahMap,
-        title: document.getElementById(inputId) ? document.getElementById(inputId).value : 'Location',
-        icon: markerIcon,
-        animation: google.maps.Animation.DROP
-    });
+    try {
+        console.log('DEBUG: Creating new marker for', inputId);
+        const marker = new google.maps.Marker({
+            position: location,
+            map: window.midwhereahMap,
+            title: document.getElementById(inputId) ? document.getElementById(inputId).value : 'Location',
+            icon: markerIcon,
+            animation: google.maps.Animation.DROP
+        });
 
-    window.locationMarkers[inputId] = marker;
+        window.locationMarkers[inputId] = marker;
+        console.log('DEBUG: Marker created and stored for', inputId);
 
-    if (window.midwhereahMap) {
-        window.midwhereahMap.panTo(location);
+        if (window.midwhereahMap) {
+            window.midwhereahMap.panTo(location);
+            console.log('DEBUG: Map panned to marker location');
+        }
+
+        setTimeout(() => {
+            calculateMidpointFromMarkers();
+        }, 100);
+    } catch (error) {
+        console.error('DEBUG: Error creating marker:', error);
     }
-
-    setTimeout(() => {
-        calculateMidpointFromMarkers();
-    }, 100);
 }
 
 // SINGLE calculateMidpoint function
@@ -2236,7 +2301,8 @@ function setupLocationInputs() {
         console.log('Hybrid location manager already initialized');
     } else {
         console.warn('HybridLocationManager not found! Creating new instance...');
-        window.hybridLocationManager = new HybridLocationManager();
+        // DEPRECATED: HybridLocationManager replaced with LocationManager
+        // window.hybridLocationManager = new HybridLocationManager();
         window.hybridLocationManager.initialize();
     }
 }
@@ -2244,12 +2310,9 @@ function setupLocationInputs() {
 function setupBottomNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
     const currentPath = window.location.pathname;
-    
-    // Set active state based on current path
     navItems.forEach(item => {
         const page = item.getAttribute('data-page');
         
-        // Mark the appropriate nav item as active based on current path
         if ((page === 'home' && (currentPath === '/' || currentPath === '/app' || currentPath === '/dashboard')) ||
             (page === 'groups' && currentPath === '/groups') ||
             (page === 'profile' && currentPath === '/profile')) {
@@ -2269,26 +2332,26 @@ function setupBottomNavigation() {
             const page = this.getAttribute('data-page');
             
             switch(page) {
-                case 'home':
-                    // Check if user is authenticated before redirecting
-                    if (firebase.auth().currentUser) {
-                        window.location.href = '/app';
-                    } else {
-                        window.location.href = '/login';
-                    }
-                    break;
-                case 'groups':
-                    window.location.href = '/groups';
-                    break;
-                case 'profile':
-                    window.location.href = '/profile';
-                    break;
-                case 'compass':
-                    // Not implemented yet
-                    break;
-                case 'create':
-                    showCreateGroupModal();
-                    break;
+            case 'home':
+                // Check if user is authenticated before redirecting
+                if (firebase.auth().currentUser) {
+                    window.location.href = '/app';
+                } else {
+                    window.location.href = '/login';
+                }
+                break;
+            case 'groups':
+                window.location.href = '/groups';
+                break;
+            case 'profile':
+                window.location.href = '/profile';
+                break;
+            case 'compass':
+                // Not implemented yet
+                break;
+            case 'create':
+                showCreateGroupModal();
+                break;
             }
         });
     });
@@ -2382,9 +2445,9 @@ function setupFindCentralButton() {
     findCentralBtn.addEventListener('click', async function() {
         console.log('🔥 Find central button clicked - Starting Enhanced Social Fairness Algorithm!');
         
-        // Get all location data from the hybrid manager
-        const allLocationData = window.hybridLocationManager ? 
-            window.hybridLocationManager.getAllLocationData() : [];
+        // Get all location data from the location manager
+        const allLocationData = window.locationManager ? 
+            window.locationManager.getAllLocationData() : [];
         
         if (allLocationData.length < 2) {
             showErrorNotification('Please enter at least 2 locations and wait for them to be processed');
@@ -2490,9 +2553,9 @@ function showRoutes() {
         return;
     }
     
-    // Get all location data using the hybrid manager
-    const allLocationData = window.hybridLocationManager ? 
-        window.hybridLocationManager.getAllLocationData() : [];
+    // Get all location data using the location manager
+    const allLocationData = window.locationManager ? 
+        window.locationManager.getAllLocationData() : [];
     
     if (allLocationData.length < 2) {
         console.warn('Not enough locations for route calculation');
@@ -2612,20 +2675,16 @@ document.addEventListener('DOMContentLoaded', function() {
     setupBottomNavigation();
     setupUserInfo();
     setupVenueCard();
-    setupTransportModeSelection();
-    setupTransportCycling();
 
-    // Initialize location manager
-    if (!window.hybridLocationManager) {
-        window.hybridLocationManager = new HybridLocationManager();
-    }
-    
-    setupLocationInputs();
-    
-    // Setup buttons with delay to ensure DOM is ready
-    setTimeout(() => {
+    // Initialize map first
+    initMap().then(() => {
+        // Initialize location manager after map is ready
+        if (!window.locationManager) {
+            window.locationManager = new LocationManager();
+        }
+        
+        // Setup find central button
         setupFindCentralButton();
-        setupAddPersonButton(); // Use the clean function
         
         // Verify find button
         const findBtn = document.getElementById('find-central-btn');
@@ -2634,9 +2693,11 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             console.log('❌ Find central button NOT found');
         }
-    }, 300);
-    console.log('✅ Transport mode cycling enabled');   
-    console.log('✅ MidWhereAh mobile interface initialized');
+        
+        console.log('✅ MidWhereAh mobile interface fully initialized');
+    }).catch(error => {
+        console.error('❌ Error initializing map:', error);
+    });
 });
 
 document.addEventListener('click', function(e) {
@@ -2653,7 +2714,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Initialize hybrid location manager
-window.hybridLocationManager = new HybridLocationManager();
-console.log('✅ HybridLocationManager initialized');
+// DEPRECATED: HybridLocationManager replaced with LocationManager
+// window.hybridLocationManager = new HybridLocationManager();
+console.log('✅ Using new LocationManager instead of HybridLocationManager');
 

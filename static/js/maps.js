@@ -15,18 +15,48 @@ let infoWindow = null;
 // Initialize the map when the page loads
 function initMap() {
     console.log('Initializing map...');
-    // Default center on Singapore
-    const singapore = { lat: 1.3521, lng: 103.8198 };
     
-    // Check if map container exists
-    const mapContainer = document.getElementById("map");
-    if (!mapContainer) {
-        console.error('Map container not found. Please check the HTML.');
-        return;
-    }
-    
-    // Create the map
-    try {
+    return new Promise((resolve, reject) => {
+        // Check if Google Maps is available
+        if (!window.google || !window.google.maps) {
+            console.log('Google Maps not yet loaded, waiting...');
+            
+            // Wait for Google Maps to load (max 10 seconds)
+            let attempts = 0;
+            const checkGoogleMaps = setInterval(() => {
+                attempts++;
+                if (window.google && window.google.maps) {
+                    clearInterval(checkGoogleMaps);
+                    console.log('Google Maps loaded successfully after waiting');
+                    initializeMap().then(resolve).catch(reject);
+                } else if (attempts >= 20) { // 10 seconds (500ms * 20)
+                    clearInterval(checkGoogleMaps);
+                    reject(new Error('Google Maps failed to load after 10 seconds'));
+                }
+            }, 500);
+            return;
+        }
+        
+        // Google Maps already available, initialize directly
+        initializeMap().then(resolve).catch(reject);
+    });
+}
+
+// Actual map initialization function
+function initializeMap() {
+    return new Promise((resolve, reject) => {
+        // Default center on Singapore
+        const singapore = { lat: 1.3521, lng: 103.8198 };
+        
+        // Check if map container exists
+        const mapContainer = document.getElementById("map");
+        if (!mapContainer) {
+            reject(new Error('Map container not found. Please check the HTML.'));
+            return;
+        }
+        
+        // Create the map
+        try {
         map = new google.maps.Map(mapContainer, {
         center: singapore,
         zoom: 12,
@@ -69,10 +99,16 @@ function initMap() {
     } else if (path.startsWith('/venues/')) {
         initializeVenuesMap();
     }
+    
+    // Make map available globally
+    window.midwhereahMap = map;
+    
+    // Resolve the promise
+    resolve(map);
     } catch (error) {
         console.error('Error initializing Google Maps:', error);
-        // Don't retry - the callback approach should handle this properly
-    }
+        reject(error);
+    }});
 }
 
 // Calculate the midpoint between multiple locations

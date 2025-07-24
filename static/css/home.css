@@ -23,8 +23,7 @@ body {
   width: 90%;
   max-width: 400px;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(10px);
   border-radius: 16px;
   padding: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
@@ -119,11 +118,11 @@ body {
 
 /* Add Person Button */
 .add-person-circle {
-  position: fixed;
+  /* position: fixed;
   bottom: 140px;
   right: 20px;
   width: 56px;
-  height: 56px;
+  height: 56px; */
   border-radius: 50%;
   background: #8B5DB8;
   border: none;
@@ -184,6 +183,31 @@ body {
 
 .find-central-btn i {
   font-size: 14px;
+}
+
+/* REMOVE BUTTON - Subtle */
+.remove-person-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: #f0f0f0;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.location-container:hover .remove-person-btn {
+  opacity: 1;
+}
+
+.remove-person-btn:hover {
+  background: #ff4444;
+  color: white;
 }
 
 /* Tooltip Styles for transport icons */
@@ -270,9 +294,6 @@ body {
     top: 16px;
   }
   
-  body:has(.group-header-container) .locations-container {
-    top: 80px;
-  }
   
   .add-person-circle {
     bottom: 120px;
@@ -292,16 +313,7 @@ body {
 
 }
 
-@media (max-width: 600px) {
-  .group-logo img {
-    height: 30px;
-  }
 
-  .group-text span {
-    font-size: 16px;
-    margin-left: 8px;
-  }
-}
 
 @media (max-width: 480px) {
   .locations-container {
@@ -333,13 +345,13 @@ body {
     font-size: 12px;
   }
   
-  .add-person-circle {
+  /* .add-person-circle {
     width: 44px;
     height: 44px;
     font-size: 16px;
     bottom: 110px;
     right: 12px;
-  }
+  } */
   
   .find-central-btn {
     width: 160px;

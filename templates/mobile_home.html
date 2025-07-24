@@ -19,7 +19,7 @@
            data-person="1" 
            data-current-mode="TRANSIT"
            data-tooltip="Public Transport">
-          <i class="fas fa-map-marker-alt"></i>
+          <i class="fas fa-subway"></i>
       </div>
       
       <input type="text" 
@@ -35,7 +35,7 @@
            data-person="2" 
            data-current-mode="TRANSIT"
            data-tooltip="Public Transport">
-          <i class="fas fa-users"></i>
+          <i class="fas fa-subway"></i>
       </div>
       
       <input type="text" 
@@ -61,6 +61,9 @@
 {% block scripts %}
 <!-- Load JavaScript (order matters) -->
 <script src="{{ url_for('static', filename='js/maps.js') }}"></script>
+<script src="{{ url_for('static', filename='js/SingaporeGeocoder.js') }}"></script>
+<script src="{{ url_for('static', filename='js/LocationInput.js') }}"></script>
+<script src="{{ url_for('static', filename='js/LocationManager.js') }}"></script>
 <script src="{{ url_for('static', filename='js/mobile.js') }}"></script>
 
 <!-- Stylized autofill script (must be loaded after mobile.js) -->
