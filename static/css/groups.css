@@ -1,22 +1,16 @@
 /* GROUPS PAGE SPECIFIC CSS */
 
-body {
+/* groups.css - Groups page only */
+body { 
   background: linear-gradient(to bottom, #f8f2ff, #e9dcff);
   min-height: 100vh;
+  overflow-y: auto;
 }
 
-/* Header Styles */
 .groups-header {
   padding: 20px 16px 10px;
-  background: transparent;
 }
 
-.groups-header h1 {
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0 0 16px 0;
-  color: #333;
-}
 
 .search-container {
   position: relative;

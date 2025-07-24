@@ -96,11 +96,6 @@ def home():
                          group_code=group_code, 
                          user_name=user_name)
 
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    """Dashboard - redirect to mobile interface for now"""
-    return redirect(url_for('home'))
 
 # Auth blueprint routes
 @auth_bp.route('/login')

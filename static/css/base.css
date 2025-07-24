@@ -1,0 +1,28 @@
+/* base.css - Variables & Reset Only */
+:root {
+    --primary-color: #8B5DB8;
+    --secondary-color: #6A4A8C;
+    --light-color: #F8F9FA;
+    --dark-color: #343A40;
+    --success-color: #28A745;
+    --warning-color: #FFC107;
+    --danger-color: #DC3545;
+    --header-height: 60px;
+    --nav-height: 80px;
+    --border-radius: 8px;
+    --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--dark-color);
+    line-height: 1.5;
+  }
+  
+  .hidden { display: none !important; }

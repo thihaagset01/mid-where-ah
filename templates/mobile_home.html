@@ -4,37 +4,22 @@
 
 {% block head %}
 {{ super() }}
-<!-- Page specific CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/autofill.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
 {% endblock %}
 
 {% block content %}
 <!-- Full-screen map -->
 <div id="map"></div>
 
-<!-- Fixed Location Input Header -->
-<div class="group-header-container">
-  <div class="group-logo">
-    <a href="javascript:void(0)" onclick="handleLogoClick()">
-        <img src="static/images/logo.png" alt="Logo" />
-    </a>
-  </div>
-  <div class="group-text">
-    <span>MidWhereAh</span>
-  </div>
-</div>
 
-<!-- Redesigned location inputs container -->
 <div class="locations-container">
-  <!-- Location 1 - SIMPLIFIED STRUCTURE -->
+  <!-- Location 1 -->
   <div class="location-container" data-person-id="1">
-      <!-- Transport icon with more obvious icon -->
       <div class="transport-icon transit" 
            data-person="1" 
            data-current-mode="TRANSIT"
            data-tooltip="Public Transport">
-          <i class="fas fa-subway"></i>
+          <i class="fas fa-map-marker-alt"></i>
       </div>
       
       <input type="text" 
@@ -42,20 +27,15 @@
              class="location-input" 
              placeholder="Address 1" 
              autocomplete="off">
-      
-      <button class="remove-person-btn"title="Remove Person">
-          <i class="fas fa-times"></i>
-      </button>
   </div>
     
-  <!-- Location 2 - SIMPLIFIED STRUCTURE -->
+  <!-- Location 2 -->
   <div class="location-container" data-person-id="2">
-      <!-- Transport icon with more obvious icon -->
       <div class="transport-icon transit" 
            data-person="2" 
            data-current-mode="TRANSIT"
            data-tooltip="Public Transport">
-          <i class="fas fa-subway"></i>
+          <i class="fas fa-users"></i>
       </div>
       
       <input type="text" 
@@ -63,24 +43,19 @@
              class="location-input" 
              placeholder="Address 2" 
              autocomplete="off">
-      
-      <button class="remove-person-btn" title="Remove Person">
-          <i class="fas fa-times"></i>
-      </button>
   </div>
-  
-  <!-- Floating Add Person Button -->
-  <button id="add-person-btn" class="add-person-circle">
-      <i class="fas fa-plus"></i>
-  </button>
 </div>
+
+<!-- Floating Add Person Button -->
+<button id="add-person-btn" class="add-person-circle">
+  <i class="fas fa-plus"></i>
+</button>
 
 <!-- Find Central Button -->
 <div class="find-central-btn" id="find-central-btn">
   <i class="fas fa-location-arrow"></i>
 </div>
 
-<!-- Bottom Navigation is now in base template -->
 {% endblock %}
 
 {% block scripts %}
