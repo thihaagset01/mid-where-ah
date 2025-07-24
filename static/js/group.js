@@ -37,5 +37,3 @@ function closeCreateGroupModal(event) {
         document.removeEventListener('click', closeCreateGroupModal);
     }
 }
-// Navigation is now initialized in the base template
-// No need for additional initialization here

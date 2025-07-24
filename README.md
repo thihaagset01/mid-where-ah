@@ -4,52 +4,75 @@ A mobile-first web application for coordinating meetups in Singapore. MidWhereAh
 
 ## Features
 
-- **User Authentication**: Sign up/login with email or Google using Firebase Auth
-- **Group Management**: Create meetup groups and invite friends via email/link
+- **User Authentication**: Secure sign up/login with email using Firebase Auth
+- **User Profiles**: Personalized profiles with default location and transport preferences
+- **Group Management**: Create meetup groups and invite friends
 - **Location Input**: Current location detection or manual address input with Google Places autocomplete
 - **Venue Recommendation**: Calculate midpoint between group members and find suitable venues
-- **Group Decision Making**: Swipe interface for venue selection with real-time voting
-- **Mobile-First UI**: Responsive design optimized for mobile with PWA capabilities
+- **Mobile-First UI**: Responsive design optimized for mobile devices
 - **Multiple Location Inputs**: Add multiple starting locations to calculate the fairest midpoint
 - **Interactive Map Interface**: Full-screen map with floating UI elements for better mobile experience
+- **Real-time Chat**: Group messaging for coordinating meetups
 
 ## Tech Stack
 
-- **Backend**: Flask (Python)
-- **Frontend**: HTML/CSS with Twitter Bootstrap 5
+- **Backend**: Flask (Python 3.8+)
+- **Frontend**: HTML/CSS/JavaScript with Bootstrap 5
 - **Database**: Firebase Firestore
-- **Authentication**: Firebase Auth
+- **Authentication**: Firebase Authentication with backend token verification
 - **APIs**: Google Maps JavaScript API, Google Places API
+- **Deployment**: Ready for deployment with Gunicorn
 
 ## Project Structure
 
 ```
 midwhereah/
-├── app.py                 # Flask main application
-├── requirements.txt       # Python dependencies
-├── config.py              # Configuration settings
-├── static/                # Static assets
+├── app.py                    # Flask main application
+├── config.py                 # Configuration settings
+├── firebase_admin_config.py  # Firebase Admin SDK configuration
+├── firestore.rules           # Firestore security rules
+├── firestore-schema.md       # Database schema documentation
+├── requirements.txt          # Python dependencies
+├── .env                      # Environment variables (gitignored)
+├── service-account.json      # Firebase service account (gitignored)
+├── static/                   # Static assets
 │   ├── css/
-│   │   ├── style.css      # Custom styles
-│   │   ├── mobile.css     # Mobile-specific styles
-│   │   └── venue-cards.css # Venue card component styles
+│   │   ├── auth.css          # Authentication styles
+│   │   ├── base.css          # Base styles
+│   │   ├── chat.css          # Chat interface styles
+│   │   ├── components.css    # Reusable component styles
+│   │   ├── groups.css        # Group management styles
+│   │   ├── home.css          # Home page styles
+│   │   ├── profile.css       # User profile styles
+│   │   ├── venue-cards.css   # Venue card styles
+│   │   └── view_map.css      # Map view styles
 │   ├── js/
-│   │   ├── app.js         # Main JavaScript
-│   │   ├── maps.js        # Google Maps integration
-│   │   ├── mobile.js      # Mobile UI functionality
-│   │   └── firebase-config.js  # Firebase configuration
-│   ├── images/            # App icons and images
-│   ├── manifest.json      # PWA manifest
-│   └── service-worker.js  # PWA service worker
-└── templates/             # HTML templates
-    ├── base.html          # Base template with common elements
-    ├── index.html         # Landing page
-    ├── login.html         # Authentication page
-    ├── dashboard.html     # User dashboard
-    ├── group.html         # Group management
-    ├── venues.html        # Venue recommendations
-    ├── swipe.html         # Venue voting interface
-    └── mobile_home.html    # Mobile-optimized home with map interface
+│   │   ├── app.js            # Main application logic
+│   │   ├── LocationInput.js   # Location input component
+│   │   ├── LocationManager.js # Location management
+│   │   ├── SingaporeGeocoder.js # Singapore-specific geocoding
+│   │   ├── autofill.js       # Address autofill functionality
+│   │   ├── error-handler.js  # Error handling utilities
+│   │   ├── firebase-config.js # Firebase client configuration
+│   │   ├── group.js          # Group management logic
+│   │   ├── group_chat.js     # Group chat functionality
+│   │   ├── maps.js           # Google Maps integration
+│   │   ├── mobile.js         # Mobile-specific functionality
+│   │   ├── modal.js          # Modal dialog functionality
+│   │   ├── profile.js        # User profile management
+│   │   ├── results.js        # Results display logic
+│   │   └── swipe.js          # Venue selection interface
+│   ├── images/               # App icons and images
+│   ├── manifest.json         # PWA manifest
+│   └── service-worker.js     # PWA service worker
+└── templates/                # HTML templates
+    ├── group.html            # Group management page
+    ├── group_chat.html       # Group chat interface
+    ├── landing.html          # Landing/welcome page
+    ├── login.html            # Authentication page
+    ├── mobile_base.html      # Base template for mobile views
+    ├── mobile_home.html      # Mobile home with map interface
+    └── profile.html          # User profile page
 ```
 
 ## Setup Instructions
@@ -79,23 +102,122 @@ midwhereah/
    pip install -r requirements.txt
    ```
 
-4. Set up environment variables securely:
-   - Copy `.env.example` to `.env` (`.env` is in `.gitignore` to prevent accidental commits)
-   - Fill in your Google Maps API key and Firebase configuration in the `.env` file
-   - **IMPORTANT:** Never commit your actual API keys or secrets to version control
-   - If you need to rotate credentials due to exposure, see the "Security" section below
+4. Set up environment variables:
+   - Create a `.env` file in the project root (this file is in `.gitignore` to prevent accidental commits)
+   - Add the following environment variables:
+   ```
+   # Flask configuration
+   FLASK_APP=app.py
+   FLASK_ENV=development
+   DEVELOPMENT_MODE=true  # Set to false in production
+   SECRET_KEY=your_secure_random_key
+   
+   # Google Maps API
+   GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+   
+   # Firebase configuration
+   FIREBASE_API_KEY=your_firebase_api_key
+   FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+   FIREBASE_PROJECT_ID=your-project-id
+   FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+   FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+   FIREBASE_APP_ID=your_app_id
+   FIREBASE_MEASUREMENT_ID=your_measurement_id
+   
+   # Firebase Admin SDK (choose one method)
+   # Option 1: Path to service account JSON file
+   FIREBASE_SERVICE_ACCOUNT_PATH=service-account.json
+   # Option 2: Service account JSON as environment variable
+   # FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"...","private_key_id":"...","private_key":"...","client_email":"...","client_id":"...","auth_uri":"...","token_uri":"...","auth_provider_x509_cert_url":"...","client_x509_cert_url":"..."}
+   ```
 
-5. Run the application:
+5. Set up Firebase service account for backend authentication:
+   - Go to the Firebase Console > Project Settings > Service accounts
+   - Click "Generate new private key"
+   - Save the JSON file as `service-account.json` in the project root
+   - This file is automatically added to `.gitignore` to prevent committing secrets
+
+6. Run the application:
    ```
    python app.py
    ```
 
-6. Open your browser and navigate to `http://localhost:5000`
+7. Open your browser and navigate to `http://localhost:5000`
 
 ## Firebase Setup
 
 1. Create a new Firebase project at [firebase.google.com](https://firebase.google.com)
-2. Enable Authentication with Email/Password and Google sign-in methods
+2. Enable Authentication with Email/Password sign-in method
+3. Set up Firestore Database and configure security rules
+4. Create a Firebase service account for backend authentication:
+   - Go to Project Settings > Service accounts
+   - Click "Generate new private key"
+   - Save the JSON file as `service-account.json` in your project root
+   - This file is automatically added to `.gitignore` to prevent committing secrets
+
+### Firebase Authentication
+
+The application uses Firebase Authentication for user management:
+
+- Frontend authentication is handled by the Firebase JS SDK
+- Backend authentication uses Firebase Admin SDK to verify ID tokens
+- For development, set `DEVELOPMENT_MODE=true` to bypass token verification
+- For production, ensure you have proper Firebase Admin credentials configured
+
+### Firestore Security Rules
+
+The application requires the following Firestore security rules:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow users to read and write their own documents
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow users to read and write to groups they belong to
+    match /groups/{groupId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow users to read and write to venues
+    match /venues/{venueId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+  }
+}
+```
+
+## Authentication Flow
+
+MidWhereAh implements a secure authentication flow:
+
+1. **Frontend Authentication**: Users sign up or log in using Firebase Authentication
+2. **Token Generation**: After successful authentication, Firebase generates an ID token
+3. **Token Storage**: The ID token is stored in an HTTP-only cookie for security
+4. **Backend Verification**: Protected routes verify the token using Firebase Admin SDK
+5. **Session Management**: Flask session stores user information after token verification
+
+### Development Mode
+
+For easier local development, the application includes a development mode:
+
+- Set `DEVELOPMENT_MODE=true` in your `.env` file
+- In this mode, token verification is bypassed using PyJWT
+- A mock user is provided when authentication would normally fail
+- This allows testing without Firebase Admin SDK credentials
+
+### Protected Routes
+
+The following routes require authentication:
+
+- `/profile` - User profile management
+- `/group` - Group management
+- Any other sensitive routes
 
 ## Security
 
@@ -104,36 +226,66 @@ midwhereah/
 This project uses environment variables to manage sensitive credentials. Follow these best practices:
 
 1. **Never commit secrets to version control**
-   - The `.env` file is listed in `.gitignore` to prevent accidental commits
-   - Only commit `.env.example` with placeholder values
 
-2. **Properly manage your .env file**
-   - Keep your `.env` file secure and restricted to only those who need access
-   - Use different environment variables for development and production
+3. **Credential Rotation**
+   - If credentials are compromised, rotate them immediately in the Firebase Console
+   - Update your `.env` file and `service-account.json` with new credentials
+   - For Google Maps API keys, rotate them in the Google Cloud Console
 
-3. **Rotate credentials regularly**
-   - Change API keys and secrets periodically as a security best practice
-   - Always rotate credentials immediately if they are accidentally exposed
+### Deployment Security
 
-### If Credentials Are Exposed
+1. **Production Configuration**
+   - Set `DEVELOPMENT_MODE=false` or remove it entirely in production
+   - Ensure proper Firebase Admin SDK credentials are configured
+   - Use HTTPS for all production deployments
 
-If you accidentally expose credentials (e.g., commit them to a public repository):
+2. **Environment Separation**
+   - Consider using separate Firebase projects for development and production
+   - This prevents development testing from affecting production data
 
-1. **Rotate all exposed credentials immediately**
-   - Firebase: Go to Firebase Console > Project Settings > Web App > Regenerate keys
-   - Google Maps: Go to Google Cloud Console > APIs & Services > Credentials > Regenerate key
-   - Flask Secret Key: Generate a new random secret key
+3. **Regular Updates**
+   - Keep dependencies updated to patch security vulnerabilities
+   - Run `pip list --outdated` regularly to check for updates
 
-2. **Clean Git history**
-   - Use tools like BFG Repo-Cleaner or git-filter-branch to remove secrets from history
-   - Force push the cleaned repository
+## Deployment
 
-3. **Monitor for unusual activity**
-   - Check Firebase usage logs for unexpected activity
-   - Set up billing alerts to catch potential abuse
-3. Create a Firestore database in production mode
-4. Add your web app to the Firebase project and copy the configuration
-5. Update the Firebase configuration in `.env` or directly in `static/js/firebase-config.js`
+MidWhereAh is ready for deployment with Gunicorn:
+
+```bash
+gunicorn app:app
+```
+
+For production deployment, consider using a process manager like Supervisor or systemd to ensure the application stays running.
+
+### Environment Configuration
+
+For production, set these environment variables:
+
+```
+FLASK_ENV=production
+DEVELOPMENT_MODE=false
+```
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Commit your changes: `git commit -m 'Add some feature'`
+4. Push to the branch: `git push origin feature-name`
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgements
+
+- Google Maps API for location services
+- Firebase for authentication and database
+- Flask community for the excellent web framework
+- Bootstrap team for the responsive UI components
 
 ## Google Maps API Setup
 

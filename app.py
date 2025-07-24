@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, Blueprint
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, Blueprint, g
 from flask_cors import CORS
 import os
 import json
@@ -62,12 +62,66 @@ def inject_config():
         google_maps_api_key=os.environ.get('GOOGLE_MAPS_API_KEY')
     )
 
+# Import Firebase admin config
+from firebase_admin_config import verify_firebase_token
+from functools import wraps
+
 # Authentication decorator
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # In a real app, you would check session or Firebase auth status here
-        # For now, we'll just pass through since client-side auth is handling this
+        # Get the ID token from the request
+        id_token = None
+        
+        # Check if token is in the Authorization header
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            id_token = auth_header.split('Bearer ')[1]
+            print(f"Found token in Authorization header")
+        
+        # Check if token is in the session
+        if not id_token and 'id_token' in session:
+            id_token = session['id_token']
+            print(f"Found token in session")
+            
+        # Check if token is in a cookie
+        if not id_token:
+            id_token = request.cookies.get('id_token')
+            if id_token:
+                print(f"Found token in cookie")
+                # Store in session for future requests
+                session['id_token'] = id_token
+        
+        if not id_token:
+            # No token found, redirect to login
+            print(f"No token found, redirecting to login")
+            return redirect(url_for('auth.login'))
+        
+        try:
+            # Verify the token
+            print(f"Attempting to verify token...")
+            decoded_token = verify_firebase_token(id_token)
+            print(f"Token verified successfully for user: {decoded_token.get('email', 'unknown')}")
+            
+            # Store user info in g for access in the route
+            g.user = decoded_token
+            
+            # Store verified token in session
+            session['id_token'] = id_token
+            session['user_email'] = decoded_token.get('email')
+            
+            # Call the protected view
+            return f(*args, **kwargs)
+        except Exception as e:
+            print(f"Token verification failed: {e}")
+            # Clear any invalid tokens
+            if 'id_token' in session:
+                print(f"Clearing invalid token from session")
+                session.pop('id_token', None)
+            
+            # Token verification failed, redirect to login
+            return redirect(url_for('auth.login'))
+        
         return f(*args, **kwargs)
     return decorated_function
 
@@ -107,9 +161,14 @@ def login():
 @auth_bp.route('/logout')
 def logout():
     """Logout and redirect to login page"""
-    # Clear session if you're using it
+    # Clear session
     session.clear()
-    return redirect(url_for('index'))
+    
+    # Clear auth cookies
+    response = redirect(url_for('index'))
+    response.delete_cookie('id_token')
+    
+    return response
 
 # Mobile blueprint routes
 @mobile_bp.route('/groups')
@@ -162,12 +221,24 @@ def quick_start():
 @login_required
 def user_api():
     """User API endpoint"""
+    # Get user info from the token (stored in g.user by login_required decorator)
+    user_info = g.user
+    
+    # Store user email in session for easier access
+    if user_info and 'email' in user_info:
+        session['user_email'] = user_info['email']
+        print(f"User API: Set session for {user_info['email']}")
+    
     if request.method == 'POST':
         # Handle user creation/update
         return jsonify({"status": "success"})
     else:
-        # Return user data
-        return jsonify({"status": "success", "data": {}})
+        # Return user data from the token
+        return jsonify({
+            "status": "success", 
+            "authenticated": True,
+            "user": user_info
+        })
 
 @api_bp.route('/group', methods=['GET', 'POST'])
 @login_required

@@ -3,6 +3,13 @@
 // Global variables
 let currentUser = null;
 
+// Utility function to set authentication cookie
+function setAuthCookie(name, value, days = 7) {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
+}
+
 // Initialize the application when the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Firebase from the config
@@ -37,6 +44,11 @@ function setupAuthObserver() {
             // Check if user is new
             const isNewUser = result.additionalUserInfo && result.additionalUserInfo.isNewUser;
             
+            // Get the ID token and store it in a cookie for server-side auth
+            result.user.getIdToken().then(function(idToken) {
+                setAuthCookie('id_token', idToken);
+            });
+            
             if (isNewUser) {
                 // Create user document in Firestore
                 return firebase.firestore().collection('users').doc(result.user.uid).set({
@@ -54,10 +66,9 @@ function setupAuthObserver() {
                 });
             } else {
                 showNotification('Login successful!', 'success');
-                // Force redirect to dashboard
-                console.log('Redirecting existing user to dashboard');
+                // Redirect to app
+                console.log('Redirecting existing user to app');
                 setTimeout(() => {
-                    // Redirect to app instead of dashboard for better user experience
                     window.location.replace('/app');
                 }, 500); // Small delay to ensure notification is shown
             }
@@ -73,7 +84,6 @@ function setupAuthObserver() {
 
     // Define protected paths globally for consistency
     const protectedPaths = [
-        '/dashboard',
         '/map',
         '/app',
         '/mobile_interface',
@@ -91,22 +101,48 @@ function setupAuthObserver() {
         
         if (user) {
             // User is signed in
+            console.log('User is signed in:', user.email);
             currentUser = user;
+            
+            // Get and store the ID token for server-side auth
+            user.getIdToken().then(function(idToken) {
+                setAuthCookie('id_token', idToken);
+                console.log('ID token stored in cookie for server authentication');
+                
+                // Force a server request to sync the token with the backend session
+                fetch('/api/user', {
+                    headers: {
+                        'Authorization': 'Bearer ' + idToken
+                    }
+                }).then(response => {
+                    console.log('Backend session synced with token');
+                }).catch(error => {
+                    console.error('Error syncing backend session:', error);
+                });
+            });
+            
+            // Set up token refresh
+            setInterval(() => {
+                user.getIdToken(true).then(function(refreshedToken) {
+                    setAuthCookie('id_token', refreshedToken);
+                    console.log('ID token refreshed');
+                }).catch(function(error) {
+                    console.error('Error refreshing token:', error);
+                });
+            }, 30 * 60 * 1000); // Refresh every 30 minutes
             
             // Update UI for authenticated user
             updateUIForAuthenticatedUser(user);
             
-            // Handle page-specific authenticated user actions
+            // Handle page-specific actions for authenticated users
             handleAuthenticatedUserActions(user);
-            
-            // If we're on the login page or root page, redirect to app (mobile interface)
-            if (currentPath === '/login' || currentPath === '/') {
-                console.log('User is authenticated on login/home page, redirecting to app');
-                window.location.replace('/app');
-            }
         } else {
             // User is signed out
+            console.log('User is signed out');
             currentUser = null;
+            
+            // Clear the auth cookie
+            setAuthCookie('id_token', '', -1); // Expire the cookie
             
             // Update UI for unauthenticated user
             updateUIForUnauthenticatedUser();
@@ -123,10 +159,9 @@ function setupAuthObserver() {
 
 // Update UI elements for authenticated user
 function updateUIForAuthenticatedUser(user) {
-    // Show logout and dashboard links, hide login link
-    document.getElementById('login-nav')?.style.setProperty('display', 'none');
+    // Show logout link, hide login link
     document.getElementById('logout-nav')?.style.setProperty('display', 'block');
-    document.getElementById('dashboard-nav')?.style.setProperty('display', 'block');
+    document.getElementById('login-nav')?.style.setProperty('display', 'none');
     
     // Update user name if element exists
     const userNameElement = document.getElementById('user-name');
@@ -137,10 +172,9 @@ function updateUIForAuthenticatedUser(user) {
 
 // Update UI elements for unauthenticated user
 function updateUIForUnauthenticatedUser() {
-    // Show login link, hide logout and dashboard links
+    // Show login link, hide logout link
     document.getElementById('login-nav')?.style.setProperty('display', 'block');
     document.getElementById('logout-nav')?.style.setProperty('display', 'none');
-    document.getElementById('dashboard-nav')?.style.setProperty('display', 'none');
 }
 
 // Set up logout functionality
@@ -151,12 +185,14 @@ function setupLogout() {
             e.preventDefault();
             firebase.auth().signOut().then(function() {
                 // Sign-out successful
-                showNotification('You have been logged out successfully', 'success');
-                window.location.href = '/login';
+                console.log('Logout successful, redirecting to login page');
+                // Force redirect to login page
+                setTimeout(function() {
+                    window.location.replace('/login');
+                }, 500);
             }).catch(function(error) {
                 // An error happened
                 console.error('Logout error:', error);
-                showNotification('Error logging out. Please try again.', 'danger');
             });
         });
     }
@@ -202,13 +238,13 @@ function handleAuthenticatedUserActions(user) {
     
     // Login page
     if (path === '/login') {
-        // Redirect to dashboard if already logged in
-        window.location.href = '/dashboard';
+        // Redirect to app if already logged in
+        window.location.href = '/app';
         return;
     }
     
-    // Dashboard page
-    if (path === '/dashboard') {
+    // App page
+    if (path === '/app') {
         loadUserGroups(user.uid);
         setupCreateGroupForm(user);
     }
@@ -1459,8 +1495,29 @@ function setupLoginForm() {
         firebase.auth().signInWithEmailAndPassword(email, password)
             .then((userCredential) => {
                 // Signed in
+                const user = userCredential.user;
+                
+                // Get the token and set it before redirecting
+                return user.getIdToken().then(function(idToken) {
+                    // Set the token in a cookie
+                    setAuthCookie('id_token', idToken);
+                    console.log('ID token stored in cookie for server authentication');
+                    
+                    // Make a request to the server to establish the session
+                    return fetch('/api/user', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': 'Bearer ' + idToken
+                        }
+                    });
+                });
+            })
+            .then(() => {
                 showNotification('Login successful!', 'success');
-                window.location.href = '/dashboard';
+                // Add a small delay to ensure the cookie is set before redirecting
+                setTimeout(() => {
+                    window.location.href = '/app';
+                }, 500);
             })
             .catch((error) => {
                 console.error('Login error:', error);
@@ -1480,6 +1537,9 @@ function setupSignupForm() {
         const email = document.getElementById('signup-email').value;
         const password = document.getElementById('signup-password').value;
         const confirmPassword = document.getElementById('signup-confirm-password').value;
+        const username = document.getElementById('signup-username').value;
+        const defaultAddress = document.getElementById('signup-address').value;
+        const defaultTransportMode = document.getElementById('signup-transport-mode').value;
         
         // Validate passwords match
         if (password !== confirmPassword) {
@@ -1491,22 +1551,47 @@ function setupSignupForm() {
             .then((userCredential) => {
                 // Signed up
                 const user = userCredential.user;
+                console.log('User created successfully:', user.email);
                 
                 // Update profile with name
                 return user.updateProfile({
                     displayName: name
                 }).then(() => {
-                    // Create user document in Firestore
+                    console.log('User profile updated with display name:', name);
+                    // Create user document in Firestore with additional fields
                     return firebase.firestore().collection('users').doc(user.uid).set({
                         name: name,
                         email: email,
+                        username: username,
+                        defaultAddress: defaultAddress,
+                        defaultTransportMode: defaultTransportMode,
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 });
             })
             .then(() => {
+                // Get the current user and their token
+                const user = firebase.auth().currentUser;
+                return user.getIdToken().then(function(idToken) {
+                    // Set the token in a cookie
+                    setAuthCookie('id_token', idToken);
+                    console.log('ID token stored in cookie for server authentication');
+                    
+                    // Make a request to the server to establish the session
+                    return fetch('/api/user', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': 'Bearer ' + idToken
+                        }
+                    });
+                });
+            })
+            .then(() => {
                 showNotification('Account created successfully!', 'success');
-                window.location.href = '/dashboard';
+                // Add a small delay to ensure the cookie is set before redirecting
+                setTimeout(() => {
+                    window.location.href = '/app';
+                }, 500);
             })
             .catch((error) => {
                 console.error('Signup error:', error);
