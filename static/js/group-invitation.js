@@ -230,7 +230,7 @@ async function handleJoinGroup() {
             }
             
             setTimeout(() => {
-                window.location.href = `/group_chat?groupId=${result.groupId}`;
+                window.location.href = `/mobile/group_chat?groupId=${result.groupId}`;
             }, 1500);
         }
         
@@ -359,7 +359,7 @@ async function handleDirectInviteLink() {
                         
                         // Redirect to group chat
                         setTimeout(() => {
-                            window.location.href = `/group_chat?groupId=${result.groupId}`;
+                            window.location.href = `/mobile/group_chat?groupId=${result.groupId}`;
                         }, 2000);
                     }
                     

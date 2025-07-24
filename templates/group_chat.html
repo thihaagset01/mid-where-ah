@@ -29,12 +29,7 @@
 </div>
 
 <!-- Chat Content -->
-<div class="chat-content">
-  <!-- DYNAMIC: Creation message will be loaded by JavaScript -->
-  <div class="creation-message" id="creationMessage">
-    Loading group information...
-  </div>
-  
+<div class="chat-content">  
   <!-- Event Card Container -->
   <div class="eventcardcontainer group-col" id="eventcardcontainer">
     <div id="eventcard"></div>
@@ -101,7 +96,7 @@
 <script src="{{ url_for('static', filename='js/group.js') }}"></script>
 <script src="{{ url_for('static', filename='js/group_chat.js') }}"></script>
 
-<!-- Group Data Loading Script -->
+<!-- Enhanced Group Data Loading Script -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Get group ID from hidden input
@@ -118,13 +113,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Wait for Firebase to be ready
     firebase.auth().onAuthStateChanged((user) => {
         if (user) {
-            console.log('User authenticated, loading group data');
-            loadGroupData(groupId);
+            console.log('User authenticated, initializing group chat');
             
-            // Initialize event manager if available
-            if (typeof initializeEventManager === 'function') {
-                initializeEventManager(groupId);
-            }
+            // Initialize the enhanced group chat system
+            initializeGroupChat(groupId);
+            
         } else {
             console.log('User not authenticated, redirecting to login');
             window.location.href = '/login';
@@ -132,47 +125,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-async function loadGroupData(groupId) {
-    try {
-        console.log('Loading data for group:', groupId);
-        
-        const db = firebase.firestore();
-        const groupDoc = await db.collection('groups').doc(groupId).get();
-        
-        if (!groupDoc.exists) {
-            console.error('Group not found');
-            alert('Group not found. Redirecting to groups page.');
-            window.location.href = '/groups';
-            return;
-        }
-        
-        const groupData = groupDoc.data();
-        console.log('Group data loaded:', groupData);
-        
-        // Update group title
-        const titleElement = document.getElementById('groupTitle');
-        if (titleElement) {
-            titleElement.textContent = groupData.name;
-        }
-        
-        // Update page title
-        document.title = `${groupData.name} - MidWhereAh`;
-        
-        // Update creation message
-        const creationElement = document.getElementById('creationMessage');
-        if (creationElement && groupData.createdBy) {
-            // Get creator's name from members
-            const creator = groupData.members[groupData.createdBy];
-            const creatorName = creator ? creator.name : 'Someone';
-            creationElement.textContent = `${creatorName} created this group "${groupData.name}"`;
-        }
-        
-        console.log('Group data loaded successfully');
-        
-    } catch (error) {
-        console.error('Error loading group data:', error);
-        alert('Error loading group data: ' + error.message);
+// Cleanup when leaving the page
+window.addEventListener('beforeunload', function() {
+    if (window.groupChatManager) {
+        groupChatManager.cleanup();
     }
-}
+});
 </script>
 {% endblock %}

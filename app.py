@@ -823,9 +823,6 @@ def legacy_groups():
 def legacy_profile():
     return redirect(url_for('mobile.profile'))
 
-@app.route('/group_chat')
-def legacy_group_chat():
-    return redirect(url_for('mobile.group_chat'))
 
 @app.route('/venues/<group_id>')
 def legacy_venues(group_id):

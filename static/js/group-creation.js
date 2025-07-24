@@ -305,7 +305,7 @@ async function handleCreateGroup() {
             
             // Option 2: If you prefer a delay, use this instead:
             setTimeout(() => {
-                window.location.href = `/group_chat?groupId=${result.groupId}`;
+                window.location.href = `/mobile/group_chat?groupId=${result.groupId}`;
             }, 1000);
         }
         
@@ -398,7 +398,7 @@ async function loadUserGroups() {
                 'Recently';
             
             const groupHTML = `
-                <a href="/group_chat?groupId=${group.id}" class="group-item">
+                <a href="/mobile/group_chat?groupId=${group.id}" class="group-item">
                     <div class="group-avatar">
                         <img src="${group.avatar || '/static/images/group-placeholder.png'}" alt="Group">
                     </div>
