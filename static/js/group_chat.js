@@ -75,6 +75,7 @@ function saveevent() {
         const cardHTML = `
             <div class="event-card">
                 <div class="event-card-header">You started a new meet up!</div>
+                <div class="event-card-header">${eventname}</div>
                 <div class="event-card-date">
                     <div class="event-card-date-icon">
                         <i class="far fa-calendar-alt"></i>
@@ -82,7 +83,13 @@ function saveevent() {
                     <div class="event-card-date-text">TODAY ${formattedDate} ${eventtime}</div>
                 </div>
                 <div class="event-card-description">${eventdescription}</div>
-                <button class="event-card-join">Join</button>
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                    <button class="event-card-join" id="join">Join</button>
+                    <button class="event-card-nojoin" id="no-join">No Join</button>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                    <button class="event-card-join" style="width: 100%;" id = "view-map">View Map</button>
+                </div>
                 
             </div>
         `;
@@ -97,7 +104,38 @@ function saveevent() {
         eventcard.style.display = "block";
         eventpop.style.display = "none";
         eventcardcontainer.style.display = "flex";
+
+        const joinbtn = document.getElementById("join");
+        if (joinbtn) {
+            joinbtn.addEventListener("click", () => joinevent(eventname, formattedDate, eventtime, eventdescription));
+        }
     }
+}
+
+function joinevent(eventname, formattedDate, eventtime, eventdescription) {
+    console.log("triggered")
+    const eventcard = document.getElementById("eventcard");
+    const cardHTML = `
+            <div class="event-card">
+                <div class="event-card-header">You have joined ${eventname}!</div>
+                <div class="event-card-date">
+                    <div class="event-card-date-icon">
+                        <i class="far fa-calendar-alt"></i>
+                    </div>
+                    <div class="event-card-date-text">TODAY ${formattedDate} ${eventtime}</div>
+                </div>
+                <div class="event-card-description">${eventdescription}</div>
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                    <button class="event-card-join" id="join">Join</button>
+                    <button class="event-card-nojoin" id="no-join">No Join</button>
+                </div>
+                
+            </div>
+    `
+    eventcard.innerHTML = cardHTML;
+    eventcard.style.display = "block";
+    const eventcardcontainer = document.getElementById("eventcardcontainer");
+    eventcardcontainer.style.display = "flex";
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -109,4 +147,5 @@ document.addEventListener('DOMContentLoaded', function () {
     if (saveBtn) {
         saveBtn.addEventListener("click", saveevent);
     }
+    
 });
