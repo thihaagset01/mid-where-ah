@@ -11,8 +11,8 @@
 <!-- Full-screen map -->
 <div id="map"></div>
 
-
-<div class="locations-container">
+<!-- Locations Container -->
+<div class="locations-container" id="locations-container">
   <!-- Location 1 -->
   <div class="location-container" data-person-id="1">
       <div class="transport-icon transit" 
@@ -21,7 +21,6 @@
            data-tooltip="Public Transport">
           <i class="fas fa-subway"></i>
       </div>
-      
       <input type="text" 
              id="location-1" 
              class="location-input" 
@@ -37,19 +36,20 @@
            data-tooltip="Public Transport">
           <i class="fas fa-subway"></i>
       </div>
-      
       <input type="text" 
              id="location-2" 
              class="location-input" 
              placeholder="Address 2" 
              autocomplete="off">
   </div>
+  
+  <!-- Add Person Container -->
+  <div class="add-person-container">
+    <button id="add-person-btn" class="add-person-circle">
+      <i class="fas fa-plus"></i>
+    </button>
+  </div>
 </div>
-
-<!-- Floating Add Person Button -->
-<button id="add-person-btn" class="add-person-circle">
-  <i class="fas fa-plus"></i>
-</button>
 
 <!-- Find Central Button -->
 <div class="find-central-btn" id="find-central-btn">
@@ -59,44 +59,14 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- Load JavaScript (order matters) -->
-<script src="{{ url_for('static', filename='js/maps.js') }}"></script>
-<script src="{{ url_for('static', filename='js/SingaporeGeocoder.js') }}"></script>
-<script src="{{ url_for('static', filename='js/LocationInput.js') }}"></script>
-<script src="{{ url_for('static', filename='js/LocationManager.js') }}"></script>
+<!-- Load ONLY the simplified mobile.js -->
 <script src="{{ url_for('static', filename='js/mobile.js') }}"></script>
-
-<!-- Stylized autofill script (must be loaded after mobile.js) -->
-<script defer src="{{ url_for('static', filename='js/autofill.js') }}"></script>
 
 <!-- Google Maps API -->
 <script>
-  // Handle logo click with authentication check
-  function handleLogoClick() {
-    if (firebase.auth().currentUser) {
-      window.location.href = '/app';
-    } else {
-      window.location.href = '/login';
-    }
-  }
-
   window.initMap = initMap;
   
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log('Map container:', document.getElementById('map'));
-    console.log('Map container dimensions:', 
-      document.getElementById('map').offsetWidth, 
-      document.getElementById('map').offsetHeight);
-      
-    if (window.hybridLocationManager) {
-      console.log('Initializing hybrid location manager...');
-      window.hybridLocationManager.initialize();
-    }
-  });
-  
-  // Load Google Maps API with callback
   function loadGoogleMapsAPI() {
-    // Create the script element
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&callback=initMapWhenReady`;
     script.async = true;
@@ -104,7 +74,6 @@
     document.head.appendChild(script);
   }
   
-  // This function will be called when the API is loaded
   function initMapWhenReady() {
     console.log('Google Maps API loaded successfully');
     if (typeof initMap === 'function') {
@@ -112,18 +81,6 @@
     }
   }
   
-  // Load the API
   loadGoogleMapsAPI();
-  
-  window.addEventListener('load', function() {
-    setTimeout(function() {
-      if (!window.midwhereahMap) {
-        console.log('Map not initialized after timeout, trying again...');
-        if (typeof initMap === 'function') {
-          initMap();
-        }
-      }
-    }, 1000);
-  });
 </script>
 {% endblock %}
