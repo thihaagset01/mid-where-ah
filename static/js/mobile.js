@@ -670,6 +670,7 @@ function setupBottomNavigation() {
     const currentPath = window.location.pathname;
     
     navItems.forEach(item => {
+        // Get the page attribute first
         const page = item.getAttribute('data-page');
         
         // Set active state based on current path

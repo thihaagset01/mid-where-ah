@@ -1,0 +1,154 @@
+{% extends "mobile_base.html" %}
+
+{% block title %}Friends{% endblock %}
+{% block head %}
+    <link href="{{ url_for('static', filename='css/friends.css') }}" rel="stylesheet">
+{% endblock %}
+
+{% block mobile_js %}{% endblock %}
+
+{% block content %}
+
+    <!-- Main Content -->
+    <div class="friends-container" id="friends-container">
+
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs tab-navigation">
+            <li class="nav-item">
+                <button class="nav-link active" data-tab="search" type="button">
+                    <i class="fas fa-search me-2"></i>Find Friends
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-tab="requests" type="button">
+                    <i class="fas fa-user-plus me-2"></i>Requests
+                    <span id="requests-notification-badge" class="notification-badge">0</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-tab="friends" type="button">
+                    <i class="fas fa-users me-2"></i>My Friends
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content-container">
+            <!-- Search Tab -->
+            <div id="search-tab" class="tab-pane" style="display: block;">
+                <div class="search-section">
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control form-control-lg" 
+                               id="user-search-input" 
+                               placeholder="Search...">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                    </div>
+                    <small class="text-muted">
+                        Enter at least 2 characters to start searching
+                    </small>
+                </div>
+                
+                <div class="search-results-container">
+                    <div id="search-results">
+                        <div class="empty-state">
+                            <i class="fas fa-search"></i>
+                            <p>Search for friends by name, username, or email address</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Requests Tab -->
+            <div id="requests-tab" class="tab-pane" style="display: none;">
+                <h5 class="mb-3">
+                    <i class="fas fa-user-plus text-primary me-2"></i>Friend Requests
+                </h5>
+                
+                <div id="pending-requests">
+                    <div class="empty-state">
+                        <i class="fas fa-user-plus"></i>
+                        <p>No pending friend requests</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Friends List Tab -->
+            <div id="friends-tab" class="tab-pane" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users text-primary me-2"></i>My Friends
+                    </h5>
+                    <small class="text-muted" id="friends-count">0 friends</small>
+                </div>
+                
+                <div id="friends-list">
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <p>No friends yet</p>
+                        <p class="small">Search for users and send friend requests to get started!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions Floating Button -->
+    <button class="btn btn-primary btn-floating" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fas fa-plus"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="#" onclick="friendsUI.switchTab('search')">
+            <i class="fas fa-search me-2"></i>Find Friends
+        </a></li>
+        <li><a class="dropdown-item" href="/group">
+            <i class="fas fa-users me-2"></i>Create Group
+        </a></li>
+    </ul>
+{% endblock %}
+
+{% block scripts %}
+    <!-- Toast Container for Notifications -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notification-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <i class="fas fa-info-circle text-primary me-2"></i>
+                <strong class="me-auto">MidWhereAh</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="notification-message">
+                <!-- Notification message will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Notification System -->
+    <script>
+        function showNotification(message, type = 'info') {
+            const toast = document.getElementById('notification-toast');
+            const messageEl = document.getElementById('notification-message');
+            const iconEl = toast.querySelector('.toast-header i');
+            
+            // Set message
+            messageEl.textContent = message;
+            
+            // Set icon based on type
+            iconEl.className = `fas me-2 ${
+                type === 'success' ? 'fa-check-circle text-success' :
+                type === 'danger' ? 'fa-exclamation-circle text-danger' :
+                type === 'warning' ? 'fa-exclamation-triangle text-warning' :
+                'fa-info-circle text-primary'
+            }`;
+            
+            // Show toast
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+    </script>
+    
+    <!-- Friends Feature JavaScript -->
+    <script src="{{ url_for('static', filename='js/friends.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/friends-integration.js') }}"></script>
+{% endblock %}
