@@ -508,7 +508,7 @@ function setupAddPersonButton() {
 }
 
 function addNewLocationInput() {
-    const container = document.getElementById('locations-container');
+    const container = document.getElementById('parent-container');
     if (!container) {
         console.error('Locations container not found');
         return;
@@ -562,11 +562,11 @@ function addNewLocationInput() {
     `;
     
     // Insert before add button container
-    const addPersonContainer = container.querySelector('.add-person-container');
-    if (addPersonContainer) {
-        container.insertBefore(locationElement, addPersonContainer);
+    const big_container = document.getElementById("locations-container");
+    if (container) {
+        big_container.insertBefore(locationElement, container);
     } else {
-        container.appendChild(locationElement);
+        big_container.appendChild(locationElement);
     }
     
     // Set up the new input
@@ -815,6 +815,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('✅ MidWhereAh mobile interface initialized');
 });
+const inputs = document.querySelectorAll('.location-input');
+const findCentralBtn = document.getElementById("find-central-btn");
+
+function updateFindCentralButtonVisibility() {
+    const allFilled = Array.from(inputs).every(input => input.value.trim() !== '');
+    findCentralBtn.style.display = allFilled ? 'flex' : 'none';
+}
+
+// Attach input listeners to each input
+inputs.forEach(input => {
+    input.addEventListener('input', updateFindCentralButtonVisibility);
+});
+
+// Run once on page load in case inputs are pre-filled
+updateFindCentralButtonVisibility();
 
 // Export for global access
 window.initMap = initMap;
