@@ -42,19 +42,24 @@
              placeholder="Address 2" 
              autocomplete="off">
   </div>
-  
-  <!-- Add Person Container -->
-  <div class="add-person-container">
-    <button id="add-person-btn" class="add-person-circle">
-      <i class="fas fa-plus"></i>
-    </button>
+
+  <div style="display: flex; align-items: center; justify-content: space-between;" id="parent-container">
+    <!-- Add Person Container -->
+    <div class="add-person-container">
+      <button id="add-person-btn" class="add-person-circle">
+        <i class="fas fa-plus"></i>
+      </button>
+    </div>
+    <!-- Find Central Button -->
+    <div class="find-central-btn" id="find-central-btn">
+        <i class="fas fa-location-arrow"></i>
+    </div>
   </div>
+  
 </div>
 
 <!-- Find Central Button -->
-<div class="find-central-btn" id="find-central-btn">
-  <i class="fas fa-location-arrow"></i>
-</div>
+
 
 {% endblock %}
 

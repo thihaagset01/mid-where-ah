@@ -149,11 +149,10 @@ body {
 
 /* Find Central Button */
 .find-central-btn {
-  position: fixed;
   bottom: 20px;
   left: 50%;
-  transform: translateX(-50%);
-  width: 200px;
+  /* transform: translateX(-50%); */
+  width: 100px;
   height: 48px;
   background: linear-gradient(135deg, #8B5DB8 0%, #7a4fa3 100%);
   border-radius: 24px;
@@ -354,7 +353,8 @@ body {
   } */
   
   .find-central-btn {
-    width: 160px;
+    display: none;
+    width: 75px;
     height: 40px;
     font-size: 14px;
     bottom: 60px;
