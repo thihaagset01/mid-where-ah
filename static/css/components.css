@@ -6,28 +6,29 @@
     top: 0;
     left: 0;
     width: 100vw;
-    padding: 12px 16px;
-    background: white;
-    z-index: 1002;
+    padding: 16px;
+    background: linear-gradient(to bottom, #6b5584, #ffffff);
+    z-index: 20;
     display: flex;
     align-items: center;
-    box-shadow: var(--box-shadow);
-    height: var(--header-height);
+    height: 72px;
     box-sizing: border-box;
   }
   
   .group-logo img {
-    height: 32px;
+    height: 40px;
     width: auto;
-    margin-right: 12px;
-    border-radius: 6px;
+    object-fit: contain;
   }
   
   .group-text span {
-    color: var(--primary-color);
-    font-size: 18px;
+    color: white;
+    font-size: 20px;
     font-weight: 600;
+    margin-left: 12px;
+    white-space: nowrap;
   }
+
   
   /* BOTTOM NAVIGATION - Used by ALL pages */
   .bottom-container {

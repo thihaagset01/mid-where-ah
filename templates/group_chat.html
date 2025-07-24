@@ -5,12 +5,11 @@
 {% block head %}
 {{ super() }}
 <!-- Page specific CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
 {% endblock %}
 
 {% block bottom_navigation %}{% endblock %}
-
+   
 {% block mobile_js %}{% endblock %}
 
 {% block content %}
@@ -24,7 +23,7 @@
 
 <!-- Group Avatar Row -->
 <div class="group-avatar-container">
-  <img src="static/images/group-bar-placeholder.png" alt="Group Members" class="group-avatar-bar">
+  <img src="{{ url_for('static', filename='images/group-bar-placeholder.png') }}" alt="Group Members" class="group-avatar-bar">
 </div>
 
 <!-- Chat Content -->
