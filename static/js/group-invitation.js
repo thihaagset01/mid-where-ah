@@ -13,9 +13,49 @@ class GroupInvitationManager {
     }
 
     /**
-     * Join group using invite code
+     * Join group using invite code (via Flask API)
      */
     async joinGroupByCode(inviteCode) {
+        try {
+            const currentUser = this.auth.currentUser;
+            if (!currentUser) {
+                throw new Error('Please log in to join a group');
+            }
+
+            // Get the user's ID token for authentication
+            const idToken = await currentUser.getIdToken();
+
+            // Call your Flask API endpoint
+            const response = await fetch('/api/join-group-by-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                },
+                credentials: 'include', // Include cookies for session management
+                body: JSON.stringify({
+                    inviteCode: inviteCode.toUpperCase()
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to join group');
+            }
+
+            return result;
+
+        } catch (error) {
+            console.error('Error joining group:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Fallback method: Join group using direct Firestore (original method)
+     */
+    async joinGroupByCodeFallback(inviteCode) {
         try {
             const currentUser = this.auth.currentUser;
             if (!currentUser) {
@@ -133,6 +173,84 @@ class GroupInvitationManager {
     }
 }
 
+// Update the handleJoinGroup function to use Flask API with fallback
+async function handleJoinGroup() {
+    const input = document.getElementById('inviteCodeInput');
+    const joinBtn = document.getElementById('submitJoinGroup');
+    
+    if (!input || !joinBtn) return;
+    
+    const inviteCode = input.value.trim().toUpperCase();
+    
+    if (!inviteCode) {
+        alert('Please enter an invite code');
+        input.focus();
+        return;
+    }
+    
+    if (inviteCode.length !== 6) {
+        alert('Invite code must be 6 characters');
+        input.focus();
+        return;
+    }
+    
+    const originalText = joinBtn.innerHTML;
+    joinBtn.disabled = true;
+    joinBtn.innerHTML = '<span class="spinner"></span>Joining...';
+    
+    try {
+        console.log('Attempting to join group with code:', inviteCode);
+        const inviteManager = new GroupInvitationManager();
+        
+        let result;
+        try {
+            // Try Flask API first
+            result = await inviteManager.joinGroupByCode(inviteCode);
+        } catch (apiError) {
+            console.warn('Flask API failed, trying Firestore fallback:', apiError);
+            // If Flask API fails, try direct Firestore approach
+            result = await inviteManager.joinGroupByCodeFallback(inviteCode);
+        }
+        
+        if (result.success) {
+            if (result.alreadyMember) {
+                alert(result.message);
+            } else {
+                alert(result.message);
+            }
+            
+            closeJoinGroupModal();
+            
+            if (typeof loadUserGroups === 'function') {
+                console.log('Refreshing groups list after join');
+                await loadUserGroups();
+            }
+            
+            setTimeout(() => {
+                window.location.href = `/mobile/group_chat?groupId=${result.groupId}`;
+            }, 1500);
+        }
+        
+    } catch (error) {
+        console.error('Error joining group:', error);
+        
+        // Better error messages based on error type
+        let userMessage = 'Error joining group: ';
+        if (error.message.includes('Missing or insufficient permissions')) {
+            userMessage += 'Permission denied. Please check your Firestore security rules.';
+        } else if (error.message.includes('Invalid invite code')) {
+            userMessage += 'Invalid invite code. Please check the code and try again.';
+        } else {
+            userMessage += error.message;
+        }
+        
+        alert(userMessage);
+    } finally {
+        joinBtn.disabled = false;
+        joinBtn.innerHTML = originalText;
+    }
+}
+
 // =============================================================================
 // Join Group Modal Functions
 // =============================================================================
@@ -180,79 +298,6 @@ function closeJoinGroupModal() {
     const overlay = document.getElementById('joinGroupOverlay');
     if (overlay) {
         overlay.classList.add('hidden');
-    }
-}
-
-/**
- * Handle join group form submission
- */
-async function handleJoinGroup() {
-    const input = document.getElementById('inviteCodeInput');
-    const joinBtn = document.getElementById('submitJoinGroup');
-    
-    if (!input || !joinBtn) return;
-    
-    const inviteCode = input.value.trim().toUpperCase();
-    
-    if (!inviteCode) {
-        alert('Please enter an invite code');
-        input.focus();
-        return;
-    }
-    
-    if (inviteCode.length !== 6) {
-        alert('Invite code must be 6 characters');
-        input.focus();
-        return;
-    }
-    
-    const originalText = joinBtn.innerHTML;
-    joinBtn.disabled = true;
-    joinBtn.innerHTML = '<span class="spinner"></span>Joining...';
-    
-    try {
-        console.log('Attempting to join group with code:', inviteCode);
-        const inviteManager = new GroupInvitationManager();
-        const result = await inviteManager.joinGroupByCode(inviteCode);
-        
-        if (result.success) {
-            if (result.alreadyMember) {
-                alert(result.message);
-            } else {
-                alert(result.message);
-            }
-            
-            closeJoinGroupModal();
-            
-            if (typeof loadUserGroups === 'function') {
-                console.log('Refreshing groups list after join');
-                await loadUserGroups();
-            }
-            
-            setTimeout(() => {
-                window.location.href = `/mobile/group_chat?groupId=${result.groupId}`;
-            }, 1500);
-        }
-        
-    } catch (error) {
-        console.error('Error joining group:', error);
-        console.error('Error code:', error.code);
-        console.error('Error message:', error.message);
-        
-        // Better error messages based on error type
-        let userMessage = 'Error joining group: ';
-        if (error.message.includes('Missing or insufficient permissions')) {
-            userMessage += 'Permission denied. Please check your Firestore security rules.';
-        } else if (error.message.includes('Invalid invite code')) {
-            userMessage += 'Invalid invite code. Please check the code and try again.';
-        } else {
-            userMessage += error.message;
-        }
-        
-        alert(userMessage);
-    } finally {
-        joinBtn.disabled = false;
-        joinBtn.innerHTML = originalText;
     }
 }
 

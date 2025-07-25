@@ -697,7 +697,111 @@ def profile():
     """Profile page - mobile interface"""
     return render_template('profile.html')
 
+# Add this to your app.py file
 
+@api_bp.route('/join-group-by-code', methods=['POST'])
+@login_required
+def join_group_by_code_api():
+    """Handle group joining via invite code"""
+    try:
+        data = request.get_json()
+        invite_code = data.get('inviteCode', '').upper().strip()
+        
+        if not invite_code or len(invite_code) != 6:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid invite code format'
+            }), 400
+        
+        # Get current user info from the token (stored in g.user by login_required decorator)
+        user_info = g.user
+        user_id = user_info.get('uid')
+        user_email = user_info.get('email')
+        user_name = user_info.get('name') or user_email.split('@')[0] if user_email else 'Anonymous User'
+        
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'User not authenticated'
+            }), 401
+        
+        # Initialize Firestore
+        db = firestore.client()
+        
+        # Find group by invite code
+        groups_ref = db.collection('groups')
+        query = groups_ref.where('inviteCode', '==', invite_code).limit(1)
+        groups = query.stream()
+        
+        group_doc = None
+        group_id = None
+        group_data = None
+        
+        for group in groups:
+            group_doc = group
+            group_id = group.id
+            group_data = group.to_dict()
+            break
+        
+        if not group_doc:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid invite code. Please check and try again.'
+            }), 404
+        
+        # Check if user is already a member
+        if group_data.get('members', {}).get(user_id):
+            return jsonify({
+                'success': True,
+                'alreadyMember': True,
+                'groupId': group_id,
+                'groupName': group_data.get('name'),
+                'message': f"You're already a member of \"{group_data.get('name')}\""
+            })
+        
+        # Add user to group
+        member_data = {
+            'name': user_name,
+            'email': user_email or 'anonymous@user.com',
+            'photoURL': user_info.get('picture'),
+            'joinedAt': firestore.SERVER_TIMESTAMP,
+            'role': 'member',
+            'status': 'active'
+        }
+        
+        # Update group with new member
+        group_ref = db.collection('groups').document(group_id)
+        group_ref.update({
+            f'members.{user_id}': member_data,
+            'memberCount': firestore.Increment(1),
+            'updatedAt': firestore.SERVER_TIMESTAMP,
+            'lastActivity': firestore.SERVER_TIMESTAMP
+        })
+        
+        # Add system message
+        messages_ref = group_ref.collection('messages')
+        messages_ref.add({
+            'text': f'{member_data["name"]} joined the group',
+            'type': 'system',
+            'timestamp': firestore.SERVER_TIMESTAMP
+        })
+        
+        return jsonify({
+            'success': True,
+            'groupId': group_id,
+            'groupName': group_data.get('name'),
+            'message': f'Welcome to "{group_data.get("name")}"!'
+        })
+        
+    except Exception as e:
+        print(f"Error in join_group_by_code_api: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'An error occurred while joining the group: {str(e)}'
+        }), 500
+
+
+        
 @mobile_bp.route('/group_chat')
 @login_required
 def group_chat():
