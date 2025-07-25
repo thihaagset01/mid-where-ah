@@ -1333,4 +1333,58 @@ function setupForgotPassword() {
                 showNotification(error.message, 'danger');
             });
     });
-} // End of setupForgotPassword
+} 
+
+// Add this to your app.js or create a small fix script
+
+// Fix for initMap undefined error
+(function() {
+    'use strict';
+    
+    // Ensure initMap is available globally
+    if (typeof window.initMap === 'undefined') {
+        // Create a fallback initMap function
+        window.initMap = function() {
+            console.log('Fallback initMap called - mobile.js should handle the actual initialization');
+            
+            // If mobile.js hasn't loaded yet, wait for it
+            if (typeof window.midwhereahMap === 'undefined') {
+                let attempts = 0;
+                const maxAttempts = 30; // 3 seconds
+                
+                const waitForMobile = () => {
+                    attempts++;
+                    if (typeof window.midwhereahMap !== 'undefined') {
+                        console.log('Map initialized by mobile.js');
+                    } else if (attempts < maxAttempts) {
+                        setTimeout(waitForMobile, 100);
+                    } else {
+                        console.warn('mobile.js map initialization not detected');
+                    }
+                };
+                
+                waitForMobile();
+            }
+        };
+    }
+    
+    // Ensure error handling for Google Maps API
+    window.addEventListener('error', function(e) {
+        if (e.message && e.message.includes('initMap')) {
+            console.warn('initMap error caught and handled:', e.message);
+            // Prevent the error from breaking the page
+            e.preventDefault();
+            return false;
+        }
+    });
+    
+    // Handle unhandled promise rejections
+    window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && e.reason.message && e.reason.message.includes('Google Maps')) {
+            console.warn('Google Maps promise rejection handled:', e.reason.message);
+            // Prevent the error from breaking the page
+            e.preventDefault();
+        }
+    });
+    
+})();
