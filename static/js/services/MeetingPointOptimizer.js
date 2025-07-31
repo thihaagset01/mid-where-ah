@@ -27,7 +27,7 @@ class MeetingPointOptimizer {
                     { lat: 1.2834, lng: 103.8611, name: "Marina South Pier MRT" },
                     { lat: 1.3062, lng: 103.8395, name: "Esplanade MRT" }
                 ],
-                venue_types: ['restaurant', 'cafe', 'shopping_mall', 'food_court']
+                venue_types: ['restaurant', 'cafe', 'shopping_mall']
             },
             ...config
         };
@@ -364,46 +364,54 @@ class MeetingPointOptimizer {
     }
 
     /**
-     * Find venues using Google Places API
+     * Find venues using Google Places API (new version)
      */
     async findVenues(point, radius = 500) {
         if (!window.google || !window.google.maps || !window.google.maps.places) {
-            console.warn('Google Places API not available');
+            console.warn('Google Maps Places API not available');
             return [];
         }
-        
-        return new Promise((resolve, reject) => {
+    
+        try {
             const service = new google.maps.places.PlacesService(document.createElement('div'));
-            
             const request = {
                 location: new google.maps.LatLng(point.lat, point.lng),
                 radius: radius,
-                type: this.config.region_config.venue_types,
-                fields: ['name', 'rating', 'user_ratings_total', 'price_level', 'place_id', 'formatted_address']
+                types: this.config.region_config.venue_types
             };
-            
-            service.nearbySearch(request, (results, status) => {
-                if (status === google.maps.places.PlacesServiceStatus.OK) {
-                    // Filter and sort results
-                    const filteredVenues = results
-                        .filter(place => 
-                            place.business_status === 'OPERATIONAL' &&
-                            place.rating && place.rating >= 3.5 &&
-                            place.user_ratings_total >= 10
-                        )
-                        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-                        .slice(0, 10); // Top 10 venues
-                    
-                    console.log(`📍 Found ${filteredVenues.length} quality venues within ${radius}m`);
-                    resolve(filteredVenues);
-                } else {
-                    console.warn('Places search failed:', status);
-                    resolve([]);
-                }
+    
+            console.log('Legacy API request:', request);
+            return new Promise((resolve) => {
+                service.nearbySearch(request, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+                        const filteredVenues = results
+                            .filter(place => 
+                                place.business_status === 'OPERATIONAL' &&
+                                place.rating && place.rating >= 3.5 &&
+                                place.user_ratings_total >= 10
+                            )
+                            .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+                            .slice(0, 10)
+                            .map(place => ({
+                                name: place.name,
+                                rating: place.rating,
+                                placeId: place.place_id,
+                                address: place.vicinity,
+                                location: place.geometry.location.toJSON()
+                            }));
+                        console.log(`📍 Found ${filteredVenues.length} quality venues within ${radius}m (legacy)`);
+                        resolve(filteredVenues);
+                    } else {
+                        console.warn('Legacy Places search returned no results:', status);
+                        resolve([]);
+                    }
+                });
             });
-        });
+        } catch (error) {
+            console.error('Error in findVenues (legacy):', error);
+            return [];
+        }
     }
-
     /**
      * Calculate Jain's Fairness Index (higher is better, max 1.0)
      */

@@ -197,30 +197,51 @@ function calculateMidpoint(locations) {
 }
 
 // Search for venues near the midpoint
-function searchNearbyVenues(location, radius = 1500, type = 'restaurant', callback) {
-    if (!placesService) {
-        console.error('Places service not initialized');
-        return;
-    }
-    
-    const request = {
-        location: location,
-        radius: radius,
-        type: type,
-        rankBy: google.maps.places.RankBy.PROMINENCE,
-        openNow: true
-    };
-    
-    placesService.nearbySearch(request, (results, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK) {
-            // Filter results by rating (4.0+)
-            const filteredResults = results.filter(place => place.rating >= 4.0);
-            callback(filteredResults);
-        } else {
-            console.error('Places search failed:', status);
+async function searchNearbyVenues(location, radius = 1500, type = 'restaurant', callback) {
+    try {
+        // Import the required libraries
+        const { Place, PlacesService } = await google.maps.importLibrary("places");
+        
+        // Create a temporary div for the PlacesService if it doesn't exist
+        if (!placesService) {
+            placesService = new google.maps.places.PlacesService(document.createElement('div'));
+        }
+        
+        const request = {
+            location: location,
+            radius: radius,
+            type: type,
+            rankBy: google.maps.places.RankBy.PROMINENCE,
+            openNow: true,
+            fields: ['name', 'geometry', 'formatted_address', 'rating', 'user_ratings_total', 'price_level', 'place_id']
+        };
+        
+        // Return a promise that resolves with the places
+        return new Promise((resolve) => {
+            placesService.nearbySearch(request, (results, status) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+                    // Filter results by rating (4.0+)
+                    const filteredResults = results.filter(place => place.rating && place.rating >= 4.0);
+                    if (typeof callback === 'function') {
+                        callback(filteredResults);
+                    }
+                    resolve(filteredResults);
+                } else {
+                    console.error('Places search failed:', status);
+                    if (typeof callback === 'function') {
+                        callback([]);
+                    }
+                    resolve([]);
+                }
+            });
+        });
+    } catch (error) {
+        console.error('Error in searchNearbyVenues:', error);
+        if (typeof callback === 'function') {
             callback([]);
         }
-    });
+        return [];
+    }
 }
 
 // Get detailed information about a place

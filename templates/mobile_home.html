@@ -5,6 +5,17 @@
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+<script> 
+function loadGoogleMapsAPI() {
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&callback=initMapWhenReady`;
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+}
+
+loadGoogleMapsAPI();
+</script>
 {% endblock %}
 
 {% block content %}
@@ -72,15 +83,7 @@
 <script>
   window.initMap = initMap;
   
-  function loadGoogleMapsAPI() {
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&callback=initMapWhenReady`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-  }
-  
-  function initMapWhenReady() {
+  function initMapWhenReady() { 
     console.log('Google Maps API loaded successfully');
     if (typeof initMap === 'function') {
       initMap();
