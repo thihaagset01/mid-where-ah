@@ -7,6 +7,7 @@ class MidpointCalculator {
     constructor() {
         // Store directionsRenderers for cleanup
         this.directionsRenderers = [];
+        this.midpointMarker = null;
         
         console.log('MidpointCalculator initialized');
     }
@@ -70,7 +71,7 @@ class MidpointCalculator {
             return;
         }
         
-        // Clear previous directions
+        // Clear previous directions and markers
         this.clearDirections();
         
         // Calculate midpoint
@@ -90,8 +91,62 @@ class MidpointCalculator {
             }, 3000);
         }
         
-        // Create a group with these locations
-        this.createGroupWithLocations(validLocations, midpoint);
+        // Add midpoint marker to the map
+        if (window.map) {
+            // Clear any existing midpoint markers
+            if (this.midpointMarker) {
+                this.midpointMarker.setMap(null);
+            }
+            
+            // Create a new marker for the midpoint
+            this.midpointMarker = new google.maps.Marker({
+                position: midpoint,
+                map: window.map,
+                title: 'Midpoint',
+                icon: {
+                    url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                },
+                animation: google.maps.Animation.DROP
+            });
+            
+            // Center the map on the midpoint
+            window.map.setCenter(midpoint);
+            
+            // Optional: Show info window with midpoint coordinates
+            const infoWindow = new google.maps.InfoWindow({
+                content: `
+                    <div class="midpoint-info">
+                        <h4>Central Meeting Point</h4>
+                        <p>Latitude: ${midpoint.lat.toFixed(6)}</p>
+                        <p>Longitude: ${midpoint.lng.toFixed(6)}</p>
+                    </div>
+                `
+            });
+            
+            this.midpointMarker.addListener('click', () => {
+                infoWindow.open(window.map, this.midpointMarker);
+            });
+            
+            // Auto-open the info window
+            infoWindow.open(window.map, this.midpointMarker);
+            
+            // If there's a search box, update it with the midpoint location
+            if (window.searchBox) {
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({ location: midpoint }, (results, status) => {
+                    if (status === 'OK' && results[0]) {
+                        window.searchBox.value = results[0].formatted_address;
+                    }
+                });
+            }
+            
+            // Show success message
+            if (typeof showNotification === 'function') {
+                showNotification('Central meeting point found!', 'success');
+            } else {
+                console.log('Central meeting point found!');
+            }
+        }
     }
     
     /**
