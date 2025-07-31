@@ -147,7 +147,7 @@ class EventMapManager {
         this.showErrorMessage(message);
     }
     
-    // Add error notification function similar to mobile.js
+    // Add error notification function for consistency with other components
     showErrorNotification(message) {
         this.showErrorMessage(message);
     }

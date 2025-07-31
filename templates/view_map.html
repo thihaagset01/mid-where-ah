@@ -273,9 +273,6 @@ body {
 {% endblock %}
 
 {% block scripts %}
-<!-- Load mobile.js first (contains initMap and core functionality) -->
-<script src="{{ url_for('static', filename='js/mobile.js') }}" defer></script>
-
 <!-- Firebase SDK -->
 <script>
 if (typeof firebase === 'undefined') {

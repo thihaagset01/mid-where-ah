@@ -1,7 +1,15 @@
-// Google Maps Integration for MidWhereAh
+/**
+ * VenueMapFeatures.js - Specialized Map Features for MidWhereAh
+ * Handles venue search, group mapping, and other specialized map features
+ * 
+ * NOTE: This file provides specialized map functionality for venue discovery and group mapping.
+ * It works alongside location/MapManager.js which provides the core map functionality.
+ * This file uses the MapManager instance for basic map operations and extends it with
+ * venue-specific features like place search, venue details, and group mapping.
+ */
 
 // Global variables
-let map;
+let map; // Will reference MapManager's map instance
 let markers = [];
 let placesService;
 let geocoder;
@@ -14,40 +22,101 @@ let infoWindow = null;
 
 // Initialize the map when the page loads
 function initMap() {
-    console.log('Initializing map...');
+    console.log('Initializing VenueMapFeatures...');
     
     return new Promise((resolve, reject) => {
-        // Check if Google Maps is available
-        if (!window.google || !window.google.maps) {
-            console.log('Google Maps not yet loaded, waiting...');
-            
-            // Wait for Google Maps to load (max 10 seconds)
-            let attempts = 0;
-            const checkGoogleMaps = setInterval(() => {
-                attempts++;
-                if (window.google && window.google.maps) {
-                    clearInterval(checkGoogleMaps);
-                    console.log('Google Maps loaded successfully after waiting');
-                    initializeMap().then(resolve).catch(reject);
-                } else if (attempts >= 20) { // 10 seconds (500ms * 20)
-                    clearInterval(checkGoogleMaps);
-                    reject(new Error('Google Maps failed to load after 10 seconds'));
-                }
-            }, 500);
+        // Initialize MapManager if it exists but hasn't been initialized yet
+        if (window.mapManager && !window.mapManager.map && typeof window.mapManager.initMap === 'function') {
+            console.log('MapManager exists but not initialized, initializing now...');
+            try {
+                window.mapManager.initMap();
+            } catch (e) {
+                console.error('Error initializing MapManager:', e);
+            }
+        }
+        
+        // Check if MapManager is available
+        if (window.mapManager && window.mapManager.map) {
+            console.log('MapManager already initialized, using its map');
+            initializeVenueFeatures(window.mapManager.map).then(resolve).catch(reject);
             return;
         }
         
-        // Google Maps already available, initialize directly
-        initializeMap().then(resolve).catch(reject);
+        // Wait for MapManager to initialize (max 10 seconds)
+        let attempts = 0;
+        const checkMapManager = setInterval(() => {
+            attempts++;
+            if (window.mapManager && window.mapManager.map) {
+                clearInterval(checkMapManager);
+                console.log('MapManager loaded successfully');
+                initializeVenueFeatures(window.mapManager.map).then(resolve).catch(reject);
+            } else if (attempts >= 20) { // 10 seconds (500ms * 20)
+                clearInterval(checkMapManager);
+                // Fall back to legacy initialization if MapManager isn't available
+                console.warn('MapManager not available, falling back to legacy initialization');
+                legacyInitializeMap().then(resolve).catch(reject);
+            } else if (attempts % 4 === 0) { // Every 2 seconds, try to initialize MapManager again
+                console.log('Attempting to initialize MapManager (attempt ' + attempts + ')');
+                if (window.mapManager && !window.mapManager.map && typeof window.mapManager.initMap === 'function') {
+                    try {
+                        window.mapManager.initMap();
+                    } catch (e) {
+                        console.error('Error initializing MapManager:', e);
+                    }
+                }
+            }
+        }, 500);
     });
 }
 
-// Actual map initialization function
-function initializeMap() {
+// Initialize venue-specific features using the MapManager's map
+function initializeVenueFeatures(mapInstance) {
     return new Promise((resolve, reject) => {
-        // Default center on Singapore
-        const singapore = { lat: 1.3521, lng: 103.8198 };
-        
+        try {
+            // Store reference to the map from MapManager
+            map = mapInstance;
+            
+            // Initialize services
+            placesService = new google.maps.places.PlacesService(map);
+            geocoder = new google.maps.Geocoder();
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer({
+                suppressMarkers: true,
+                polylineOptions: {
+                    strokeColor: "#4285F4",
+                    strokeWeight: 5,
+                    strokeOpacity: 0.7
+                }
+            });
+            
+            // Set up directions renderer
+            directionsRenderer.setMap(map);
+            
+            // Initialize location autocomplete if input exists
+            initializeAutocomplete();
+            
+            // Check if we're on a specific page and call appropriate initialization
+            const path = window.location.pathname;
+            
+            if (path.startsWith('/group/')) {
+                initializeGroupMap();
+            } else if (path.startsWith('/venues/')) {
+                initializeVenuesMap();
+            }
+            
+            // Resolve the promise
+            resolve(map);
+        } catch (error) {
+            console.error('Error initializing venue features:', error);
+            reject(error);
+        }
+    });
+}
+
+// Legacy fallback initialization function (only used if MapManager isn't available)
+function legacyInitializeMap() {
+    console.warn('Using legacy map initialization - consider updating your code to use MapManager');
+    return new Promise((resolve, reject) => {
         // Check if map container exists
         const mapContainer = document.getElementById("map");
         if (!mapContainer) {
@@ -55,64 +124,46 @@ function initializeMap() {
             return;
         }
         
-        // Create the map
         try {
-        map = new google.maps.Map(mapContainer, {
-        center: singapore,
-        zoom: 12,
-        mapTypeControl: false,
-        fullscreenControl: false,
-        streetViewControl: false,
-        styles: [
-            {
-                featureType: "poi",
-                elementType: "labels",
-                stylers: [{ visibility: "off" }]
-            }
-        ]
-    });
-    
-    // Initialize services
-    placesService = new google.maps.places.PlacesService(map);
-    geocoder = new google.maps.Geocoder();
-    directionsService = new google.maps.DirectionsService();
-    directionsRenderer = new google.maps.DirectionsRenderer({
-        suppressMarkers: true,
-        polylineOptions: {
-            strokeColor: "#4285F4",
-            strokeWeight: 5,
-            strokeOpacity: 0.7
+            // Default center on Singapore
+            const singapore = { lat: 1.3521, lng: 103.8198 };
+            
+            // Create the map
+            map = new google.maps.Map(mapContainer, {
+                center: singapore,
+                zoom: 12,
+                mapTypeControl: false,
+                fullscreenControl: false,
+                streetViewControl: false,
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ]
+            });
+            
+            // Initialize venue features using the legacy map
+            initializeVenueFeatures(map).then(resolve).catch(reject);
+        } catch (error) {
+            console.error('Error in legacy map initialization:', error);
+            reject(error);
         }
     });
-    
-    // Set up directions renderer
-    directionsRenderer.setMap(map);
-    
-    // Initialize location autocomplete if input exists
-    initializeAutocomplete();
-    
-    // Check if we're on a specific page and call appropriate initialization
-    const path = window.location.pathname;
-    
-    if (path.startsWith('/group/')) {
-        initializeGroupMap();
-    } else if (path.startsWith('/venues/')) {
-        initializeVenuesMap();
-    }
-    
-    // Make map available globally
-    window.midwhereahMap = map;
-    
-    // Resolve the promise
-    resolve(map);
-    } catch (error) {
-        console.error('Error initializing Google Maps:', error);
-        reject(error);
-    }});
 }
 
 // Calculate the midpoint between multiple locations
 function calculateMidpoint(locations) {
+    // Use MidpointCalculator if available
+    if (window.midpointCalculator && window.midpointCalculator.calculateGeometricMidpoint) {
+        console.log('Using MidpointCalculator for midpoint calculation');
+        return window.midpointCalculator.calculateGeometricMidpoint(locations);
+    }
+    
+    // Legacy fallback implementation
+    console.warn('MidpointCalculator not available, using legacy midpoint calculation');
+    
     if (!locations || locations.length === 0) {
         return null;
     }
@@ -270,44 +321,139 @@ function clearVenueMarkers() {
     venueMarkers = [];
 }
 
+// Remove a marker by title
+function removeMarkerByTitle(title) {
+    // For venue-specific markers, we still manage these ourselves
+    const index = markers.findIndex(marker => marker.getTitle() === title);
+    if (index !== -1) {
+        markers[index].setMap(null);
+        markers.splice(index, 1);
+    }
+    
+    // Also try to remove from MapManager if available
+    const id = 'venue-' + (title || '').replace(/\s+/g, '-').toLowerCase();
+    if (window.mapManager && window.mapManager.removeMarker) {
+        window.mapManager.removeMarker(id);
+    }
+}
+
+// Clear all markers from the map
+function clearMarkers() {
+    // Clear venue-specific markers that we manage
+    markers.forEach(marker => marker.setMap(null));
+    markers = [];
+    
+    // Also clear venue markers
+    clearVenueMarkers();
+    
+    // If MapManager is available, let it clear its markers too
+    if (window.mapManager && window.mapManager.clearMarkers) {
+        window.mapManager.clearMarkers();
+    }
+}
+
 // Initialize Google Places Autocomplete
 function initializeAutocomplete() {
-    const locationInput = document.getElementById('location-input');
-    if (!locationInput) return;
+    console.log('Initializing autocomplete in VenueMapFeatures');
     
-    // Restrict to Singapore
-    const options = {
-        componentRestrictions: { country: 'sg' },
-        fields: ['address_components', 'geometry', 'name', 'formatted_address'],
+    // Try to use MapManager first with a retry mechanism
+    const tryUseMapManager = () => {
+        if (window.mapManager && typeof window.mapManager.setupAutocompleteForExistingInputs === 'function') {
+            console.log('Using MapManager for autocomplete setup');
+            window.mapManager.setupAutocompleteForExistingInputs();
+            return true;
+        }
+        return false;
     };
     
-    autocomplete = new google.maps.places.Autocomplete(locationInput, options);
+    // Try immediately
+    if (tryUseMapManager()) {
+        return;
+    }
     
-    // Prevent form submission on enter key in autocomplete
-    locationInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
+    // If MapManager isn't ready yet, retry a few times
+    let attempts = 0;
+    const maxAttempts = 5;
+    const retryInterval = setInterval(() => {
+        attempts++;
+        if (tryUseMapManager()) {
+            clearInterval(retryInterval);
+            return;
         }
-    });
+        
+        if (attempts >= maxAttempts) {
+            clearInterval(retryInterval);
+            setupLegacyAutocomplete();
+        }
+    }, 500);
     
-    // Set up event listener for place selection
-    autocomplete.addListener('place_changed', function() {
-        const place = autocomplete.getPlace();
-        if (!place.geometry) return;
+    // Legacy fallback for autocomplete
+    function setupLegacyAutocomplete() {
+        console.warn('MapManager autocomplete not available after retries, using legacy autocomplete');
         
-        // Update map
-        map.setCenter(place.geometry.location);
-        map.setZoom(15);
+        // Look for all location inputs
+        const locationInputs = document.querySelectorAll('.location-input');
+        if (locationInputs.length === 0) {
+            console.warn('No location inputs found for autocomplete');
+            return;
+        }
         
-        // Add marker for selected location
-        addMarker({
-            position: place.geometry.location,
-            title: place.name || place.formatted_address,
-            icon: {
-                url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
-            }
+        console.log(`Found ${locationInputs.length} location inputs for legacy autocomplete`);
+        
+        // Set up autocomplete for each input
+        locationInputs.forEach((locationInput, index) => {
+            // Restrict to Singapore
+            const options = {
+                componentRestrictions: { country: 'sg' },
+                fields: ['address_components', 'geometry', 'name', 'formatted_address'],
+            };
+            
+            const inputAutocomplete = new google.maps.places.Autocomplete(locationInput, options);
+            
+            // Prevent form submission on enter key in autocomplete
+            locationInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                }
+            });
+            
+            // Set up event listener for place selection
+            inputAutocomplete.addListener('place_changed', function() {
+                const place = inputAutocomplete.getPlace();
+                if (!place.geometry) return;
+                
+                // Update map
+                map.setCenter(place.geometry.location);
+                map.setZoom(15);
+                
+                // Get person ID from input ID or use index
+                const inputId = locationInput.id;
+                const personId = inputId.includes('-') ? inputId.split('-')[1] : (index + 1).toString();
+                const markerId = `location-${personId}`;
+                
+                // Add marker for selected location
+                addMarker({
+                    position: place.geometry.location,
+                    title: place.name || place.formatted_address,
+                    id: markerId,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        fillColor: getMarkerColor(index),
+                        fillOpacity: 0.9,
+                        strokeWeight: 2,
+                        strokeColor: '#ffffff',
+                        scale: 10
+                    }
+                });
+            });
         });
-    });
+    }
+}
+
+// Helper function to get marker color based on index
+function getMarkerColor(index) {
+    const colors = ['blue', 'red', 'green', 'yellow', 'purple', 'orange'];
+    return colors[index % colors.length];
 }
 
 // Initialize map for group page
@@ -379,6 +525,19 @@ function initializeVenuesMap() {
 
 // Add a marker to the map
 function addMarker(markerOptions) {
+    // Use MapManager if available
+    if (window.mapManager && window.mapManager.addLocationMarker) {
+        // Convert to format expected by MapManager
+        const location = markerOptions.position;
+        const id = 'venue-' + (markerOptions.title || '').replace(/\s+/g, '-').toLowerCase();
+        const color = markerOptions.icon?.fillColor || '#8B5DB8';
+        
+        return window.mapManager.addLocationMarker(location, id, color);
+    }
+    
+    // Legacy fallback implementation
+    console.warn('MapManager not available, using legacy marker management');
+    
     // Remove existing marker with same title if exists
     removeMarkerByTitle(markerOptions.title);
     
@@ -392,32 +551,11 @@ function addMarker(markerOptions) {
     // Add to markers array
     markers.push(marker);
     
-    // Return the marker
     return marker;
-}
-
-// Remove a marker by title
-function removeMarkerByTitle(title) {
-    for (let i = 0; i < markers.length; i++) {
-        if (markers[i].getTitle() === title) {
-            markers[i].setMap(null);
-            markers.splice(i, 1);
-            break;
-        }
-    }
-}
-
-// Clear all markers from the map
-function clearMarkers() {
-    for (let marker of markers) {
-        marker.setMap(null);
-    }
-    markers = [];
 }
 
 // Search for venues around the midpoint
 function searchVenues() {
-    // Show loading state
     const loadingElement = document.getElementById('loading-venues');
     const noVenuesElement = document.getElementById('no-venues');
     const venuesListElement = document.getElementById('venues-list');
@@ -558,8 +696,21 @@ function displayVenueResults(venues) {
     });
 }
 
-// Calculate distance between two points in km (haversine formula)
+// Calculate distance between two points in km
 function calculateDistance(point1, point2) {
+    // Use MapManager's utility if available
+    if (window.mapManager && window.mapManager.calculateDistance) {
+        return window.mapManager.calculateDistance(point1, point2);
+    }
+    
+    // Use MidpointCalculator if available
+    if (window.midpointCalculator && window.midpointCalculator.calculateDistance) {
+        return window.midpointCalculator.calculateDistance(point1, point2);
+    }
+    
+    // Legacy fallback implementation
+    console.warn('MapManager not available, using legacy distance calculation');
+    
     const R = 6371; // Earth's radius in km
     
     let lat1, lng1, lat2, lng2;
@@ -715,20 +866,25 @@ function addVenueToVoting(venue) {
 
 // Helper functions for geocoding
 function geocodeAddress(address, successCallback, errorCallback) {
+    // Use MapManager if available
+    if (window.mapManager && window.mapManager.geocodeManually) {
+        window.mapManager.geocodeManually(address)
+            .then(location => successCallback(location))
+            .catch(error => errorCallback('Geocoding failed: ' + error.message));
+        return;
+    }
+    
+    // Legacy fallback implementation
+    console.warn('MapManager not available, using legacy geocoding');
+    
     if (!geocoder) {
         errorCallback('Geocoder not initialized');
         return;
     }
     
-    geocoder.geocode({ address: address }, function(results, status) {
+    geocoder.geocode({ address: address }, (results, status) => {
         if (status === 'OK' && results[0]) {
-            const location = results[0].geometry.location;
-            successCallback(
-                location.lat(),
-                location.lng(),
-                results[0].formatted_address,
-                results[0].place_id
-            );
+            successCallback(results[0].geometry.location);
         } else {
             errorCallback('Geocoding failed: ' + status);
         }
@@ -736,8 +892,11 @@ function geocodeAddress(address, successCallback, errorCallback) {
 }
 
 function reverseGeocode(lat, lng, callback) {
-    if (!geocoder) {
-        callback('Geocoder not available');
+    // Use MapManager if available
+    if (window.mapManager && window.mapManager.reverseGeocode) {
+        window.mapManager.reverseGeocode({lat, lng})
+            .then(address => callback(address))
+            .catch(error => callback(null, 'Reverse geocoding failed: ' + error.message));
         return;
     }
     
@@ -753,6 +912,14 @@ function reverseGeocode(lat, lng, callback) {
 
 // Initialize autocomplete for a specific input
 function initLocationAutocomplete(input) {
+    // Use MapManager if available
+    if (window.mapManager && window.mapManager.setupSingleInputAutocomplete) {
+        return window.mapManager.setupSingleInputAutocomplete(input);
+    }
+    
+    // Legacy fallback implementation
+    console.warn('MapManager not available, using legacy autocomplete setup');
+    
     if (!input) return;
     
     const autocomplete = new google.maps.places.Autocomplete(input, {

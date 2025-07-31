@@ -1,28 +1,17 @@
 // MidWhereAh Main JavaScript File
-
-// Global variables
-let currentUser = null;
-
-// Utility function to set authentication cookie
-function setAuthCookie(name, value, days = 7) {
-    const expires = new Date();
-    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
-    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
-}
+// Refactored to work with component-based architecture
 
 // Initialize the application when the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Firebase from the config
     initFirebase();
     
-    // Set up authentication state observer
-    setupAuthObserver();
-    
-    // Set up logout functionality
-    setupLogout();
+    // Authentication is now handled by auth.js
     
     // Set up join group form on index page
     setupJoinGroupForm();
+    
+    console.log('App.js initialized with component-based architecture');
 });
 
 // Initialize Firebase with the configuration - This is now handled in firebase-config.js
@@ -32,102 +21,13 @@ function initializeFirebase() {
     // Don't call initFirebase() here as it would cause infinite recursion
 }
 
-// Set up Firebase authentication state observer
+// Authentication is now handled by auth.js
+// This function is kept for backward compatibility
 function setupAuthObserver() {
-    console.log('Setting up auth observer and checking for redirect result');
-    
-    // First check for any redirect result
-    // This must be done before any other auth operations
-    firebase.auth().getRedirectResult().then((result) => {
-        if (result.user) {
-            console.log('Google sign-in successful via redirect:', result.user.email);
-            // Check if user is new
-            const isNewUser = result.additionalUserInfo && result.additionalUserInfo.isNewUser;
-            
-            // Get the ID token and store it in a cookie for server-side auth
-            result.user.getIdToken().then(function(idToken) {
-                setAuthCookie('id_token', idToken);
-            });
-            
-            if (isNewUser) {
-                // Create user document in Firestore
-                return firebase.firestore().collection('users').doc(result.user.uid).set({
-                    name: result.user.displayName,
-                    email: result.user.email,
-                    photoURL: result.user.photoURL,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                }).then(() => {
-                    showNotification('Account created successfully!', 'success');
-                    // Force redirect to app (mobile interface)
-                    console.log('Redirecting new user to app');
-                    setTimeout(() => {
-                        window.location.replace('/app');
-                    }, 500); // Small delay to ensure notification is shown
-                });
-            } else {
-                showNotification('Login successful!', 'success');
-                // Redirect to app
-                console.log('Redirecting existing user to app');
-                setTimeout(() => {
-                    window.location.replace('/app');
-                }, 500); // Small delay to ensure notification is shown
-            }
-        } else {
-            console.log('No redirect result or user already handled');
-        }
-    }).catch((error) => {
-        console.error('Google redirect result error:', error);
-        if (error.code && error.message) {
-            showNotification('Authentication error: ' + error.message, 'danger');
-        }
-    });
-
-    // Define protected paths globally for consistency
-    const protectedPaths = [
-        '/map',
-        '/app',
-        '/mobile_interface',
-        '/venues',
-        '/profile',
-        '/groups',
-        '/group/',
-        '/swipe/'
-    ];
-
-    // Then set up the auth state observer
-    firebase.auth().onAuthStateChanged(function(user) {
-        const currentPath = window.location.pathname;
-        console.log('Auth state changed. Path:', currentPath, 'User:', user ? user.email : 'none');
-    
-        if (user) {
-            // User is signed in
-            console.log('User authenticated:', user.email);
-            
-            // Simple route-specific handling for your current structure
-            if (currentPath === '/groups') {
-                // The group-creation.js will handle loading groups
-                console.log('On groups page - group-creation.js will handle this');
-            } else if (currentPath === '/group_chat') {
-                // The group_chat.js will handle chat functionality
-                console.log('On group chat page - group_chat.js will handle this');
-            }
-            
-            // Remove the old handleAuthenticatedUserActions call
-            // handleAuthenticatedUserActions(user); // DELETE THIS LINE
-            
-        } else {
-            // User is signed out
-            console.log('User not authenticated');
-            
-            // Redirect to login if on protected pages
-            const protectedPaths = ['/groups', '/group_chat', '/profile', '/venues'];
-            if (protectedPaths.some(path => currentPath.startsWith(path))) {
-                console.log('Redirecting to login from protected path:', currentPath);
-                window.location.href = '/login';
-            }
-        }
-    });
+    console.log('Authentication is now handled by auth.js');
+    // No implementation needed as auth.js handles this functionality
 }
+
 
 // Update UI elements for authenticated user
 function updateUIForAuthenticatedUser(user) {
@@ -149,57 +49,20 @@ function updateUIForUnauthenticatedUser() {
     document.getElementById('logout-nav')?.style.setProperty('display', 'none');
 }
 
-// Set up logout functionality
+// Logout functionality is now handled by auth.js
+// This function is kept for backward compatibility
 function setupLogout() {
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            firebase.auth().signOut().then(function() {
-                // Sign-out successful
-                console.log('Logout successful, redirecting to login page');
-                // Force redirect to login page
-                setTimeout(function() {
-                    window.location.replace('/login');
-                }, 500);
-            }).catch(function(error) {
-                // An error happened
-                console.error('Logout error:', error);
-            });
-        });
-    }
+    console.log('Logout functionality is now handled by auth.js');
+    // No implementation needed as auth.js handles this functionality
 }
 
-// Google Sign-in
+// Google Sign-in is now handled by auth.js
+// This function is kept for backward compatibility
 function signInWithGoogle() {
-    // Log the current Firebase config (safely)
-    const safeConfig = {...window.firebaseConfig};
-    if (safeConfig.apiKey) {
-        safeConfig.apiKey = safeConfig.apiKey.substring(0, 5) + '...';
-    }
-    console.log('Firebase config before Google sign-in:', safeConfig);
-    
-    try {
-        // Only use redirect method to avoid popup issues
-        const provider = new firebase.auth.GoogleAuthProvider();
-        
-        // Directly use redirect without checking for previous redirects
-        // This prevents the dual-window issue
-        firebase.auth().signInWithRedirect(provider)
-            .catch((error) => {
-                console.error("Google sign-in redirect error:", error);
-                console.error("Error code:", error.code);
-                console.error("Error message:", error.message);
-                
-                if (error.code === 'auth/api-key-not-valid') {
-                    showToast("Invalid API key. Please check your Firebase configuration.", "error");
-                } else {
-                    showToast("Error signing in with Google. Please try again.", "error");
-                }
-            });
-    } catch (e) {
-        console.error("Exception during Google sign-in setup:", e);
-        showToast("Error initializing Google sign-in. Please try again later.", "error");
+    console.log('Google Sign-in is now handled by auth.js');
+    // Forward to the auth manager if it exists
+    if (window.authManager) {
+        window.authManager.signInWithGoogle();
     }
 }
 
@@ -1345,25 +1208,25 @@ function setupForgotPassword() {
     if (typeof window.initMap === 'undefined') {
         // Create a fallback initMap function
         window.initMap = function() {
-            console.log('Fallback initMap called - mobile.js should handle the actual initialization');
+            console.log('Fallback initMap called - MapManager should handle the actual initialization');
             
-            // If mobile.js hasn't loaded yet, wait for it
-            if (typeof window.midwhereahMap === 'undefined') {
+            // If MapManager hasn't loaded yet, wait for it
+            if (typeof window.mapManager === 'undefined') {
                 let attempts = 0;
                 const maxAttempts = 30; // 3 seconds
                 
-                const waitForMobile = () => {
+                const waitForMapManager = () => {
                     attempts++;
-                    if (typeof window.midwhereahMap !== 'undefined') {
-                        console.log('Map initialized by mobile.js');
+                    if (typeof window.mapManager !== 'undefined') {
+                        console.log('Map initialized by MapManager');
                     } else if (attempts < maxAttempts) {
-                        setTimeout(waitForMobile, 100);
+                        setTimeout(waitForMapManager, 100);
                     } else {
-                        console.warn('mobile.js map initialization not detected');
+                        console.warn('MapManager initialization not detected');
                     }
                 };
                 
-                waitForMobile();
+                waitForMapManager();
             }
         };
     }

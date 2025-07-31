@@ -56,12 +56,22 @@ midwhereah/
 │   │   ├── firebase-config.js # Firebase client configuration
 │   │   ├── group.js          # Group management logic
 │   │   ├── group_chat.js     # Group chat functionality
-│   │   ├── maps.js           # Google Maps integration
-│   │   ├── mobile.js         # Mobile-specific functionality
+│   │   ├── VenueMapFeatures.js # Specialized venue map features
+│   │   ├── auth.js           # Authentication functionality
+│   │   ├── navigation.js     # Navigation functionality
+│   │   ├── ui.js             # UI components and notifications
 │   │   ├── modal.js          # Modal dialog functionality
 │   │   ├── profile.js        # User profile management
 │   │   ├── results.js        # Results display logic
 │   │   └── swipe.js          # Venue selection interface
+│   │   ├── location/         # Location-related modules
+│   │   │   ├── index.js      # Location module exports
+│   │   │   ├── LocationInput.js # Location input handling
+│   │   │   ├── LocationManager.js # Location management
+│   │   │   ├── MapManager.js # Core map functionality
+│   │   │   ├── midpoint.js   # Midpoint calculation
+│   │   │   ├── SingaporeGeocoder.js # Geocoding for Singapore
+│   │   │   └── transport.js  # Transport mode handling
 │   ├── images/               # App icons and images
 │   ├── manifest.json         # PWA manifest
 │   └── service-worker.js     # PWA service worker

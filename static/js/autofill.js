@@ -2,7 +2,7 @@
  * MidWhereAh - Enhanced Stylized Autofill
  * Provides a beautiful, custom-styled autofill dropdown for location inputs
  * 
- * IMPORTANT: This script must be loaded AFTER mobile.js to avoid conflicts
+ * IMPORTANT: This script must be loaded AFTER location/MapManager.js to avoid conflicts
  */
 
 class StylizedAutofill {
@@ -11,11 +11,11 @@ class StylizedAutofill {
         this.autofillContainer = null;
         this.recentSearches = this.loadRecentSearches();
         
-        // Wait for DOM and mobile.js to be fully loaded
+        // Wait for DOM and MapManager to be fully loaded
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.init());
         } else {
-            // Give mobile.js a chance to initialize
+            // Give MapManager a chance to initialize
             setTimeout(() => this.init(), 100);
         }
     }
