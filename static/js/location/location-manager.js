@@ -106,11 +106,6 @@ class LocationInputManager {
         if (locationsContainer && parentContainer) {
             locationsContainer.insertBefore(locationContainer, parentContainer);
             
-            // Set up transport mode cycling if TransportManager is available
-            if (window.transportManager) {
-                window.transportManager.setupTransportModeCycling(transportIcon);
-            }
-            
             // Set up autocomplete for the new input if MapManager is available
             if (window.mapManager) {
                 setTimeout(() => {
