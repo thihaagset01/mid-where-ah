@@ -64,6 +64,10 @@
 {% endblock %}
 
 {% block scripts %}
+
+ 
+<script src="{{ url_for('static', filename='js/services/DistanceMatrixService.js') }}"></script>
+<script src="{{ url_for('static', filename='js/services/MeetingPointOptimizer.js') }}"></script>
 <!-- Google Maps API -->
 <script>
   window.initMap = initMap;
@@ -84,5 +88,7 @@
   }
   
   loadGoogleMapsAPI();
+  
 </script>
+<!-- Add before closing </body> tag -->
 {% endblock %}

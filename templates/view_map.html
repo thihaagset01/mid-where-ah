@@ -315,6 +315,9 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endif %}
 
 <!-- Page functionality -->
+ <!-- Add before existing scripts -->
+<script src="{{ url_for('static', filename='js/services/DistanceMatrixService.js') }}"></script>
+<script src="{{ url_for('static', filename='js/services/MeetingPointOptimizer.js') }}"></script>
 <script>
 // Global functions for UI interactions
 function toggleLegend() {
@@ -559,5 +562,6 @@ if ('performance' in window) {
     });
 }
 </script>
+
 
 {% endblock %}

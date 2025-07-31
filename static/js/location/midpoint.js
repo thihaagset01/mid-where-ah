@@ -58,93 +58,53 @@ class MidpointCalculator {
     /**
      * Handle the find central location button click
      */
-    handleFindCentralLocation() {
-        const locationData = this.getAllLocationData();
-        const validLocations = locationData.filter(loc => loc.isValid);
-        
-        if (validLocations.length < 2) {
-            if (window.uiManager) {
-                window.uiManager.showErrorNotification('Please enter at least two valid locations');
-            } else {
-                console.error('Please enter at least two valid locations');
-            }
-            return;
-        }
-        
-        // Clear previous directions and markers
-        this.clearDirections();
-        
-        // Calculate midpoint
-        const midpoint = this.calculateGeometricMidpoint(validLocations);
-        
-        // Show loading state
+    // Update handleFindCentralLocation() method
+    async handleFindCentralLocation() {
         const findCentralBtn = document.getElementById('find-central-btn');
-        if (findCentralBtn) {
-            const originalText = findCentralBtn.innerHTML;
-            findCentralBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
-            findCentralBtn.disabled = true;
-            
-            // Reset button after delay
-            setTimeout(() => {
-                findCentralBtn.innerHTML = originalText;
-                findCentralBtn.disabled = false;
-            }, 3000);
-        }
+        const originalContent = findCentralBtn ? findCentralBtn.innerHTML : null;
         
-        // Add midpoint marker to the map
-        if (window.map) {
-            // Clear any existing midpoint markers
-            if (this.midpointMarker) {
-                this.midpointMarker.setMap(null);
+        if (findCentralBtn) {
+            findCentralBtn.innerHTML = '<i class="fas fa-cog fa-spin"></i> Optimizing...';
+            findCentralBtn.style.pointerEvents = 'none';
+        }
+
+        try {
+            // Get locations from your LocationManager
+            const locationData = this.getAllLocationData();
+            const validLocations = locationData.filter(loc => loc.isValid);
+            
+            if (validLocations.length < 2) {
+                this.showErrorMessage('Please add at least 2 valid locations');
+                return;
             }
+
+            // Convert to optimizer format
+            const users = validLocations.map(loc => ({
+                lat: loc.lat,
+                lng: loc.lng,
+                mode: loc.transportMode || 'TRANSIT',
+                weight: 1.0,
+                name: `Person ${loc.personId}`
+            }));
+
+            // Use the sophisticated optimizer instead of basic midpoint
+            const result = await window.meetingPointOptimizer.findOptimalMeetingPoint(users);
             
-            // Create a new marker for the midpoint
-            this.midpointMarker = new google.maps.Marker({
-                position: midpoint,
-                map: window.map,
-                title: 'Midpoint',
-                icon: {
-                    url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
-                },
-                animation: google.maps.Animation.DROP
-            });
-            
-            // Center the map on the midpoint
-            window.map.setCenter(midpoint);
-            
-            // Optional: Show info window with midpoint coordinates
-            const infoWindow = new google.maps.InfoWindow({
-                content: `
-                    <div class="midpoint-info">
-                        <h4>Central Meeting Point</h4>
-                        <p>Latitude: ${midpoint.lat.toFixed(6)}</p>
-                        <p>Longitude: ${midpoint.lng.toFixed(6)}</p>
-                    </div>
-                `
-            });
-            
-            this.midpointMarker.addListener('click', () => {
-                infoWindow.open(window.map, this.midpointMarker);
-            });
-            
-            // Auto-open the info window
-            infoWindow.open(window.map, this.midpointMarker);
-            
-            // If there's a search box, update it with the midpoint location
-            if (window.searchBox) {
-                const geocoder = new google.maps.Geocoder();
-                geocoder.geocode({ location: midpoint }, (results, status) => {
-                    if (status === 'OK' && results[0]) {
-                        window.searchBox.value = results[0].formatted_address;
-                    }
-                });
+            if (result) {
+                this.displayOptimalPoint(result);
+                // Show success with algorithm details
+                console.log(`🎯 Optimization: ${(result.fairness * 100).toFixed(1)}% fair, ${result.venues.length} venues, ${result.metadata.duration}ms`);
             }
-            
-            // Show success message
-            if (typeof showNotification === 'function') {
-                showNotification('Central meeting point found!', 'success');
-            } else {
-                console.log('Central meeting point found!');
+
+        } catch (error) {
+            console.error('❌ Optimization error:', error);
+            // Fallback to basic geometric midpoint
+            this.fallbackToBasicMidpoint();
+        } finally {
+            // Restore button
+            if (findCentralBtn && originalContent) {
+                findCentralBtn.innerHTML = originalContent;
+                findCentralBtn.style.pointerEvents = 'auto';
             }
         }
     }
