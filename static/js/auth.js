@@ -5,8 +5,9 @@
 
 class AuthManager {
     constructor() {
-        this.auth = firebase.auth();
+        this.auth = null;
         this.currentUser = null;
+        this.initialized = false;
         
         // Define protected paths globally for consistency
         this.protectedPaths = [
@@ -20,7 +21,48 @@ class AuthManager {
             '/swipe/'
         ];
         
-        console.log('AuthManager initialized');
+        // Initialize Firebase if not already initialized
+        this.initializeFirebase();
+    }
+    
+    // Initialize Firebase Auth
+    async initializeFirebase() {
+        try {
+            // Wait for Firebase to be available
+            if (typeof firebase === 'undefined' || !firebase.apps.length) {
+                console.warn('Firebase not initialized yet, waiting...');
+                await new Promise(resolve => {
+                    const checkFirebase = setInterval(() => {
+                        if (typeof firebase !== 'undefined' && firebase.apps.length) {
+                            clearInterval(checkFirebase);
+                            this.setupFirebase();
+                            resolve();
+                        }
+                    }, 100);
+                });
+            } else {
+                this.setupFirebase();
+            }
+        } catch (error) {
+            console.error('Error initializing Firebase:', error);
+        }
+    }
+    
+    // Setup Firebase services
+    setupFirebase() {
+        try {
+            this.auth = firebase.auth();
+            this.initialized = true;
+            console.log('AuthManager initialized with Firebase');
+            
+            // Initialize auth observer if not already done
+            if (!this.authObserverSet) {
+                this.setupAuthObserver();
+                this.setupLogout();
+            }
+        } catch (error) {
+            console.error('Error setting up Firebase Auth:', error);
+        }
     }
     
     /**
@@ -37,6 +79,15 @@ class AuthManager {
      */
     setupAuthObserver() {
         console.log('Setting up auth observer and checking for redirect result');
+        
+        if (!this.auth) {
+            console.warn('Auth not initialized yet, will retry...');
+            setTimeout(() => this.setupAuthObserver(), 500);
+            return;
+        }
+        
+        // Mark that we've set up the observer
+        this.authObserverSet = true;
         
         // First check for any redirect result
         // This must be done before any other auth operations

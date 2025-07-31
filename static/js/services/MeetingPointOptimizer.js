@@ -10,7 +10,7 @@ class MeetingPointOptimizer {
         
         // Singapore-optimized defaults
         this.config = {
-            max_time: 60,           // minutes
+            max_time: 90,           // minutes
             max_range: 20,          // minutes  
             coarse_spacing: 500,    // meters
             fine_spacing: 100,      // meters
