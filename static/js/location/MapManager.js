@@ -1,11 +1,8 @@
 /**
- * maps.js - Core Map functionality for MidWhereAh
+ * MapManager.js - Core Map functionality for MidWhereAh
  * Handles Google Maps integration, markers, and location display
  * 
- * NOTE: This file provides the foundational map functionality that was previously in mobile.js.
- * It is distinct from js/maps.js which handles specialized map features like venue search and 
- * group mapping. The MapManager instance created here is intended to be used by js/maps.js
- * for those specialized features.
+ * FIXED VERSION - Resolves initMap conflicts and timing issues
  */
 
 class MapManager {
@@ -14,39 +11,55 @@ class MapManager {
         this.map = null;
         this.locationMarkers = {};
         this.directionsRenderers = [];
+        this.isInitialized = false;
         
-        // Store global reference
+        // Store global reference - but don't auto-initialize
         window.mapManager = this;
         
-        console.log('MapManager initialized');
+        console.log('MapManager initialized (waiting for Google Maps)');
+    }
+    
+    /**
+     * Initialize map manager - called ONLY by initMap callback
+     */
+    init() {
+        if (this.isInitialized) {
+            console.log('MapManager already initialized');
+            return this.map;
+        }
         
-        // Auto-initialize when DOM is ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.init());
-        } else {
-            this.init();
+        try {
+            console.log('MapManager.init() called');
+            this.createMap();
+            this.setupAutocompleteForExistingInputs();
+            this.isInitialized = true;
+            
+            // Notify other components that map is ready
+            this.notifyMapReady();
+            
+            return this.map;
+        } catch (error) {
+            console.error('Error in MapManager.init():', error);
+            throw error;
         }
     }
     
     /**
-     * Initialize map manager
+     * Create the Google Map instance
      */
-    init() {
-        // Map will be initialized by initMap
-        return this;
-    }
-    
-    /**
-     * Initialize Google Map
-     */
-    initMap() {
-        console.log('Initializing Google Map');
+    createMap() {
+        console.log('Creating Google Map instance');
+        
+        const mapElement = document.getElementById('map');
+        if (!mapElement) {
+            throw new Error('Map container element not found');
+        }
         
         // Default center (Singapore)
         const defaultCenter = { lat: 1.3521, lng: 103.8198 };
         
         // Create map instance
-        this.map = new google.maps.Map(document.getElementById('map'), {
+        this.map = new google.maps.Map(mapElement, {
             center: defaultCenter,
             zoom: 12,
             mapTypeControl: false,
@@ -58,13 +71,34 @@ class MapManager {
             }
         });
         
-        // Initialize location inputs if they exist
-        this.setupAutocompleteForExistingInputs();
-        
         // Make map globally accessible
         window.map = this.map;
         
+        console.log('✅ Google Map created successfully');
         return this.map;
+    }
+    
+    /**
+     * Notify other components that map is ready
+     */
+    notifyMapReady() {
+        // Trigger custom event
+        const event = new CustomEvent('mapReady', { 
+            detail: { 
+                map: this.map, 
+                mapManager: this 
+            } 
+        });
+        document.dispatchEvent(event);
+        
+        // Call specific component initializers if they exist
+        if (window.eventMapManager && typeof window.eventMapManager.onMapReady === 'function') {
+            window.eventMapManager.onMapReady(this.map);
+        }
+        
+        if (window.venueMapFeatures && typeof window.venueMapFeatures.onMapReady === 'function') {
+            window.venueMapFeatures.onMapReady(this.map);
+        }
     }
     
     /**
@@ -73,10 +107,11 @@ class MapManager {
     setupAutocompleteForExistingInputs() {
         const locationInputs = document.querySelectorAll('.location-input');
         
-        locationInputs.forEach(input => {
+        console.log(`Found ${locationInputs.length} location inputs for autocomplete`);
+        
+        locationInputs.forEach((input, index) => {
             const personId = input.id.replace('location-', '');
-            const colorIndex = parseInt(personId) - 1;
-            this.setupSingleInputAutocomplete(input, colorIndex);
+            this.setupSingleInputAutocomplete(input, index);
         });
     }
     
@@ -85,48 +120,33 @@ class MapManager {
      */
     setupSingleInputAutocomplete(input, colorIndex) {
         // Skip if already initialized
-        if (input.getAttribute('data-initialized') === 'true') return;
+        if (input.getAttribute('data-autocomplete-initialized') === 'true') {
+            console.log('Autocomplete already initialized for', input.id);
+            return;
+        }
         
         // Mark as initialized
-        input.setAttribute('data-initialized', 'true');
+        input.setAttribute('data-autocomplete-initialized', 'true');
         
-        // Get person ID from input ID
-        const personId = input.id.replace('location-', '');
+        console.log('Setting up autocomplete for', input.id);
         
         // Define colors for markers
         const colors = ['#8B5DB8', '#FF5722', '#2196F3', '#4CAF50', '#FFC107', '#9C27B0', '#00BCD4'];
         const color = colors[colorIndex % colors.length];
         
-        // Use LocationInput component if available
-        if (window.LocationInput && window.LocationModule) {
-            const locationInput = new window.LocationInput(input.id, {
-                color: color,
-                onSelect: (place) => {
-                    if (place && place.geometry) {
-                        this.addLocationMarker({
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng()
-                        }, input.id, color);
-                    }
-                }
-            });
-            
-            // Add to location manager if available
-            if (window.locationManager) {
-                window.locationManager.addLocation(personId, locationInput);
-            }
-        } else {
-            // Legacy fallback using Google Places Autocomplete
+        try {
+            // Create Google Places Autocomplete
             const autocomplete = new google.maps.places.Autocomplete(input, {
-                componentRestrictions: { country: 'sg' }
+                componentRestrictions: { country: 'sg' },
+                fields: ['address_components', 'geometry', 'name', 'formatted_address']
             });
             
             autocomplete.addListener('place_changed', () => {
                 const place = autocomplete.getPlace();
                 
                 if (!place.geometry) {
-                    // Try geocoding manually if geometry is missing
-                    this.geocodeManually(input, input.value);
+                    console.warn('No geometry for place:', place);
+                    this.geocodeManually(input.value, input.id, color);
                     return;
                 }
                 
@@ -139,119 +159,48 @@ class MapManager {
                 this.addLocationMarker(location, input.id, color);
                 
                 // Store location data
-                if (!window.locationData) window.locationData = new Map();
-                window.locationData.set(input.id, {
-                    lat: location.lat,
-                    lng: location.lng,
-                    address: place.formatted_address || input.value,
-                    transportMode: window.userTransportModes?.get(input.id) || 'TRANSIT'
-                });
+                this.storeLocationData(input.id, location, place.formatted_address || input.value);
                 
-                // Update button state
-                if (window.midpointCalculator) {
-                    window.midpointCalculator.updateFindButtonState();
-                } else if (typeof checkAllLocationsAndUpdateButton === 'function') {
-                    checkAllLocationsAndUpdateButton();
-                }
+                // Update UI state
+                this.updateUIState();
             });
+            
+            console.log('✅ Autocomplete set up for', input.id);
+            
+        } catch (error) {
+            console.error('Error setting up autocomplete for', input.id, ':', error);
         }
     }
     
     /**
      * Geocode address manually if Google Places API fails
      */
-    geocodeManually(input, address) {
-        // Use SingaporeGeocoder if available
-        if (window.singaporeGeocoder) {
-            window.singaporeGeocoder.geocode(address)
-                .then(result => {
-                    if (result && result.lat && result.lng) {
-                        const location = { lat: result.lat, lng: result.lng };
-                        const personId = input.id.replace('location-', '');
-                        const colorIndex = parseInt(personId) - 1;
-                        const colors = ['#8B5DB8', '#FF5722', '#2196F3', '#4CAF50', '#FFC107', '#9C27B0', '#00BCD4'];
-                        const color = colors[colorIndex % colors.length];
-                        
-                        this.addLocationMarker(location, input.id, color);
-                        
-                        // Store location data
-                        if (!window.locationData) window.locationData = new Map();
-                        window.locationData.set(input.id, {
-                            lat: location.lat,
-                            lng: location.lng,
-                            address: result.formattedAddress || address,
-                            transportMode: window.userTransportModes?.get(input.id) || 'TRANSIT'
-                        });
-                        
-                        // Update button state
-                        if (window.midpointCalculator) {
-                            window.midpointCalculator.updateFindButtonState();
-                        } else if (typeof checkAllLocationsAndUpdateButton === 'function') {
-                            checkAllLocationsAndUpdateButton();
-                        }
-                    } else {
-                        if (window.uiManager) {
-                            window.uiManager.showErrorNotification('Could not find that location. Please try again.');
-                        } else {
-                            console.error('Geocoding failed for:', address);
-                        }
-                    }
-                })
-                .catch(error => {
-                    if (window.uiManager) {
-                        window.uiManager.showErrorNotification('Error finding location: ' + error.message);
-                    } else {
-                        console.error('Geocoding error:', error);
-                    }
-                });
-        } else {
-            // Fallback to Google Geocoder
-            const geocoder = new google.maps.Geocoder();
-            geocoder.geocode({ address: address + ', Singapore' }, (results, status) => {
-                if (status === 'OK' && results[0]) {
-                    const location = {
-                        lat: results[0].geometry.location.lat(),
-                        lng: results[0].geometry.location.lng()
-                    };
-                    
-                    const personId = input.id.replace('location-', '');
-                    const colorIndex = parseInt(personId) - 1;
-                    const colors = ['#8B5DB8', '#FF5722', '#2196F3', '#4CAF50', '#FFC107', '#9C27B0', '#00BCD4'];
-                    const color = colors[colorIndex % colors.length];
-                    
-                    this.addLocationMarker(location, input.id, color);
-                    
-                    // Store location data
-                    if (!window.locationData) window.locationData = new Map();
-                    window.locationData.set(input.id, {
-                        lat: location.lat,
-                        lng: location.lng,
-                        address: results[0].formatted_address || address,
-                        transportMode: window.userTransportModes?.get(input.id) || 'TRANSIT'
-                    });
-                    
-                    // Update button state
-                    if (window.midpointCalculator) {
-                        window.midpointCalculator.updateFindButtonState();
-                    } else if (typeof checkAllLocationsAndUpdateButton === 'function') {
-                        checkAllLocationsAndUpdateButton();
-                    }
-                } else {
-                    if (window.uiManager) {
-                        window.uiManager.showErrorNotification('Could not find that location. Please try again.');
-                    } else {
-                        console.error('Geocoding failed for:', address);
-                    }
-                }
-            });
-        }
+    geocodeManually(address, inputId, color) {
+        console.log('Manual geocoding for:', address);
+        
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ address: address + ', Singapore' }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+                const location = {
+                    lat: results[0].geometry.location.lat(),
+                    lng: results[0].geometry.location.lng()
+                };
+                
+                this.addLocationMarker(location, inputId, color);
+                this.storeLocationData(inputId, location, results[0].formatted_address);
+                this.updateUIState();
+            } else {
+                console.error('Geocoding failed for:', address, 'Status:', status);
+                this.showError('Could not find that location. Please try again.');
+            }
+        });
     }
     
     /**
      * Add location marker to the map
      */
     addLocationMarker(location, inputId, color = '#8B5DB8') {
-        console.log('Adding marker for', inputId, 'with color', color);
+        console.log('Adding marker for', inputId, 'at', location);
         
         // Remove existing marker if any
         if (this.locationMarkers[inputId]) {
@@ -293,6 +242,49 @@ class MapManager {
     }
     
     /**
+     * Store location data in global storage
+     */
+    storeLocationData(inputId, location, address) {
+        if (!window.locationData) window.locationData = new Map();
+        
+        window.locationData.set(inputId, {
+            lat: location.lat,
+            lng: location.lng,
+            address: address,
+            transportMode: window.userTransportModes?.get(inputId) || 'TRANSIT'
+        });
+        
+        console.log('Stored location data for', inputId);
+    }
+    
+    /**
+     * Update UI state after location changes
+     */
+    updateUIState() {
+        // Update midpoint calculator if available
+        if (window.midpointCalculator && typeof window.midpointCalculator.updateFindButtonState === 'function') {
+            window.midpointCalculator.updateFindButtonState();
+        }
+        
+        // Legacy fallback
+        if (typeof checkAllLocationsAndUpdateButton === 'function') {
+            checkAllLocationsAndUpdateButton();
+        }
+    }
+    
+    /**
+     * Show error message
+     */
+    showError(message) {
+        if (window.uiManager && typeof window.uiManager.showErrorNotification === 'function') {
+            window.uiManager.showErrorNotification(message);
+        } else {
+            console.error('MapManager Error:', message);
+            alert(message); // Fallback
+        }
+    }
+    
+    /**
      * Clear all markers from the map
      */
     clearMarkers() {
@@ -313,20 +305,60 @@ class MapManager {
         
         this.directionsRenderers = [];
     }
+    
+    /**
+     * Get current map instance
+     */
+    getMap() {
+        return this.map;
+    }
+    
+    /**
+     * Check if map is ready
+     */
+    isMapReady() {
+        return this.isInitialized && this.map !== null;
+    }
 }
 
-// Create global instance
+// SINGLE GLOBAL INSTANCE - created immediately but not initialized
 window.mapManager = new MapManager();
 
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize map manager
-    window.mapManager.init();
-});
-
-// Export initMap function for Google Maps callback
+// SINGLE GLOBAL INITMAP FUNCTION - this is the ONLY one that should exist
 window.initMap = function() {
-    if (window.mapManager) {
-        return window.mapManager.initMap();
+    console.log('🚀 initMap callback fired by Google Maps');
+    
+    try {
+        // Hide loading spinner
+        const loadingSpinner = document.getElementById('loading-spinner');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+        }
+        
+        // Initialize MapManager
+        const map = window.mapManager.init();
+        
+        console.log('✅ initMap completed successfully');
+        return map;
+        
+    } catch (error) {
+        console.error('❌ Error in initMap:', error);
+        
+        // Show error in map container
+        const mapElement = document.getElementById('map');
+        if (mapElement) {
+            mapElement.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #f5f5f5; color: #666; text-align: center; padding: 20px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #dc3545; margin-bottom: 16px;"></i>
+                    <h3>Map Initialization Failed</h3>
+                    <p>There was an error loading the map. Please refresh the page.</p>
+                    <button onclick="location.reload()" style="background: #8B5DB8; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-top: 10px;">
+                        <i class="fas fa-redo"></i> Retry
+                    </button>
+                </div>
+            `;
+        }
+        
+        throw error;
     }
 };

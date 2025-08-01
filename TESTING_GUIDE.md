@@ -166,7 +166,7 @@ this overall works but not smoothly at all, there is an error popup but the func
    - Verify friend is removed from list
    not working because no friends yet
 
-## View Map (`/view_map`)
+## View Map (`/event_map_manager`)
 
 ### Map View - NOTHING WORKING
 1. **Event Details**

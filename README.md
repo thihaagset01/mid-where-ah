@@ -45,7 +45,7 @@ midwhereah/
 │   │   ├── home.css          # Home page styles
 │   │   ├── profile.css       # User profile styles
 │   │   ├── venue-cards.css   # Venue card styles
-│   │   └── view_map.css      # Map view styles
+│   │   └── event_map_manager.css      # Map view styles
 │   ├── js/
 │   │   ├── app.js            # Main application logic
 │   │   ├── LocationInput.js   # Location input component

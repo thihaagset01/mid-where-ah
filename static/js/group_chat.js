@@ -823,7 +823,7 @@ window.viewEventDetails = async (eventId) => {
             members: JSON.stringify(membersForMap)
         });
 
-        window.location.href = `/view_map?${params.toString()}`;
+        window.location.href = `/event_map_manager?${params.toString()}`;
         
     } catch (error) {
         console.error('Error viewing event details:', error);

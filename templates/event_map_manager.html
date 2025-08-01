@@ -1,0 +1,140 @@
+{% extends "mobile_base.html" %}
+
+{% block title %}MidWhereAh - Event Map View{% endblock %}
+
+{% block head %}
+<!-- Font Awesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<!-- View Map CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/event_map_manager.css') }}">
+
+<!-- Google Maps API Preconnect -->
+<link rel="preconnect" href="https://maps.googleapis.com">
+<link rel="preconnect" href="https://maps.gstatic.com" crossorigin>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#8B5DB8">
+{% endblock %}
+
+{% block content %}
+<!-- Loading Spinner -->
+<div id="loading-spinner" class="loading-spinner">
+    <i class="fas fa-spinner"></i>
+    <p>Loading event map...</p>
+</div>
+
+<!-- Event Information Container -->
+<div id="event-info-container" role="banner" aria-label="Event Information">
+    <!-- Event info will be dynamically populated by JavaScript -->
+</div>
+
+<!-- Main Map Container -->
+<div id="map" role="application" aria-label="Interactive Event Map">
+    <!-- Google Maps will be rendered here -->
+</div>
+
+<!-- Top Navigation Header -->
+<div class="group group-row center" style="width: 90%; max-width: 600px; margin-top: 20px; position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 100;">
+    <a href="/groups" class="header-nav-button back-btn" aria-label="Go back to groups">
+        <img src="{{ url_for('static', filename='images/Back Button.svg') }}" alt="Back" loading="lazy">
+    </a>
+    <img src="{{ url_for('static', filename='images/group-bar-placeholder.png') }}" class="center-img" alt="Group Header" loading="lazy">
+    <button class="header-nav-button filter-btn" aria-label="Open map options" id="options-toggle">
+        <img src="{{ url_for('static', filename='images/Filter Icon.svg') }}" alt="Options" loading="lazy">
+    </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- CRITICAL: Load scripts in correct order to avoid conflicts -->
+
+<!-- 1. FIRST: Core MapManager (creates the map) -->
+<script src="{{ url_for('static', filename='js/location/MapManager.js') }}" defer></script>
+
+<!-- 2. SECOND: Event-specific functionality (uses MapManager's map) -->
+<script src="{{ url_for('static', filename='js/event_map_manager.js') }}" defer></script>
+
+<!-- 3. THIRD: Venue features (uses MapManager's map) -->
+<script src="{{ url_for('static', filename='js/VenueMapFeatures.js') }}" defer></script>
+
+<!-- 4. FOURTH: Service dependencies -->
+<script src="{{ url_for('static', filename='js/services/DistanceMatrixService.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/services/MeetingPointOptimizer.js') }}" defer></script>
+
+<!-- 5. LAST: Google Maps API with callback to MapManager ONLY -->
+{% if config.GOOGLE_MAPS_API_KEY %}
+<script async defer 
+    src="https://maps.googleapis.com/maps/api/js?key={{ config.GOOGLE_MAPS_API_KEY }}&libraries=places,geometry&callback=initMap&loading=async"
+    onerror="handleMapError()">
+</script>
+{% else %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    handleMapError('Google Maps API key is not configured');
+});
+</script>
+{% endif %}
+
+<!-- Global UI helper functions -->
+<script>
+// Global functions for UI interactions - NO initMap conflicts
+function toggleLegend() {
+    const content = document.getElementById('legend-content');
+    const icon = document.getElementById('legend-toggle-icon');
+    
+    if (content && icon) {
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            icon.style.transform = 'rotate(0deg)';
+        } else {
+            content.style.display = 'none';
+            icon.style.transform = 'rotate(-90deg)';
+        }
+    }
+}
+
+function centerMapOnAll() {
+    if (window.eventMapManager && window.eventMapManager.centerMapOnAllLocations) {
+        window.eventMapManager.centerMapOnAllLocations();
+    } else if (window.mapManager && window.mapManager.map) {
+        // Fallback to basic map centering
+        const bounds = new google.maps.LatLngBounds();
+        const singapore = { lat: 1.3521, lng: 103.8198 };
+        bounds.extend(singapore);
+        window.mapManager.map.fitBounds(bounds);
+    }
+}
+
+// Global error handler for map loading
+function handleMapError(message) {
+    console.error('Map loading error:', message);
+    
+    const loadingSpinner = document.getElementById('loading-spinner');
+    if (loadingSpinner) {
+        loadingSpinner.style.display = 'none';
+    }
+    
+    const mapElement = document.getElementById('map');
+    if (mapElement) {
+        mapElement.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #f5f5f5; color: #666; text-align: center; padding: 20px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #dc3545; margin-bottom: 16px;"></i>
+                <h3>Map Loading Error</h3>
+                <p>${message || 'Unable to load Google Maps. Please check your internet connection and try again.'}</p>
+                <button onclick="location.reload()" style="background: #8B5DB8; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-top: 10px;">
+                    <i class="fas fa-redo"></i> Retry
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Performance monitoring
+window.addEventListener('load', () => {
+    console.log('📊 Page fully loaded at:', Math.round(performance.now()), 'ms');
+});
+
+// Clean up any existing error handling to avoid duplicates
+window.removeEventListener('error', arguments.callee);
+</script>
+{% endblock %}

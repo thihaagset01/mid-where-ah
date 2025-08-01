@@ -138,11 +138,11 @@ def join_group_direct(invite_code):
     """Handle direct invite links"""
     return render_template('group.html', invite_code=invite_code)
 
-@app.route('/view_map')
-def view_map():
+@app.route('/event_map_manager')
+def event_map_manager():
     """Map view page"""
     event_id = request.args.get('eventId')
-    return render_template('view_map.html', event_id=event_id)
+    return render_template('event_map_manager.html', event_id=event_id)
 
 # =============================================================================
 # AUTH BLUEPRINT ROUTES
