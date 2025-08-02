@@ -5,6 +5,8 @@ import json
 from dotenv import load_dotenv
 from functools import wraps
 
+from scrape_timeout import scrape_events
+
 # Import Firebase Admin modules
 from firebase_admin import credentials, firestore
 from firebase_admin_config import verify_firebase_token
@@ -56,6 +58,11 @@ def get_firebase_config():
         print("Warning: Missing required Firebase configuration values")
     
     return config
+
+@app.route('/api/events')
+def api_events():
+    events = scrape_events("https://www.visitsingapore.com/whats-happening/all-happenings/")
+    return jsonify(events)  # pass a Python list/dict, NOT json.dumps
 
 @app.context_processor
 def inject_config():
@@ -186,6 +193,12 @@ def group_chat():
 def profile():
     """User profile page"""
     return render_template('profile.html')
+
+@mobile_bp.route('/explore')
+@login_required
+def explore():
+    """explore page"""
+    return render_template('explore.html')
 
 @mobile_bp.route('/venues/<group_id>')
 @login_required
