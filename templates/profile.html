@@ -1,6 +1,6 @@
 {% extends "mobile_base.html" %}
 
-{% block title %}MidWhereAh - Find Your Midpoint{% endblock %}
+{% block title %}MidWhereAh - Profile{% endblock %}
 {% block mobile_js %}{% endblock %}
 
 {% block head %}
@@ -66,7 +66,7 @@
       <span>Change Transport Mode</span>
     </a>
     
-    <a href="{{ url_for('friends') }}" class="profile-menu-item">
+    <a href="{{ url_for('mobile.friends') }}" class="profile-menu-item">
       <div class="menu-icon">
         <i class="fas fa-user-friends"></i>
       </div>
@@ -131,8 +131,7 @@
 </div>
 {% endblock %}
 
-
 {% block scripts %}
-<!-- Load profile.js -->
 <script src="{{ url_for('static', filename='js/profile.js') }}"></script>
+<script src="{{ url_for('static', filename='js/friends-api-adapter.js') }}"></script>
 {% endblock %}

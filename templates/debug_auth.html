@@ -1,0 +1,140 @@
+<!-- Add this simple debug page to test auth -->
+{% extends "mobile_base.html" %}
+
+{% block title %}Debug Auth{% endblock %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h2>Authentication Debug</h2>
+    
+    <div id="auth-status">
+        <p>Checking authentication...</p>
+    </div>
+    
+    <div id="session-info">
+        <p>Checking session...</p>
+    </div>
+    
+    <div id="firebase-user">
+        <p>Checking Firebase user...</p>
+    </div>
+    
+    <button onclick="testFriendsAPI()" class="btn btn-primary">Test Friends API</button>
+    <button onclick="checkAuthState()" class="btn btn-secondary">Recheck Auth</button>
+    
+    <div id="api-result" style="margin-top: 20px;">
+        <!-- API results will show here -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        checkAuthState();
+    }, 2000);
+});
+
+function checkAuthState() {
+    const authStatus = document.getElementById('auth-status');
+    const sessionInfo = document.getElementById('session-info');
+    const firebaseUser = document.getElementById('firebase-user');
+    
+    // Check Firebase Auth
+    firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+            firebaseUser.innerHTML = `
+                <h4>✅ Firebase User Found</h4>
+                <p><strong>Email:</strong> ${user.email}</p>
+                <p><strong>UID:</strong> ${user.uid}</p>
+                <p><strong>Token:</strong> ${user.accessToken ? 'Present' : 'Not found'}</p>
+            `;
+            
+            // Get ID token
+            user.getIdToken().then(function(idToken) {
+                console.log('ID Token:', idToken.substring(0, 20) + '...');
+                
+                // Test backend session
+                fetch('/api/user', {
+                    headers: {
+                        'Authorization': 'Bearer ' + idToken
+                    }
+                })
+                .then(response => {
+                    console.log('API Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('API Response:', data);
+                    sessionInfo.innerHTML = `
+                        <h4>✅ Backend Session</h4>
+                        <p><strong>Status:</strong> ${data.status || 'Unknown'}</p>
+                        <p><strong>Authenticated:</strong> ${data.authenticated}</p>
+                        <p><strong>User:</strong> ${data.user ? data.user.email : 'Not found'}</p>
+                    `;
+                })
+                .catch(error => {
+                    console.error('API Error:', error);
+                    sessionInfo.innerHTML = `
+                        <h4>❌ Backend Session Failed</h4>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                    `;
+                });
+            });
+            
+        } else {
+            firebaseUser.innerHTML = `
+                <h4>❌ No Firebase User</h4>
+                <p>User is not logged in to Firebase</p>
+            `;
+            
+            sessionInfo.innerHTML = `
+                <h4>❌ No Session</h4>
+                <p>Cannot check backend without Firebase user</p>
+            `;
+        }
+    });
+    
+    authStatus.innerHTML = `
+        <h4>🔍 Auth Check Complete</h4>
+        <p>Check results above</p>
+    `;
+}
+
+function testFriendsAPI() {
+    const resultDiv = document.getElementById('api-result');
+    resultDiv.innerHTML = '<p>Testing friends API...</p>';
+    
+    fetch('/api/friends')
+        .then(response => {
+            console.log('Friends API status:', response.status);
+            if (response.status === 302) {
+                resultDiv.innerHTML = `
+                    <h4>❌ Friends API - Redirect to Login</h4>
+                    <p>Status: ${response.status}</p>
+                    <p>This confirms the auth issue</p>
+                `;
+                return;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data) {
+                resultDiv.innerHTML = `
+                    <h4>✅ Friends API Success</h4>
+                    <p><strong>Friends:</strong> ${data.friends ? data.friends.length : 'N/A'}</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Friends API error:', error);
+            resultDiv.innerHTML = `
+                <h4>❌ Friends API Failed</h4>
+                <p><strong>Error:</strong> ${error.message}</p>
+            `;
+        });
+}
+</script>
+{% endblock %}
