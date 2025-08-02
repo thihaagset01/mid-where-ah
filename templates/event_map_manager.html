@@ -5,7 +5,7 @@
 {% block head %}
 <!-- Font Awesome for icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<!-- View Map CSS -->
+<!-- Event Map Manager CSS - contains all styling -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/event_map_manager.css') }}">
 
 <!-- Google Maps API Preconnect -->
@@ -17,51 +17,87 @@
 {% endblock %}
 
 {% block content %}
+<!-- Full-screen map (same as homepage) -->
+<div id="map"></div>
+
 <!-- Loading Spinner -->
 <div id="loading-spinner" class="loading-spinner">
-    <i class="fas fa-spinner"></i>
-    <p>Loading event map...</p>
+    <div class="message-content">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Loading event map...</span>
+    </div>
 </div>
 
-<!-- Event Information Container -->
-<div id="event-info-container" role="banner" aria-label="Event Information">
-    <!-- Event info will be dynamically populated by JavaScript -->
-</div>
+<!-- Collapsible Bottom Drawer (like homepage locations-container) -->
+<div class="locations-container" id="event-locations-container">
+  <!-- Drag Handle -->
+  <div class="handle-area" id="container-handle">
+    <div class="container-handle"></div>
+    <h4 class="handle-title" id="handle-title">Event Locations</h4>
+  </div>
 
-<!-- Main Map Container -->
-<div id="map" role="application" aria-label="Interactive Event Map">
-    <!-- Google Maps will be rendered here -->
+  <!-- Container Content -->
+  <div class="container-content">
+    <!-- Dynamic Member Location Containers (like homepage location inputs) -->
+    <div id="member-locations">
+      <!-- Member locations will be dynamically inserted here -->
+    </div>
+
+    <!-- Action Buttons Container (similar to homepage parent-container) -->
+    <div class="event-actions-container" id="event-actions">
+      <!-- Refresh Button (like add-person-btn) -->
+      <button id="refresh-locations-btn" class="action-circle-btn">
+        <i class="fas fa-sync-alt"></i>
+      </button>
+      
+      <!-- Find Meeting Point Button (like find-central-btn) -->
+      <button class="find-central-btn" id="find-meeting-point-btn">
+        <i class="fas fa-location-arrow"></i>
+        Find Meeting Point
+      </button>
+    </div>
+
+    <!-- Venue Actions (appears after midpoint calculation) -->
+    <div class="venue-actions-container" id="venue-actions" style="display: none;">
+      <button id="find-venues-btn" class="action-circle-btn">
+        <i class="fas fa-search"></i>
+      </button>
+      
+      <button class="find-central-btn secondary" id="show-directions-btn">
+        <i class="fas fa-route"></i>
+        Get Directions
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- Top Navigation Header -->
-<div class="group group-row center" style="width: 90%; max-width: 600px; margin-top: 20px; position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 100;">
+<div class="event-nav-header">
     <a href="{{ url_for('mobile.groups') }}" class="header-nav-button back-btn" aria-label="Go back to groups">
-        <img src="{{ url_for('static', filename='images/Back Button.svg') }}" alt="Back" loading="lazy">
+        <i class="fas fa-arrow-left"></i>
     </a>
-    <img src="{{ url_for('static', filename='images/group-bar-placeholder.png') }}" class="center-img" alt="Group Header" loading="lazy">
+    <div class="nav-title" id="nav-event-title">Event Map</div>
     <button class="header-nav-button filter-btn" aria-label="Open map options" id="options-toggle">
-        <img src="{{ url_for('static', filename='images/Filter Icon.svg') }}" alt="Options" loading="lazy">
+        <i class="fas fa-ellipsis-h"></i>
     </button>
 </div>
 {% endblock %}
 
-{% block scripts %}
-<!-- FIXED: Load scripts in correct dependency order -->
+{% block mobile_js %}
+<!-- Override mobile_js to prevent ALL duplicate loading -->
+{% endblock %}
 
-<!-- 1. Core services first -->
+{% block scripts %}
+<!-- Load scripts in correct dependency order - event map specific -->
+
+<!-- Core services first -->
 <script src="{{ url_for('static', filename='js/services/DistanceMatrixService.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/services/MeetingPointOptimizer.js') }}" defer></script>
 
-<!-- 2. Base map functionality -->
-<script src="{{ url_for('static', filename='js/location/MapManager.js') }}" defer></script>
-
-<!-- 3. Feature modules that depend on MapManager -->
-<script src="{{ url_for('static', filename='js/VenueMapFeatures.js') }}" defer></script>
-
-<!-- 4. Page-specific functionality (loads last) -->
+<!-- Page-specific functionality (loads last) -->
 <script src="{{ url_for('static', filename='js/event_map_manager.js') }}" defer></script>
 
-<!-- 5. Google Maps API with proper callback -->
+<!-- Google Maps API with proper callback -->
 {% if google_maps_api_key %}
 <script async defer 
     src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places,geometry&callback=initMap&loading=async"
@@ -77,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Global UI helper functions -->
 <script>
-// Global functions for UI interactions - NO initMap conflicts
+// Global functions for UI interactions
 function toggleLegend() {
     const content = document.getElementById('legend-content');
     const icon = document.getElementById('legend-toggle-icon');
@@ -97,7 +133,6 @@ function centerMapOnAll() {
     if (window.eventMapManager && window.eventMapManager.centerMapOnAllLocations) {
         window.eventMapManager.centerMapOnAllLocations();
     } else if (window.mapManager && window.mapManager.map) {
-        // Fallback to basic map centering
         const bounds = new google.maps.LatLngBounds();
         const singapore = { lat: 1.3521, lng: 103.8198 };
         bounds.extend(singapore);
@@ -129,27 +164,49 @@ function handleMapError(message) {
     }
 }
 
-// Performance monitoring
-window.addEventListener('load', () => {
-    console.log('📊 Page fully loaded at:', Math.round(performance.now()), 'ms');
-});
-
 // Initialize map when Google Maps API loads
 function initMap() {
     console.log('🗺️ Google Maps API loaded, initializing...');
     
-    // Initialize MapManager first
-    if (typeof MapManager !== 'undefined') {
-        window.mapManager = new MapManager('map');
-        console.log('✅ MapManager initialized');
-        
-        // Then initialize event-specific functionality
-        if (typeof EventMapManager !== 'undefined') {
-            window.eventMapManager = new EventMapManager();
-            console.log('✅ EventMapManager initialized');
+    // Hide loading spinner
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+        spinner.style.display = 'none';
+    }
+    
+    // Create a simple MapManager for event map
+    if (typeof google !== 'undefined' && google.maps) {
+        try {
+            // Initialize map directly without conflicts
+            const mapElement = document.getElementById('map');
+            if (mapElement) {
+                const map = new google.maps.Map(mapElement, {
+                    zoom: 12,
+                    center: { lat: 1.3521, lng: 103.8198 }, // Singapore center
+                    styles: [
+                        {
+                            featureType: 'poi',
+                            elementType: 'labels',
+                            stylers: [{ visibility: 'off' }]
+                        }
+                    ]
+                });
+                
+                console.log('✅ Map initialized successfully');
+                
+                // Initialize EventMapManager if available
+                if (window.eventMapManager) {
+                    window.eventMapManager.onMapReady(map);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Map initialization failed:', error);
+            handleMapError('Failed to initialize map');
         }
     } else {
-        console.error('❌ MapManager not found');
-        handleMapError('Map initialization failed - MapManager not loaded');
+        console.error('❌ Google Maps not available');
+        handleMapError('Google Maps not loaded');
     }
 }
+</script>
+{% endblock %}

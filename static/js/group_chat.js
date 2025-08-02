@@ -149,15 +149,26 @@ class GroupChatManager {
     }
 
     setupToolbar() {
-        const toolbarToggle = document.querySelector('.toolbar-toggle');
+        // Use ID instead of class for toggle button
+        const toolbarToggle = document.getElementById('toggleButton'); // Changed from '.toolbar-toggle'
         const toolbar = document.getElementById('toolbar');
 
-        if (!toolbarToggle || !toolbar) return;
+        if (!toolbarToggle || !toolbar) {
+            console.warn('Toolbar elements not found');
+            return;
+        }
 
         // Toggle toolbar visibility
         toolbarToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            toolbar.style.display = toolbar.style.display === 'flex' ? 'none' : 'flex';
+            console.log('Toggle button clicked'); // Debug log
+            
+            // Toggle display
+            if (toolbar.style.display === 'flex') {
+                toolbar.style.display = 'none';
+            } else {
+                toolbar.style.display = 'flex';
+            }
         });
 
         // Close toolbar when clicking outside
@@ -173,19 +184,27 @@ class GroupChatManager {
     }
 
     setupEventPopup() {
-        const eventBtn = document.getElementById('newevent');
+        // Look for the actual event button in your toolbar
+        const eventBtn = document.getElementById('newevent'); // Make sure this ID exists in your HTML
         const eventPopup = document.getElementById('eventpop');
         const cancelBtn = document.getElementById('cancel');
         const saveBtn = document.getElementById('save');
 
-        if (!eventBtn || !eventPopup) {
-            console.warn('Event popup elements not found');
+        if (!eventBtn) {
+            console.warn('Event button (#newevent) not found in toolbar');
+            // If the button has a different ID, update it here
+            return;
+        }
+        
+        if (!eventPopup) {
+            console.warn('Event popup (#eventpop) not found');
             return;
         }
 
         // Open event creation popup
         eventBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            console.log('Event button clicked'); // Debug log
             this.openEventPopup();
         });
 
@@ -870,9 +889,54 @@ class GroupChatManager {
         }
     }
 
-    viewEventDetails(eventId) {
-        const eventUrl = `/event_map_manager?eventId=${eventId}&groupId=${this.groupId}`;
-        window.location.href = eventUrl;
+    async viewEventDetails(eventId) {
+        try {
+            console.log('Opening event map for event:', eventId);
+        
+            // Get event data from Firestore
+            const eventDoc = await this.db.collection('groups').doc(this.groupId)
+                .collection('events').doc(eventId).get();
+            
+            if (!eventDoc.exists) {
+                this.showToast('Event not found', 'error');
+                return;
+            }
+        
+            const eventData = eventDoc.data();
+        
+            // Get group members
+            const groupDoc = await this.db.collection('groups').doc(this.groupId).get();
+            const groupData = groupDoc.exists ? groupDoc.data() : {};
+            const members = groupData.members || {};
+        
+            // Convert members object to array
+            const membersArray = Object.keys(members).map(userId => ({
+                userId: userId,
+                name: members[userId].name || 'Unknown',
+                email: members[userId].email || '',
+                role: members[userId].role || 'member'
+            }));
+        
+            // Build URL with all necessary parameters
+            const params = new URLSearchParams({
+                eventId: eventId,
+                groupId: this.groupId,
+                eventName: eventData.name || 'Event',
+                eventDate: eventData.date || '',
+                eventTime: eventData.time || '',
+                eventDescription: eventData.description || '',
+                members: JSON.stringify(membersArray)
+            });
+        
+            const eventUrl = `/event_map_manager?${params.toString()}`;
+            console.log('Redirecting to:', eventUrl);
+        
+            window.location.href = eventUrl;
+        
+        } catch (error) {
+            console.error('Error loading event details:', error);
+            this.showToast('Failed to load event details', 'error');
+        }
     }
 
     // ===============================================================

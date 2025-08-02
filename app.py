@@ -151,10 +151,26 @@ def home():
     return render_template('mobile_home.html', group_code=group_code, user_name=user_name)
 
 @app.route('/event_map_manager')
+@login_required
 def event_map_manager():
-    """Map view page"""
+    """Map view page for events"""
     event_id = request.args.get('eventId')
-    return render_template('event_map_manager.html', event_id=event_id)
+    group_id = request.args.get('groupId')
+    
+    # Both eventId and groupId are required
+    if not event_id or not group_id:
+        return redirect(url_for('mobile.groups'))
+    
+    # Get Google Maps API key
+    google_maps_api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
+    if not google_maps_api_key:
+        return render_template('error.html', 
+                             error="Google Maps API key not configured"), 500
+    
+    return render_template('event_map_manager.html', 
+                         event_id=event_id,
+                         group_id=group_id,
+                         google_maps_api_key=google_maps_api_key)
 
 # =============================================================================
 # AUTH BLUEPRINT ROUTES

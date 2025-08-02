@@ -1,6 +1,6 @@
 /**
  * auth.js - Authentication functionality for MidWhereAh
- * Prevents duplicate observers and initializations
+ * Fixed version with better logout handling
  */
 
 class AuthManager {
@@ -27,6 +27,7 @@ class AuthManager {
             '/swipe/'
         ];
         
+        // Set global reference IMMEDIATELY
         window.authManager = this;
         this.initializeFirebase();
     }
@@ -146,15 +147,35 @@ class AuthManager {
     }
     
     /**
-     * Set up logout functionality
+     * Set up logout functionality - IMPROVED VERSION
      */
     setupLogout() {
+        // Use event delegation for better compatibility
         document.addEventListener('click', (e) => {
-            if (e.target.id === 'logout-btn' || e.target.closest('#logout-btn')) {
+            // Check if clicked element or its parent is the logout button
+            if (e.target.id === 'logout-btn' || 
+                e.target.closest('#logout-btn') || 
+                e.target.classList.contains('logout-btn')) {
                 e.preventDefault();
                 this.logout();
             }
         });
+        
+        // Also set up direct listener for specific logout button
+        const setupDirectListener = () => {
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn && !logoutBtn.hasAttribute('data-logout-setup')) {
+                logoutBtn.setAttribute('data-logout-setup', 'true');
+                logoutBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.logout();
+                });
+            }
+        };
+        
+        // Try immediately and also after DOM updates
+        setupDirectListener();
+        setTimeout(setupDirectListener, 1000);
     }
     
     /**
@@ -162,7 +183,9 @@ class AuthManager {
      */
     async logout() {
         try {
+            console.log('Logout initiated...');
             await this.auth.signOut();
+            console.log('Logout successful, redirecting...');
             window.location.replace('/');
         } catch (error) {
             console.error('Logout error:', error);
@@ -184,9 +207,25 @@ class AuthManager {
     }
 }
 
-// SINGLE initialization
+// SINGLE initialization with better error handling
 document.addEventListener('DOMContentLoaded', function() {
     if (!window.authManager) {
-        new AuthManager();
+        try {
+            new AuthManager();
+            console.log('AuthManager initialized successfully');
+        } catch (error) {
+            console.error('Error initializing AuthManager:', error);
+        }
     }
 });
+
+// Global logout function as fallback
+window.logoutUser = function() {
+    if (window.authManager) {
+        window.authManager.logout();
+    } else if (typeof firebase !== 'undefined' && firebase.auth) {
+        firebase.auth().signOut().then(() => {
+            window.location.replace('/');
+        });
+    }
+};

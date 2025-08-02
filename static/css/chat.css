@@ -247,62 +247,60 @@ nav,
    EVENT MESSAGES
    ============================================================================= */
 
+/* Event Message Card Styling */
 .event-message {
-    margin: 15px 0;
-    width: 100%;
-    animation: slideInUp 0.3s ease-out;
+    background: linear-gradient(135deg, #6d06ba, #540070);
+    border-radius: 20px;
+    padding: 20px;
+    margin: 15px 10px;
+    color: white;
+    box-shadow: 0 4px 15px rgba(139, 93, 184, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.event-message::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+    pointer-events: none;
 }
 
 .event-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 15px;
 }
 
-.event-author {
-    font-weight: 500;
-    color: white;
-}
-
-.event-time {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.event-card {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 14px;
-    padding: 16px;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
-}
-
-.event-title {
-    font-size: 18px;
+.event-name {
+    font-size: 20px;
     font-weight: 700;
     color: white;
     margin-bottom: 8px;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.event-name i {
+    font-size: 18px;
+    opacity: 0.9;
 }
 
 .event-description {
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.85);
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.9);
     margin-bottom: 15px;
     line-height: 1.4;
 }
 
 .event-details {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 15px;
 }
 
 .event-date-info {
@@ -317,11 +315,36 @@ nav,
 .event-date-info i {
     font-size: 16px;
     color: rgba(255, 255, 255, 0.8);
+    width: 18px;
+}
+
+.event-time-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.event-time-info i {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.8);
+    width: 18px;
 }
 
 .event-attendees {
-    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
     color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 15px;
+}
+
+.event-attendees i {
+    font-size: 16px;
+    width: 18px;
 }
 
 .event-actions {
@@ -331,10 +354,10 @@ nav,
 }
 
 .event-btn {
-    padding: 10px 20px;
-    min-width: 90px;
+    padding: 10px 18px;
+    min-width: 80px;
     border: none;
-    border-radius: 15px;
+    border-radius: 25px;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
@@ -343,6 +366,7 @@ nav,
     justify-content: center;
     gap: 6px;
     transition: all 0.2s ease;
+    text-transform: none;
 }
 
 .event-btn.join-btn {
@@ -356,6 +380,11 @@ nav,
     transform: translateY(-1px);
 }
 
+.event-btn.join-btn.active {
+    background-color: rgba(72, 187, 120, 0.3);
+    border-color: rgba(72, 187, 120, 0.6);
+}
+
 .event-btn.decline-btn {
     background-color: rgba(255, 255, 255, 0.15);
     color: white;
@@ -365,6 +394,11 @@ nav,
 .event-btn.decline-btn:hover {
     background-color: rgba(255, 255, 255, 0.25);
     transform: translateY(-1px);
+}
+
+.event-btn.decline-btn.active {
+    background-color: rgba(245, 101, 101, 0.3);
+    border-color: rgba(245, 101, 101, 0.6);
 }
 
 .event-btn.details-btn {
@@ -379,9 +413,39 @@ nav,
 }
 
 .event-btn i {
-    font-size: 14px;
+    font-size: 12px;
 }
 
+/* System message styling for event creation */
+.message.system {
+    text-align: center;
+    font-style: italic;
+    color: #666;
+    font-size: 14px;
+    margin: 10px 0;
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .event-message {
+        margin: 15px 5px;
+        padding: 18px;
+    }
+    
+    .event-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .event-btn {
+        min-width: unset;
+        width: 100%;
+        justify-content: center;
+    }
+}
 /* =============================================================================
    MESSAGE INPUT
    ============================================================================= */
@@ -542,7 +606,7 @@ nav,
 /* =============================================================================
    EVENT POPUP
    ============================================================================= */
-
+/* Event Popup Styling */
 .eventpop {
     display: none;
     position: fixed;
@@ -556,18 +620,18 @@ nav,
     max-width: 400px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
     z-index: 1000;
+    flex-direction: column;
 }
 
 .event-title {
     font-size: 20px;
     font-weight: 700;
-    color: #8b5db8;
     margin-bottom: 20px;
-    display: block;
     text-align: center;
 }
 
-.event-input {
+/* Input field styling - using IDs since that's what your HTML has */
+#eventname, #eventdescription {
     width: 100%;
     padding: 12px 15px;
     border: 2px solid #e0e0e0;
@@ -577,20 +641,20 @@ nav,
     outline: none;
     transition: border-color 0.2s ease;
     box-sizing: border-box;
+    font-family: inherit;
 }
 
-.event-input:focus {
+#eventname:focus, #eventdescription:focus {
     border-color: #8b5db8;
 }
 
 .event-date-time {
     display: flex;
-    gap: 15px;
+    gap: 10px;
     margin-bottom: 20px;
 }
 
-.event-date-input,
-.event-time-input {
+#eventdate, #eventtime {
     flex: 1;
     padding: 12px 15px;
     border: 2px solid #e0e0e0;
@@ -598,10 +662,11 @@ nav,
     font-size: 16px;
     outline: none;
     transition: border-color 0.2s ease;
+    box-sizing: border-box;
+    font-family: inherit;
 }
 
-.event-date-input:focus,
-.event-time-input:focus {
+#eventdate:focus, #eventtime:focus {
     border-color: #8b5db8;
 }
 
@@ -611,8 +676,8 @@ nav,
     justify-content: center;
 }
 
-.event-cancel-btn,
-.event-save-btn {
+/* Button styling - using IDs since that's what your HTML has */
+#cancel, #save {
     padding: 12px 25px;
     border: none;
     border-radius: 10px;
@@ -621,31 +686,26 @@ nav,
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 100px;
+    font-family: inherit;
 }
 
-.event-cancel-btn {
+#cancel {
     background: #f0f0f0;
     color: #666;
 }
 
-.event-cancel-btn:hover {
+#cancel:hover {
     background: #e0e0e0;
 }
 
-.event-save-btn {
+#save {
     background: #8b5db8;
     color: white;
 }
 
-.event-save-btn:hover {
+#save:hover {
     background: #7a4fa6;
     transform: translateY(-1px);
-}
-
-.event-save-btn:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-    transform: none;
 }
 
 /* =============================================================================

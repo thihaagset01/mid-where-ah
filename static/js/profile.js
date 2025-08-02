@@ -2,6 +2,27 @@
 
 // Initialize when the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', function() {
+    const logoutBtn = document.getElementById('logout-btn');
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Try AuthManager first, fallback to direct Firebase
+            if (window.authManager && typeof window.authManager.logout === 'function') {
+                window.authManager.logout();
+            } else if (typeof firebase !== 'undefined' && firebase.auth) {
+                firebase.auth().signOut().then(() => {
+                    window.location.replace('/');
+                }).catch((error) => {
+                    console.error('Logout error:', error);
+                });
+            } else {
+                console.error('No authentication method available');
+            }
+        });
+    }
+    
     // Initialize Firebase from the config
     if (typeof initFirebase === 'function') {
         initFirebase();
@@ -16,6 +37,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set up quick edit buttons
     setupQuickEditButtons();
 });
+
+
 
 // Set up Firebase authentication state observer for profile page
 function setupProfileAuthObserver() {

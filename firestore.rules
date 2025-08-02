@@ -4,15 +4,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // =============================================================================
-    // HELPER FUNCTIONS - Reusable logic to minimize rule duplication
+    // HELPER FUNCTIONS
     // =============================================================================
     
-    function debug(value) {
-      // return value;
-      // Uncomment the next line to see debug info in the Firebase console
-      return value != null ? value : debug.value;
-    }
-
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -37,19 +31,15 @@ service cloud.firestore {
              get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid;
     }
     
-    // Check if query is searching by invite code (for group joining)
     function isInviteCodeQuery() {
       return request.query.where.size() == 1 && 
              request.query.where[0].field == "inviteCode";
     }
     
-    // Check if the update is only adding the current user as a member
     function isJoiningGroup() {
-      // Check if user is being added to members
       let newMembers = request.resource.data.get('members', {});
       let oldMembers = resource.data.get('members', {});
       
-      // Allow if user is adding themselves as a member
       return request.auth.uid in newMembers && 
             !(request.auth.uid in oldMembers) &&
             newMembers[request.auth.uid] != null;
@@ -59,108 +49,89 @@ service cloud.firestore {
     // MAIN COLLECTION RULES
     // =============================================================================
     
-    // Users collection - users control their own data
+    // Users collection - FIXED for event permissions
     match /users/{userId} {
       allow read, write: if isOwner(userId);
       
-      // Allow limited read access for friend searches and group member info
-      allow read: if isAuthenticated() && 
-                     (request.query.where.size() > 0 || // Search queries
-                      exists(/databases/$(database)/documents/groups) // Group context
-                     );
+      // Allow any authenticated user to read user documents 
+      // (needed for events and group member info)
+      allow read: if isAuthenticated();
     }
     
-    // Groups collection - flexible group access
+    // Groups collection
     match /groups/{groupId} {
-      // Read: Members can read, or anyone searching by invite code
-      allow read: if isAuthenticated() && 
-                    (isGroupMember(groupId) || 
-                      isInviteCodeQuery() ||
-                      'inviteCode' in request.query.where[0]); // More permissive invite code search
+      // More permissive read for authenticated users (for loading user's groups)
+      allow read: if isAuthenticated();
       
-      // Create: Any authenticated user can create groups
       allow create: if isAuthenticated();
       
-      // Update: More flexible update rules
       allow update: if isAuthenticated() && 
                       (isGroupAdmin(groupId) || 
-                        isJoiningGroup() ||
-                        isValidMemberUpdate()); // Add this new function
+                        isJoiningGroup());
       
-      // Delete: Only creators can delete
       allow delete: if isCreator(groupId);
       
       // =============================================================================
-      // SUBCOLLECTIONS - Generic rules that work for current and future collections
+      // MESSAGES SUBCOLLECTION - FIXED
       // =============================================================================
       
-      // Universal subcollection access pattern
-      match /{subcollection}/{docId} {
-        // Default: members can read, admins can write
+      match /messages/{messageId} {
+        // Members can read messages
         allow read: if isGroupMember(groupId);
         
-        // No default write rule - handled by specific subcollection rules below
+        // Members can create messages
+        allow create: if isGroupMember(groupId);
         
-        // Messages: members can create their own messages
-        match /messages/{messageId} {
-          // Allow all reads for now (we'll restrict this later)
-          allow read: if true;
-          
-          // Very permissive create rule for testing
-          allow create: if request.auth != null;
-          
-          // No updates or deletes
-          allow update, delete: if false;
-        }
-        
-        // Locations: members can manage their own
-        match /locations/{locationId} {
-          allow write: if isGroupMember(groupId) && 
-                          (locationId == request.auth.uid || isGroupAdmin(groupId));
-        }
-        
-        // Votes: users can only vote for themselves
-        match /votes/{voteId} {
-          allow write: if isGroupMember(groupId) && voteId == request.auth.uid;
-        }
-        
-        // Events: members can create, admins can manage all
-        match /events/{eventId} {
-          allow create: if isGroupMember(groupId);
-          allow update, delete: if isGroupAdmin(groupId) || 
-                                   resource.data.createdBy == request.auth.uid;
-        }
-        
-        // Any future subcollections automatically inherit the default rules above
+        // No updates or deletes for messages
+        allow update, delete: if false;
+      }
+      
+      // =============================================================================
+      // OTHER SUBCOLLECTIONS
+      // =============================================================================
+      
+      match /locations/{locationId} {
+        allow read: if isGroupMember(groupId);
+        allow write: if isGroupMember(groupId) && 
+                        (locationId == request.auth.uid || isGroupAdmin(groupId));
+      }
+      
+      match /votes/{voteId} {
+        allow read: if isGroupMember(groupId);
+        allow write: if isGroupMember(groupId) && voteId == request.auth.uid;
+      }
+      
+      match /events/{eventId} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId);
+        allow update, delete: if isGroupAdmin(groupId) || 
+                               resource.data.createdBy == request.auth.uid;
+      }
+      
+      match /venues/{venueId} {
+        allow read: if isGroupMember(groupId);
+        allow write: if isGroupAdmin(groupId);
       }
     }
     
-    // Friend requests collection - handles friend system
+    // Friend requests collection
     match /friend_requests/{requestId} {
-      // Read: if you're the sender or receiver
       allow read: if isAuthenticated() && 
                      (resource.data.fromUserId == request.auth.uid || 
                       resource.data.toUserId == request.auth.uid);
       
-      // Create: if you're the sender
       allow create: if isAuthenticated() && 
                        request.resource.data.fromUserId == request.auth.uid;
       
-      // Update: if you're the receiver (for accepting/rejecting)
       allow update: if isAuthenticated() && 
                        resource.data.toUserId == request.auth.uid;
       
-      // Delete: if you're involved in the request
       allow delete: if isAuthenticated() && 
                        (resource.data.fromUserId == request.auth.uid || 
                         resource.data.toUserId == request.auth.uid);
     }
     
-    // =============================================================================
-    // SYSTEM COLLECTIONS (Optional)
-    // =============================================================================
-    
-    // Configuration collection for app settings
+    // Configuration collection
     match /config/{configId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && 
@@ -171,16 +142,6 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read, write: if isAuthenticated() && 
                             resource.data.userId == request.auth.uid;
-    }
-    
-    // =============================================================================
-    // CATCH-ALL RULES FOR FUTURE COLLECTIONS
-    // =============================================================================
-    
-    // Default security for any new collections you might add
-    match /{collection}/{docId} {
-      // Basic authenticated access - you can override specific collections above
-      allow read, write: if isAuthenticated();
     }
   }
 }

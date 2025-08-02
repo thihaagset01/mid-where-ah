@@ -144,33 +144,231 @@ class EventMapManager {
     }
 
     setupEventMapInterface() {
-        // Update page title and event info
-        document.title = `${this.eventData.eventName} - MidWhereAh`;
+        // Set event title in nav header instead of card
+        this.updateEventTitle();
         
-        const eventInfoContainer = document.getElementById('event-info-container');
-        if (eventInfoContainer) {
-            eventInfoContainer.innerHTML = `
-                <div class="event-info-header">
-                    <h3>${this.eventData.eventName}</h3>
-                    <div class="event-meta">
-                        <span><i class="fas fa-calendar"></i> ${this.eventData.eventDate}</span>
-                        <span><i class="fas fa-clock"></i> ${this.eventData.eventTime}</span>
-                        <span><i class="fas fa-users"></i> ${this.groupMembers.length} members</span>
-                    </div>
-                </div>
-            `;
-        }
-
-        // Update back button to go to group chat
+        // Set up collapsible container
+        this.setupCollapsibleContainer();
+        
+        // Set up event action handlers
+        this.setupEventActionHandlers();
+        
+        // Update back button
         const backBtn = document.querySelector('.back-btn');
         if (backBtn) {
             backBtn.href = `/mobile/group_chat?groupId=${this.eventData.groupId}`;
         }
-
-        // Add event-specific controls
-        this.addEventControls();
-        this.addMapLegend();
-        this.addQuickActions();
+    }
+    updateEventTitle() {
+        const navTitle = document.getElementById('nav-event-title');
+        const handleTitle = document.getElementById('handle-title');
+        
+        if (navTitle) {
+            navTitle.textContent = this.eventData.eventName || 'Event Map';
+        }
+        
+        if (handleTitle) {
+            const memberCount = this.groupMembers ? this.groupMembers.length : 0;
+            const locationCount = this.memberLocations ? this.memberLocations.length : 0;
+            handleTitle.textContent = `${memberCount} Members • ${locationCount} Locations`;
+        }
+    }
+    
+    setupCollapsibleContainer() {
+        const container = document.getElementById('event-locations-container');
+        const handleArea = document.getElementById('container-handle');
+        
+        if (!container || !handleArea) return;
+        
+        let startY = 0;
+        let currentY = 0;
+        let isDragging = false;
+        let isExpanded = false;
+        
+        // Toggle on click
+        handleArea.addEventListener('click', () => {
+            this.toggleContainer();
+        });
+        
+        // Touch/drag support
+        handleArea.addEventListener('touchstart', (e) => {
+            startY = e.touches[0].clientY;
+            isDragging = true;
+            container.style.transition = 'none';
+        }, { passive: true });
+        
+        handleArea.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            
+            currentY = e.touches[0].clientY;
+            const deltaY = currentY - startY;
+            
+            // Only allow dragging up when collapsed, down when expanded
+            if ((!isExpanded && deltaY < 0) || (isExpanded && deltaY > 0)) {
+                const progress = Math.abs(deltaY) / 100; // 100px drag distance
+                const clampedProgress = Math.min(Math.max(progress, 0), 1);
+                
+                if (!isExpanded) {
+                    // Dragging up when collapsed
+                    const translateY = (1 - clampedProgress) * (window.innerHeight * 0.7 - 60);
+                    container.style.transform = `translateY(${translateY}px)`;
+                } else {
+                    // Dragging down when expanded
+                    const translateY = clampedProgress * (window.innerHeight * 0.7 - 60);
+                    container.style.transform = `translateY(${translateY}px)`;
+                }
+            }
+        }, { passive: true });
+        
+        handleArea.addEventListener('touchend', (e) => {
+            if (!isDragging) return;
+            
+            isDragging = false;
+            container.style.transition = 'transform 0.3s ease';
+            
+            const deltaY = currentY - startY;
+            const threshold = 50; // 50px threshold for toggle
+            
+            if (Math.abs(deltaY) > threshold) {
+                if (!isExpanded && deltaY < -threshold) {
+                    // Dragged up enough, expand
+                    this.expandContainer();
+                } else if (isExpanded && deltaY > threshold) {
+                    // Dragged down enough, collapse
+                    this.collapseContainer();
+                } else {
+                    // Return to current state
+                    if (isExpanded) {
+                        this.expandContainer();
+                    } else {
+                        this.collapseContainer();
+                    }
+                }
+            } else {
+                // Return to current state
+                if (isExpanded) {
+                    this.expandContainer();
+                } else {
+                    this.collapseContainer();
+                }
+            }
+        }, { passive: true });
+        
+        // Mouse support for desktop
+        handleArea.addEventListener('mousedown', (e) => {
+            startY = e.clientY;
+            isDragging = true;
+            container.style.transition = 'none';
+            
+            const handleMouseMove = (e) => {
+                if (!isDragging) return;
+                currentY = e.clientY;
+                const deltaY = currentY - startY;
+                
+                if ((!isExpanded && deltaY < 0) || (isExpanded && deltaY > 0)) {
+                    const progress = Math.abs(deltaY) / 100;
+                    const clampedProgress = Math.min(Math.max(progress, 0), 1);
+                    
+                    if (!isExpanded) {
+                        const translateY = (1 - clampedProgress) * (window.innerHeight * 0.7 - 60);
+                        container.style.transform = `translateY(${translateY}px)`;
+                    } else {
+                        const translateY = clampedProgress * (window.innerHeight * 0.7 - 60);
+                        container.style.transform = `translateY(${translateY}px)`;
+                    }
+                }
+            };
+            
+            const handleMouseUp = () => {
+                if (!isDragging) return;
+                
+                isDragging = false;
+                container.style.transition = 'transform 0.3s ease';
+                
+                const deltaY = currentY - startY;
+                const threshold = 50;
+                
+                if (Math.abs(deltaY) > threshold) {
+                    if (!isExpanded && deltaY < -threshold) {
+                        this.expandContainer();
+                    } else if (isExpanded && deltaY > threshold) {
+                        this.collapseContainer();
+                    } else {
+                        if (isExpanded) {
+                            this.expandContainer();
+                        } else {
+                            this.collapseContainer();
+                        }
+                    }
+                } else {
+                    if (isExpanded) {
+                        this.expandContainer();
+                    } else {
+                        this.collapseContainer();
+                    }
+                }
+                
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            };
+            
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        });
+        
+        // Store state reference
+        this.containerState = {
+            isExpanded: false,
+            container: container
+        };
+    }
+    
+    // Toggle container state
+    toggleContainer() {
+        if (this.containerState.isExpanded) {
+            this.collapseContainer();
+        } else {
+            this.expandContainer();
+        }
+    }
+    
+    // Expand container
+    expandContainer() {
+        const container = this.containerState.container;
+        container.classList.add('expanded');
+        container.style.transform = 'translateY(0)';
+        this.containerState.isExpanded = true;
+    }
+    
+    // Collapse container
+    collapseContainer() {
+        const container = this.containerState.container;
+        container.classList.remove('expanded');
+        
+        // Calculate collapsed position based on screen size
+        const collapsedOffset = window.innerWidth <= 480 ? 45 : 
+                               window.innerWidth <= 768 ? 50 : 60;
+        
+        container.style.transform = `translateY(calc(100% - ${collapsedOffset}px))`;
+        this.containerState.isExpanded = false;
+    }
+    
+    // Update the updateEventInfo method to work with new structure
+    updateEventInfo() {
+        // Update handle title with member and location count
+        const handleTitle = document.getElementById('handle-title');
+        
+        if (handleTitle) {
+            const memberCount = this.groupMembers ? this.groupMembers.length : 0;
+            const locationCount = this.memberLocations ? this.memberLocations.length : 0;
+            handleTitle.textContent = `${memberCount} Members • ${locationCount} Locations`;
+        }
+        
+        // Update nav title with event name
+        const navTitle = document.getElementById('nav-event-title');
+        if (navTitle) {
+            navTitle.textContent = this.eventData.eventName || 'Event Map';
+        }
     }
 
     addEventControls() {
@@ -276,29 +474,58 @@ class EventMapManager {
         }
     }
 
-    async loadMemberLocations() {
-        if (!this.groupMembers.length) {
-            this.showInfoMessage('No group members found');
-            return;
-        }
+    // Update this function in event_map_manager.js
 
+    async loadMemberLocations() {
+        console.log('🔍 Loading member locations...');
+        
         if (typeof firebase === 'undefined' || !firebase.firestore) {
             this.showErrorMessage('Firebase not available');
             return;
         }
-
+    
         const db = firebase.firestore();
-        const locations = [];
-
         this.showLoadingState('Loading member locations...');
-
+    
         try {
+            // If no members from URL, load from group document
+            if (!this.groupMembers || this.groupMembers.length === 0) {
+                console.log('No members from URL, loading from group document...');
+                
+                const groupDoc = await db.collection('groups').doc(this.eventData.groupId).get();
+                if (groupDoc.exists) {
+                    const groupData = groupDoc.data();
+                    const members = groupData.members || {};
+                    
+                    this.groupMembers = Object.keys(members).map(userId => ({
+                        userId: userId,
+                        name: members[userId].name || 'Unknown',
+                        email: members[userId].email || '',
+                        role: members[userId].role || 'member'
+                    }));
+                    
+                    console.log('✅ Loaded group members:', this.groupMembers);
+                }
+            }
+    
+            if (!this.groupMembers || this.groupMembers.length === 0) {
+                this.hideLoadingState();
+                this.showInfoMessage('No group members found');
+                return;
+            }
+    
+            const locations = [];
+            const geocoder = new google.maps.Geocoder();
+    
+            // Load each member's location data
             for (const member of this.groupMembers) {
                 try {
-                    const userDoc = await db.collection('users').doc(member.userId || member.uid).get();
+                    const userDoc = await db.collection('users').doc(member.userId).get();
                     if (userDoc.exists) {
                         const userData = userDoc.data();
-                        if (userData.defaultLocation) {
+                        
+                        // Check for new format (defaultLocation object)
+                        if (userData.defaultLocation && userData.defaultLocation.lat && userData.defaultLocation.lng) {
                             locations.push({
                                 name: userData.name || member.name,
                                 address: userData.defaultLocation.address,
@@ -306,36 +533,261 @@ class EventMapManager {
                                     lat: userData.defaultLocation.lat,
                                     lng: userData.defaultLocation.lng
                                 },
-                                uid: member.userId || member.uid
+                                uid: member.userId
                             });
                         }
+                        // Check for old format (defaultAddress string)
+                        else if (userData.defaultAddress) {
+                            console.log(`Geocoding address for ${member.name}: ${userData.defaultAddress}`);
+                            
+                            try {
+                                const geocodeResult = await this.geocodeAddress(userData.defaultAddress);
+                                if (geocodeResult) {
+                                    locations.push({
+                                        name: userData.name || member.name,
+                                        address: geocodeResult.formatted_address,
+                                        position: {
+                                            lat: geocodeResult.geometry.location.lat(),
+                                            lng: geocodeResult.geometry.location.lng()
+                                        },
+                                        uid: member.userId
+                                    });
+                                    
+                                    // Optionally update user document with coordinates for future use
+                                    await this.updateUserLocationCoordinates(member.userId, userData.defaultAddress, geocodeResult);
+                                }
+                            } catch (geocodeError) {
+                                console.warn(`Failed to geocode address for ${member.name}: ${geocodeError.message}`);
+                            }
+                        } else {
+                            console.log(`Member ${member.name} has no location data`);
+                        }
+                    } else {
+                        console.log(`User document not found for ${member.name}`);
                     }
                 } catch (error) {
                     console.error(`Error loading location for member ${member.name}:`, error);
                 }
             }
-
+            
             this.memberLocations = locations;
             this.hideLoadingState();
-
+    
             if (locations.length === 0) {
-                this.showInfoMessage('No member locations found. Members need to set their default locations.');
+                this.showInfoMessage('No member locations found. Members need to set their locations in their profile.');
                 return;
             }
-
+    
             // Clear existing markers and add new ones
             this.clearMemberMarkers();
             this.addMemberMarkers();
             this.centerMapOnAllLocations();
             
             this.showSuccessMessage(`Loaded ${locations.length} member locations`);
-
+            this.updateEventInfo();
+    
         } catch (error) {
             this.hideLoadingState();
             this.showErrorMessage('Failed to load member locations');
             console.error('Error loading member locations:', error);
         }
+        this.createMemberLocationUI();
+        this.updateEventInfo();
     }
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Add this helper method for geocoding
+    async geocodeAddress(address) {
+        return new Promise((resolve, reject) => {
+            if (!this.geocoder) {
+                this.geocoder = new google.maps.Geocoder();
+            }
+            
+            this.geocoder.geocode({ 
+                address: address + ', Singapore',
+                componentRestrictions: { country: 'SG' }
+            }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                    resolve(results[0]);
+                } else {
+                    reject(new Error(`Geocoding failed: ${status}`));
+                }
+            });
+        });
+    }
+    
+    // Add this helper method to update user document with coordinates
+    async updateUserLocationCoordinates(userId, originalAddress, geocodeResult) {
+        try {
+            const db = firebase.firestore();
+            await db.collection('users').doc(userId).update({
+                defaultLocation: {
+                    address: geocodeResult.formatted_address,
+                    lat: geocodeResult.geometry.location.lat(),
+                    lng: geocodeResult.geometry.location.lng(),
+                    placeId: geocodeResult.place_id || null,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }
+            });
+            console.log(`Updated coordinates for user ${userId}`);
+        } catch (error) {
+            console.warn(`Failed to update coordinates for user ${userId}:`, error);
+            // Don't throw - this is optional optimization
+        }
+    }
+
+    
+
+    createMemberLocationUI() {
+        const memberLocationsContainer = document.getElementById('member-locations');
+        if (!memberLocationsContainer) return;
+        
+        // Clear existing content
+        memberLocationsContainer.innerHTML = '';
+        
+        if (!this.groupMembers || this.groupMembers.length === 0) {
+            memberLocationsContainer.innerHTML = `
+                <div class="member-location-container no-location">
+                    <div class="transport-icon transit">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="member-info">
+                        <div class="member-name">No Members</div>
+                        <div class="member-address">No group members found</div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Create UI for each member
+        this.groupMembers.forEach((member, index) => {
+            const memberLocation = this.memberLocations.find(loc => loc.uid === member.userId);
+            const hasLocation = !!memberLocation;
+            
+            const container = document.createElement('div');
+            container.className = `member-location-container ${hasLocation ? 'has-location' : 'no-location'}`;
+            container.setAttribute('data-member-id', member.userId);
+            
+            // Transport mode (default to transit)
+            const transportMode = memberLocation?.transportMode || 'transit';
+            const transportIcons = {
+                transit: 'fas fa-subway',
+                driving: 'fas fa-car',
+                walking: 'fas fa-walking'
+            };
+            
+            container.innerHTML = `
+                <div class="transport-icon ${transportMode}" data-member="${member.userId}" data-transport="${transportMode}">
+                    <i class="${transportIcons[transportMode] || 'fas fa-subway'}"></i>
+                </div>
+                <div class="member-info">
+                    <div class="member-name">${this.escapeHtml(member.name)}</div>
+                    <div class="member-address">${hasLocation ? this.escapeHtml(memberLocation.address) : 'No location set'}</div>
+                    <div class="member-status ${hasLocation ? 'has-location' : 'no-location'}">
+                        ${hasLocation ? '✓ Location available' : '⚠ Location needed'}
+                    </div>
+                </div>
+            `;
+            
+            // Add click handler for transport mode cycling
+            const transportIcon = container.querySelector('.transport-icon');
+            transportIcon.addEventListener('click', () => {
+                this.cycleTransportMode(member.userId);
+            });
+            
+            memberLocationsContainer.appendChild(container);
+        });
+        
+        // Update action buttons state
+        this.updateActionButtonsState();
+    }
+    // Update action buttons state
+    updateActionButtonsState() {
+        const findMeetingBtn = document.getElementById('find-meeting-point-btn');
+        const validLocations = this.memberLocations.length;
+        
+        if (findMeetingBtn) {
+            if (validLocations >= 2) {
+                findMeetingBtn.disabled = false;
+                findMeetingBtn.classList.remove('disabled');
+                findMeetingBtn.innerHTML = '<i class="fas fa-location-arrow"></i> Find Meeting Point';
+            } else {
+                findMeetingBtn.disabled = true;
+                findMeetingBtn.classList.add('disabled');
+                findMeetingBtn.innerHTML = `<i class="fas fa-location-arrow"></i> Need ${2 - validLocations} more locations`;
+            }
+        }
+    }
+
+    cycleTransportMode(memberId) {
+        const container = document.querySelector(`[data-member-id="${memberId}"]`);
+        if (!container) return;
+        
+        const transportIcon = container.querySelector('.transport-icon');
+        const currentMode = transportIcon.getAttribute('data-transport');
+        
+        const modes = ['transit', 'driving', 'walking'];
+        const currentIndex = modes.indexOf(currentMode);
+        const nextMode = modes[(currentIndex + 1) % modes.length];
+        
+        // Update UI
+        transportIcon.className = `transport-icon ${nextMode}`;
+        transportIcon.setAttribute('data-transport', nextMode);
+        
+        const icons = {
+            transit: 'fas fa-subway',
+            driving: 'fas fa-car', 
+            walking: 'fas fa-walking'
+        };
+        
+        const iconElement = transportIcon.querySelector('i');
+        iconElement.className = icons[nextMode];
+        
+        // Update member location data if exists
+        const memberLocation = this.memberLocations.find(loc => loc.uid === memberId);
+        if (memberLocation) {
+            memberLocation.transportMode = nextMode;
+        }
+        
+        console.log(`Updated transport mode for member ${memberId} to ${nextMode}`);
+    }
+
+    setupEventActionHandlers() {
+        const refreshBtn = document.getElementById('refresh-locations-btn');
+        const findMeetingBtn = document.getElementById('find-meeting-point-btn');
+        const findVenuesBtn = document.getElementById('find-venues-btn');
+        const directionsBtn = document.getElementById('show-directions-btn');
+        
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.loadMemberLocations();
+            });
+        }
+        
+        if (findMeetingBtn) {
+            findMeetingBtn.addEventListener('click', () => {
+                this.calculateAndDisplayMidpoint();
+            });
+        }
+        
+        if (findVenuesBtn) {
+            findVenuesBtn.addEventListener('click', () => {
+                this.findNearbyVenues();
+            });
+        }
+        
+        if (directionsBtn) {
+            directionsBtn.addEventListener('click', () => {
+                this.showDirectionsToMidpoint();
+            });
+        }
+    }
+    
 
     addMemberMarkers() {
         this.memberLocations.forEach((location, index) => {
@@ -369,33 +821,31 @@ class EventMapManager {
         });
     }
 
-    calculateAndDisplayMidpoint() {
+    async calculateAndDisplayMidpoint() {
         if (this.memberLocations.length < 2) {
-            this.showInfoMessage('Need at least 2 member locations to calculate midpoint');
+            this.showInfoMessage('Need at least 2 member locations to calculate meeting point');
             return;
         }
         
-        console.log('🔥 Calculating meeting point for', this.memberLocations.length, 'members');
+        const findMeetingBtn = document.getElementById('find-meeting-point-btn');
+        const originalContent = findMeetingBtn ? findMeetingBtn.innerHTML : '';
         
-        // Show loading state
-        const findCentralBtn = document.getElementById('find-central-btn');
-        const originalContent = findCentralBtn ? findCentralBtn.innerHTML : null;
-        
-        if (findCentralBtn) {
-            findCentralBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculating...';
-            findCentralBtn.disabled = true;
+        if (findMeetingBtn) {
+            findMeetingBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculating...';
+            findMeetingBtn.disabled = true;
+            findMeetingBtn.classList.add('loading');
         }
-
+    
         try {
-            // Calculate geometric midpoint
+            // Calculate midpoint
             const positions = this.memberLocations.map(loc => loc.position);
             const midpoint = this.calculateGeometricMidpoint(positions);
-
+    
             // Remove existing midpoint marker
             if (this.midpointMarker) {
                 this.midpointMarker.setMap(null);
             }
-
+    
             // Add new midpoint marker
             this.midpointMarker = new google.maps.Marker({
                 position: midpoint,
@@ -411,39 +861,16 @@ class EventMapManager {
                     scale: 15
                 }
             });
-
-            // Add info window
-            const midpointInfo = new google.maps.InfoWindow({
-                content: `
-                    <div class="marker-info">
-                        <h4>Meeting Point</h4>
-                        <p>Central location for all members</p>
-                        <div class="info-actions">
-                            <button onclick="window.eventMapManager.findNearbyVenues()" class="info-btn">
-                                <i class="fas fa-search"></i> Find Venues
-                            </button>
-                            <button onclick="window.eventMapManager.shareLocation('${midpoint.lat}', '${midpoint.lng}')" class="info-btn">
-                                <i class="fas fa-share-alt"></i> Share
-                            </button>
-                        </div>
-                    </div>
-                `
-            });
-
-            this.midpointMarker.addListener('click', () => {
-                midpointInfo.open(this.map, this.midpointMarker);
-            });
-
-            // Stop animation after 2 seconds
-            setTimeout(() => {
-                if (this.midpointMarker) {
-                    this.midpointMarker.setAnimation(null);
-                }
-            }, 2000);
-
+    
             // Center map on midpoint
             this.map.panTo(midpoint);
             this.map.setZoom(14);
+            
+            // Show venue actions
+            const venueActions = document.getElementById('venue-actions');
+            if (venueActions) {
+                venueActions.style.display = 'flex';
+            }
             
             this.showSuccessMessage('Meeting point calculated!');
             
@@ -452,12 +879,14 @@ class EventMapManager {
             this.showErrorMessage('Could not calculate meeting point');
         } finally {
             // Restore button state
-            if (findCentralBtn && originalContent) {
-                findCentralBtn.innerHTML = originalContent;
-                findCentralBtn.disabled = false;
+            if (findMeetingBtn) {
+                findMeetingBtn.innerHTML = originalContent;
+                findMeetingBtn.disabled = false;
+                findMeetingBtn.classList.remove('loading');
             }
         }
     }
+    
 
     calculateGeometricMidpoint(positions) {
         if (positions.length === 0) return null;
