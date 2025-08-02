@@ -160,7 +160,7 @@ class FriendsGroupIntegration {
                      data-friend-name="${friend.name}"
                      data-friend-email="${friend.email}">
                     <div class="d-flex align-items-center">
-                        <img src="${friend.photoURL || '/static/images/default-avatar.png'}" 
+                        <img src="${friend.photoURL || '/static/images/profile_photo-placeholder.png'}" 
                              class="rounded-circle me-3" 
                              width="32" height="32" alt="Profile">
                         <div>
@@ -361,7 +361,7 @@ class FriendsGroupIntegration {
             friendsList.innerHTML = availableFriends.map(friend => `
                 <label class="d-flex align-items-center p-2 border rounded mb-2 cursor-pointer">
                     <input type="checkbox" class="me-3" value="${friend.userId}">
-                    <img src="${friend.photoURL || '/static/images/default-avatar.png'}" 
+                    <img src="${friend.photoURL || '/static/images/profile_photo-placeholder.png' }" 
                          class="rounded-circle me-3" 
                          width="32" height="32" alt="Profile">
                     <div>

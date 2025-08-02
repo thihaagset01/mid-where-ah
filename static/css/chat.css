@@ -168,17 +168,6 @@ nav,
     animation: fadeInScale 0.3s ease-out forwards;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-    .system-message-content {
-        color: #d0b3e6;
-    }
-    
-    .system-message-time {
-        color: #888;
-    }
-}
-
 /* =============================================================================
    REGULAR MESSAGES
    ============================================================================= */

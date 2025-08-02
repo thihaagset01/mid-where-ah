@@ -39,7 +39,8 @@ body {
 /* Groups Container */
 .groups-container {
   padding: 0 16px;
-  margin-bottom: 70px; /* Space for bottom nav */
+  margin-top: var(--header-height);
+  margin-bottom: var(--nav-height); 
 }
 
 .group-list {

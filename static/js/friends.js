@@ -92,7 +92,7 @@ class FriendsNotificationManager {
         if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('New Friend Request', {
                 body: `${request.fromUserName} wants to be your friend`,
-                icon: request.fromUserPhotoURL || '/static/images/default-avatar.png',
+                icon: request.fromUserPhotoURL || '/static/images/profile_photo-placeholder.png' ,
                 tag: 'friend-request-' + request.id
             });
         }
@@ -265,7 +265,7 @@ class FriendsTabManager {
                 <div class="user-card" data-user-id="${user.userId}">
                     <div class="user-info">
                         <div class="user-avatar">
-                            <img src="${user.photoURL || '/static/images/default-avatar.png'}" alt="${user.name}">
+                            <img src="${user.photoURL || '/static/images/profile_photo-placeholder.png' }" alt="${user.name}">
                         </div>
                         <div class="user-details">
                             <h5>${user.name}</h5>
@@ -429,7 +429,7 @@ class FriendsTabManager {
                 <div class="friend-request-card" data-request-id="${request.id}">
                     <div class="user-info">
                         <div class="user-avatar">
-                            <img src="${request.fromUserPhotoURL || '/static/images/default-avatar.png'}" alt="${request.fromUserName}">
+                            <img src="${request.fromUserPhotoURL || '/static/images/profile_photo-placeholder.png' }" alt="${request.fromUserName}">
                         </div>
                         <div class="user-details">
                             <h5>${request.fromUserName}</h5>
@@ -477,7 +477,7 @@ class FriendsTabManager {
                 <div class="friend-card" data-friend-id="${friend.userId}">
                     <div class="user-info">
                         <div class="user-avatar">
-                            <img src="${friend.photoURL || '/static/images/default-avatar.png'}" alt="${friend.name}">
+                            <img src="${friend.photoURL || '/static/images/profile_photo-placeholder.png' }" alt="${friend.name}">
                         </div>
                         <div class="user-details">
                             <h5>${friend.name}</h5>
