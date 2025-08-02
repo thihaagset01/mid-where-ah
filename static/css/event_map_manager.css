@@ -500,10 +500,6 @@ body {
         padding: 12px;
     }
     
-    .event-nav-header {
-        /* Keep fixed at top: 0 for mobile */
-    }
-    
     .event-actions-container, .venue-actions-container {
         flex-direction: column;
         gap: 8px;

@@ -28,6 +28,21 @@ def debug_routes():
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+def serialize_firestore_data(data):
+    """Convert Firestore timestamps to ISO strings for JSON serialization"""
+    if isinstance(data, dict):
+        result = {}
+        for key, value in data.items():
+            if hasattr(value, 'isoformat'):  # Firestore timestamp
+                result[key] = value.isoformat()
+            elif isinstance(value, dict):
+                result[key] = serialize_firestore_data(value)
+            elif isinstance(value, list):
+                result[key] = [serialize_firestore_data(item) if isinstance(item, dict) else item for item in value]
+            else:
+                result[key] = value
+        return result
+    return data
 
 def get_firebase_config():
     """Get Firebase configuration from environment variables"""
@@ -423,11 +438,11 @@ def search_users():
                 
                 users.append(user_data)
         
-        return jsonify({'users': users})
+        return api_response(data={'users': users})
         
     except Exception as e:
         print(f"Error in search_users: {e}")
-        return jsonify({'error': 'Search failed'}), 500
+        return api_response(error='Search failed'), 500
 
 @app.route('/api/friends/request', methods=['POST'])
 @login_required
@@ -493,12 +508,10 @@ def send_friend_request():
 @app.route('/api/friends/requests', methods=['GET'])
 @login_required
 def get_friend_requests():
-    """Get pending friend requests for current user"""
     try:
         current_user_id = session['user']['uid']
         db = firestore.client()
         
-        # Get pending requests
         requests_query = db.collection('friend_requests')\
                           .where('toUserId', '==', current_user_id)\
                           .where('status', '==', 'pending')\
@@ -508,17 +521,15 @@ def get_friend_requests():
         request_list = []
         
         for doc in requests:
-            request_data = doc.to_dict()
-            # Convert timestamp for JSON serialization
-            if 'createdAt' in request_data and hasattr(request_data['createdAt'], 'isoformat'):
-                request_data['createdAt'] = request_data['createdAt'].isoformat()
+            request_data = serialize_firestore_data(doc.to_dict())
             request_list.append(request_data)
         
-        return jsonify({'requests': request_list})
+        return api_response(data={'requests': request_list})
         
     except Exception as e:
         print(f"Error getting friend requests: {e}")
-        return jsonify({'error': 'Failed to get friend requests'}), 500
+        return api_response(error='Failed to get friend requests'), 500
+
 
 @app.route('/api/friends/request/<request_id>/accept', methods=['POST'])
 @login_required
@@ -622,7 +633,6 @@ def decline_friend_request(request_id):
 @app.route('/api/friends', methods=['GET'])
 @login_required
 def get_friends():
-    """Get friends list for current user"""
     try:
         current_user_id = session['user']['uid']
         db = firestore.client()
@@ -633,17 +643,14 @@ def get_friends():
         
         friends_list = []
         for doc in friends:
-            friend_data = doc.to_dict()
-            # Convert timestamp for JSON serialization
-            if 'friendsSince' in friend_data and hasattr(friend_data['friendsSince'], 'isoformat'):
-                friend_data['friendsSince'] = friend_data['friendsSince'].isoformat()
+            friend_data = serialize_firestore_data(doc.to_dict())
             friends_list.append(friend_data)
         
-        return jsonify({'friends': friends_list})
+        return api_response(data={'friends': friends_list})
         
     except Exception as e:
         print(f"Error getting friends: {e}")
-        return jsonify({'error': 'Failed to get friends'}), 500
+        return api_response(error='Failed to get friends'), 500
 
 @app.route('/api/friends/<friend_id>', methods=['DELETE'])
 @login_required

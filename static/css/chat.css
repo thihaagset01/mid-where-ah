@@ -45,7 +45,7 @@ nav,
    ============================================================================= */
 
 .chat-header {
-    position: relative !important;
+    position: absolute !important;
     top: 0 !important;
     left: 0 !important;
     right: 0 !important;
@@ -59,16 +59,7 @@ nav,
     flex-shrink: 0 !important;
 }
 
-.chat-header {
-    background: linear-gradient(135deg, #8b5db8, #a76cc7);
-    padding: 10px 15px 8px 15px;
-    color: white;
-    display: flex;
-    align-items: center;
-    position: relative;
-    z-index: 1000;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
+
 
 .back-button {
     color: white;
