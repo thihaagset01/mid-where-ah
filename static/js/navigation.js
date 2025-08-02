@@ -60,6 +60,9 @@ class NavigationManager {
             case 'profile':
                 window.location.href = '/mobile/profile';
                 break;
+            case 'compass':
+                window.location.href ='/mobile/explore';
+                break;
             case 'create':
                 this.handleCreateClick();
                 break;
