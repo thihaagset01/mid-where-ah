@@ -1,13 +1,21 @@
-// Complete Working Group Chat System - Replace your entire group_chat.js file
 document.addEventListener('DOMContentLoaded', function() {
-    // Ensure chat elements are hidden initially
-    document.body.classList.remove('chat-loaded');
+    // Force hide any conflicting headers immediately
+    const conflictingElements = document.querySelectorAll('.mobile-header, .app-header, header:not(.chat-header), nav, .navbar, .navigation');
+    conflictingElements.forEach(el => {
+        el.style.display = 'none';
+        el.style.visibility = 'hidden';
+    });
+    
+    // Force body styles
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.body.style.overflow = 'hidden';
+    
+    console.log('DOM loaded, ready for chat initialization');
 });
+
 class GroupChatManager {
     constructor(groupId) {
-        // Remove loading class and ensure elements are hidden initially
-        document.body.classList.remove('chat-loaded');
-        
         this.groupId = groupId;
         this.db = firebase.firestore();
         this.auth = firebase.auth();
@@ -16,98 +24,31 @@ class GroupChatManager {
         this.eventUnsubscribes = new Map();
         this.isInitialized = false;
         
-        // Show loading overlay immediately
-        this.showLoadingOverlay();
-        
         this.waitForAuth();
-    }
-
-    // Show loading overlay
-    showLoadingOverlay() {
-        // Ensure body doesn't have chat-loaded class
-        document.body.classList.remove('chat-loaded');
-        
-        // Your CSS already hides elements, so just add the loading overlay
-        const loadingHTML = `
-            <div class="chat-loading-overlay" id="chatLoadingOverlay">
-                <div class="chat-loading-spinner"></div>
-                <div class="chat-loading-text">Loading Chat...</div>
-                <div class="chat-loading-subtext">Setting up your group conversation</div>
-            </div>
-        `;
-        
-        document.body.insertAdjacentHTML('beforeend', loadingHTML);
-    }
-
-    // Updated to work with your CSS
-    hideLoadingOverlay() {
-        const loadingOverlay = document.getElementById('chatLoadingOverlay');
-        if (loadingOverlay) {
-            loadingOverlay.style.opacity = '0';
-            setTimeout(() => {
-                loadingOverlay.remove();
-            }, 500);
-        }
-        
-        // Add chat-loaded class to show all elements with smooth transition
-        setTimeout(() => {
-            document.body.classList.add('chat-loaded');
-        }, 200);
-    }
-
-    // Update loading text
-    updateLoadingText(mainText, subText) {
-        const loadingTextEl = document.querySelector('.chat-loading-text');
-        const loadingSubtextEl = document.querySelector('.chat-loading-subtext');
-        
-        if (loadingTextEl) {
-            loadingTextEl.textContent = mainText;
-        }
-        if (loadingSubtextEl) {
-            loadingSubtextEl.textContent = subText;
-        }
     }
 
     // Wait for authentication
     async waitForAuth() {
         return new Promise((resolve, reject) => {
-            // Update loading text
-            this.updateLoadingText('Authenticating...', 'Verifying your access');
-            
             const unsubscribe = this.auth.onAuthStateChanged(async (user) => {
                 if (user) {
                     console.log('User authenticated:', user.uid, user.email);
                     try {
-                        this.updateLoadingText('Checking Access...', 'Verifying group membership');
                         await this.verifyGroupAccess(user.uid);
-                        
-                        this.updateLoadingText('Loading Messages...', 'Setting up real-time chat');
                         await this.initializeChat();
                         
-                        this.updateLoadingText('Almost Ready...', 'Finalizing setup');
-                        
-                        // Wait a moment for everything to load
-                        setTimeout(() => {
-                            this.isInitialized = true;
-                            this.hideLoadingOverlay();
-                            resolve(user);
-                        }, 1000);
+                        this.isInitialized = true;
+                        resolve(user);
                         
                     } catch (error) {
                         console.error('Group access verification failed:', error);
-                        this.updateLoadingText('Access Denied', 'Redirecting...');
-                        setTimeout(() => {
-                            alert('You don\'t have access to this group or it doesn\'t exist.');
-                            window.location.href = '/groups';
-                        }, 1500);
+                        alert('You don\'t have access to this group or it doesn\'t exist.');
+                        window.location.href = '/groups';
                         reject(error);
                     }
                 } else {
                     console.error('No authenticated user found');
-                    this.updateLoadingText('Not Signed In', 'Redirecting to login...');
-                    setTimeout(() => {
-                        window.location.href = '/login';
-                    }, 1500);
+                    window.location.href = '/login';
                     reject(new Error('No authenticated user'));
                 }
                 unsubscribe();
@@ -139,17 +80,11 @@ class GroupChatManager {
 
     // Initialize chat
     async initializeChat() {
-        this.updateLoadingText('Setting up Chat...', 'Loading messages');
-        await this.setupMessageListener();
-        
-        this.updateLoadingText('Loading Events...', 'Setting up event updates');
-        await this.setupEventListener();
-        
-        this.updateLoadingText('Preparing Interface...', 'Setting up controls');
-        this.setupMessageInput();
-        
-        this.updateLoadingText('Loading Group Info...', 'Getting group details');
+        // Load initial data first to set up group info properly
         await this.loadInitialData();
+        await this.setupMessageListener();
+        await this.setupEventListener();
+        this.setupMessageInput();
     }
 
     // Setup message listener
@@ -608,16 +543,6 @@ class GroupChatManager {
         if (titleElement) {
             titleElement.textContent = groupData.name;
         }
-
-        const creationElement = document.getElementById('creationMessage');
-        if (creationElement && groupData.createdBy) {
-            const creator = groupData.members[groupData.createdBy];
-            const creatorName = creator ? creator.name : 'Someone';
-            
-            if (creationElement.textContent.includes('Loading')) {
-                creationElement.textContent = `${creatorName} created this group "${groupData.name}"`;
-            }
-        }
     }
 
     escapeHtml(text) {
@@ -648,11 +573,8 @@ class GroupChatManager {
 
 let groupChatManager = null;
 
-// Update the initialization function to work with your CSS
+// Initialize chat immediately
 function initializeGroupChat(groupId) {
-    // Remove chat-loaded class immediately
-    document.body.classList.remove('chat-loaded');
-    
     if (groupChatManager) {
         groupChatManager.cleanup();
     }
@@ -660,11 +582,9 @@ function initializeGroupChat(groupId) {
     groupChatManager = new GroupChatManager(groupId);
     window.groupChatManager = groupChatManager;
     
-    // Initialize UI functions after loading
-    setTimeout(() => {
-        initializeToolbar();
-        initializeEventCreation();
-    }, 1200);
+    // Initialize UI functions
+    initializeToolbar();
+    initializeEventCreation();
 }
 
 function initializeToolbar() {

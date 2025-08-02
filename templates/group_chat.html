@@ -7,20 +7,27 @@
 <!-- Page specific CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/event-enhancements.css') }}">
+<style>
+/* Override any base template styles */
+body { margin: 0 !important; padding: 0 !important; }
+.mobile-header, .app-header, header, nav { display: none !important; }
+</style>
 {% endblock %}
 
 {% block bottom_navigation %}{% endblock %}
+{% block show_navigation %}{% set show_navigation = false %}{% endblock %}
    
 {% block mobile_js %}{% endblock %}
 
 {% block content %}
+
+
 <!-- Chat Header -->
 <div class="chat-header">
   <a href="/groups" class="back-button">
-    <i class="fas fa-chevron-left"></i>
+    <i class="fas fa-arrow-left"></i>
   </a>
-  <!-- DYNAMIC: Group title will be loaded by JavaScript -->
-  <div class="group-title" id="groupTitle">Loading...</div>
+  <div class="group-title" id="groupTitle">Group Chat</div>
 </div>
 
 <!-- Group Avatar Row -->
@@ -29,15 +36,17 @@
 </div>
 
 <!-- Chat Content -->
-<div class="chat-content">  
+<div class="chat-content" id="chatContent">  
   <!-- Event Card Container -->
   <div class="eventcardcontainer group-col" id="eventcardcontainer">
     <div id="eventcard"></div>
   </div>
+  
+  <!-- Messages will be dynamically inserted here -->
 </div>
 
 <!-- Event Pop Up -->
-<div class="eventpop group-col" id="eventpop">
+<div class="eventpop group-col" id="eventpop" style="display: none;">
   <span class="event-title">New Event</span>
   <input type="text" placeholder="Event Name" id="eventname" class="event-input">
   <input type="text" placeholder="Event Description" id="eventdescription" class="event-input">
@@ -52,37 +61,38 @@
   </div>
 </div>
 
-<!-- Message Input with Toolbar -->
-<div class="message-input-container">
-  <div class="toolbar" id="toolbar">
-    <div class="toolbar-content">
-      <button class="toolbar-item">
-        <div class="icon-container">
-          <i class="fas fa-image"></i>
-        </div>
-        <span>Photos</span>
-      </button>
-      <button class="toolbar-item">
-        <div class="icon-container">
-          <i class="fas fa-poll-h"></i>
-        </div>
-        <span>Poll</span>
-      </button>
-      <button class="toolbar-item" id="newevent">
-        <div class="icon-container">
-          <i class="fas fa-map-marker-alt"></i>
-        </div>
-        <span>Event</span>
-      </button>
-    </div>
+<!-- Toolbar -->
+<div class="toolbar" id="toolbar" style="display: none;">
+  <div class="toolbar-content">
+    <button class="toolbar-item">
+      <div class="icon-container">
+        <i class="fas fa-image"></i>
+      </div>
+      <span>Photos</span>
+    </button>
+    <button class="toolbar-item">
+      <div class="icon-container">
+        <i class="fas fa-poll-h"></i>
+      </div>
+      <span>Poll</span>
+    </button>
+    <button class="toolbar-item" id="newevent">
+      <div class="icon-container">
+        <i class="fas fa-map-marker-alt"></i>
+      </div>
+      <span>Event</span>
+    </button>
   </div>
-  
+</div>
+
+<!-- Message Input Container -->
+<div class="message-input-container">
   <div class="message-input-group">
     <button class="toggle-button" id="toggleButton">
       <i class="fas fa-paperclip"></i>
     </button>
-    <input type="text" class="message-input" placeholder="Send Message...">
-    <button class="send-button">
+    <input type="text" class="message-input" placeholder="Send Message..." id="messageInput">
+    <button class="send-button" id="sendButton">
       <i class="fas fa-arrow-right"></i>
     </button>
   </div>
@@ -90,6 +100,7 @@
 
 <!-- Hidden input to store group ID for JavaScript -->
 <input type="hidden" id="currentGroupId" value="{{ group_id }}">
+</div>
 {% endblock %}
 
 {% block scripts %}
