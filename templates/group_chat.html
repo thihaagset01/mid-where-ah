@@ -126,9 +126,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (user) {
             console.log('User authenticated, initializing group chat');
             
-            // Initialize the enhanced group chat system
-            initializeGroupChat(groupId);
-            
         } else {
             console.log('User not authenticated, redirecting to login');
             window.location.href = '/login';

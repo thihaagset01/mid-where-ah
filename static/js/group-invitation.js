@@ -21,12 +21,12 @@ class GroupInvitationManager {
             if (!currentUser) {
                 throw new Error('Please log in to join a group');
             }
-
+    
             // Get the user's ID token for authentication
             const idToken = await currentUser.getIdToken();
-
-            // Call your Flask API endpoint
-            const response = await fetch('/api/join-group-by-code', {
+    
+            // Updated endpoint to match the backend
+            const response = await fetch('/api/groups/join', {  // Changed from '/api/join-group-by-code'
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -37,20 +37,21 @@ class GroupInvitationManager {
                     inviteCode: inviteCode.toUpperCase()
                 })
             });
-
+    
             const result = await response.json();
-
+    
             if (!response.ok) {
                 throw new Error(result.error || 'Failed to join group');
             }
-
+    
             return result;
-
+    
         } catch (error) {
             console.error('Error joining group:', error);
             throw error;
         }
     }
+    
 
     /**
      * Fallback method: Join group using direct Firestore (original method)
@@ -183,13 +184,13 @@ async function handleJoinGroup() {
     const inviteCode = input.value.trim().toUpperCase();
     
     if (!inviteCode) {
-        alert('Please enter an invite code');
+        showToast('Please enter an invite code', 'error');
         input.focus();
         return;
     }
     
     if (inviteCode.length !== 6) {
-        alert('Invite code must be 6 characters');
+        showToast('Invite code must be 6 characters', 'error');
         input.focus();
         return;
     }
@@ -206,29 +207,59 @@ async function handleJoinGroup() {
         try {
             // Try Flask API first
             result = await inviteManager.joinGroupByCode(inviteCode);
-        } catch (apiError) {
-            console.warn('Flask API failed, trying Firestore fallback:', apiError);
-            // If Flask API fails, try direct Firestore approach
-            result = await inviteManager.joinGroupByCodeFallback(inviteCode);
-        }
-        
-        if (result.success) {
+            
+            // Show success message
             if (result.alreadyMember) {
-                alert(result.message);
+                showToast(result.message, 'info');
             } else {
-                alert(result.message);
+                showToast(result.message || 'Successfully joined the group!', 'success');
             }
             
             closeJoinGroupModal();
             
+            // Refresh groups list if the function exists
             if (typeof loadUserGroups === 'function') {
                 console.log('Refreshing groups list after join');
                 await loadUserGroups();
             }
             
-            setTimeout(() => {
-                window.location.href = `/mobile/group_chat?groupId=${result.groupId}`;
-            }, 1500);
+            // Redirect to the group chat after a short delay
+            if (result.groupId) {
+                setTimeout(() => {
+                    window.location.href = `/mobile/group_chat?groupId=${result.groupId}`;
+                }, 1000);
+            }
+            
+        } catch (apiError) {
+            console.warn('Flask API failed, trying Firestore fallback:', apiError);
+            
+            // If Flask API fails, try direct Firestore approach
+            try {
+                result = await inviteManager.joinGroupByCodeFallback(inviteCode);
+                
+                if (result.alreadyMember) {
+                    showToast(result.message, 'info');
+                } else {
+                    showToast(result.message || 'Successfully joined the group!', 'success');
+                }
+                
+                closeJoinGroupModal();
+                
+                if (typeof loadUserGroups === 'function') {
+                    console.log('Refreshing groups list after fallback join');
+                    await loadUserGroups();
+                }
+                
+                if (result.groupId) {
+                    setTimeout(() => {
+                        window.location.href = `/mobile/group_chat?groupId=${result.groupId}`;
+                    }, 1000);
+                }
+                
+            } catch (fallbackError) {
+                console.error('Fallback join failed:', fallbackError);
+                throw fallbackError; // Re-throw to be caught by the outer catch
+            }
         }
         
     } catch (error) {
@@ -238,13 +269,16 @@ async function handleJoinGroup() {
         let userMessage = 'Error joining group: ';
         if (error.message.includes('Missing or insufficient permissions')) {
             userMessage += 'Permission denied. Please check your Firestore security rules.';
+            showToast(userMessage, 'error');
         } else if (error.message.includes('Invalid invite code')) {
             userMessage += 'Invalid invite code. Please check the code and try again.';
+            showToast(userMessage, 'error');
+        } else if (error.message.includes('already a member')) {
+            showToast(error.message, 'info');
         } else {
-            userMessage += error.message;
+            showToast(userMessage + (error.message || 'An unknown error occurred'), 'error');
         }
         
-        alert(userMessage);
     } finally {
         joinBtn.disabled = false;
         joinBtn.innerHTML = originalText;
@@ -498,3 +532,35 @@ window.closeJoinGroupModal = closeJoinGroupModal;
 window.copyInviteCode = copyInviteCode;
 window.shareGroupInvite = shareGroupInvite;
 window.addInviteButtonToGroupChat = addInviteButtonToGroupChat;
+
+// Toast function
+function showToast(message, type = 'info') {
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <div class="toast-content">
+            <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+            <span>${escapeHtml(message)}</span>
+        </div>
+    `;
+    
+    // Add to page
+    document.body.appendChild(toast);
+    
+    // Show with animation
+    setTimeout(() => toast.classList.add('show'), 100);
+    
+    // Remove after delay
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => document.body.contains(toast) && document.body.removeChild(toast), 300);
+    }, 3000);
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}

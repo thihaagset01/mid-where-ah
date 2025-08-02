@@ -7,6 +7,12 @@ service cloud.firestore {
     // HELPER FUNCTIONS - Reusable logic to minimize rule duplication
     // =============================================================================
     
+    function debug(value) {
+      // return value;
+      // Uncomment the next line to see debug info in the Firebase console
+      return value != null ? value : debug.value;
+    }
+
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -39,24 +45,14 @@ service cloud.firestore {
     
     // Check if the update is only adding the current user as a member
     function isJoiningGroup() {
-      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
-      return affectedKeys.hasOnly(['members', 'memberCount', 'updatedAt', 'lastActivity']) &&
-             request.resource.data.members.keys().hasOnly([request.auth.uid]) &&
-             request.resource.data.members[request.auth.uid] != null;
-    }
-    
-    // Flexible field validation - allows core fields plus custom ones
-    function isValidGroupUpdate() {
-      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
-      let allowedFields = ['name', 'description', 'category', 'updatedAt', 'lastActivity', 
-                          'avatar', 'settings', 'status', 'location'];
-      return affectedKeys.hasAny(allowedFields);
-    }
-    
-    // Development mode toggle (optional - remove in production)
-    function isDevMode() {
-      return exists(/databases/$(database)/documents/config/settings) && 
-             get(/databases/$(database)/documents/config/settings).data.devMode == true;
+      // Check if user is being added to members
+      let newMembers = request.resource.data.get('members', {});
+      let oldMembers = resource.data.get('members', {});
+      
+      // Allow if user is adding themselves as a member
+      return request.auth.uid in newMembers && 
+            !(request.auth.uid in oldMembers) &&
+            newMembers[request.auth.uid] != null;
     }
     
     // =============================================================================
@@ -76,16 +72,20 @@ service cloud.firestore {
     
     // Groups collection - flexible group access
     match /groups/{groupId} {
-      // Read: Members can read, or invite code queries
+      // Read: Members can read, or anyone searching by invite code
       allow read: if isAuthenticated() && 
-                     (isGroupMember(groupId) || isInviteCodeQuery());
+                    (isGroupMember(groupId) || 
+                      isInviteCodeQuery() ||
+                      'inviteCode' in request.query.where[0]); // More permissive invite code search
       
       // Create: Any authenticated user can create groups
       allow create: if isAuthenticated();
       
-      // Update: Admins can update structure, anyone can join via invite
+      // Update: More flexible update rules
       allow update: if isAuthenticated() && 
-                       (isGroupAdmin(groupId) || isJoiningGroup());
+                      (isGroupAdmin(groupId) || 
+                        isJoiningGroup() ||
+                        isValidMemberUpdate()); // Add this new function
       
       // Delete: Only creators can delete
       allow delete: if isCreator(groupId);
@@ -98,15 +98,19 @@ service cloud.firestore {
       match /{subcollection}/{docId} {
         // Default: members can read, admins can write
         allow read: if isGroupMember(groupId);
-        allow write: if isGroupAdmin(groupId);
         
-        // Specific overrides for known subcollections
+        // No default write rule - handled by specific subcollection rules below
         
-        // Messages: members can create their own
+        // Messages: members can create their own messages
         match /messages/{messageId} {
-          allow create: if isGroupMember(groupId) && 
-                           request.resource.data.userId == request.auth.uid;
-          allow update: if false; // No message editing
+          // Allow all reads for now (we'll restrict this later)
+          allow read: if true;
+          
+          // Very permissive create rule for testing
+          allow create: if request.auth != null;
+          
+          // No updates or deletes
+          allow update, delete: if false;
         }
         
         // Locations: members can manage their own
