@@ -157,7 +157,7 @@ class AuthManager {
                 e.target.closest('#logout-btn') || 
                 e.target.classList.contains('logout-btn')) {
                 e.preventDefault();
-                this.logout();
+                this.handleLogout();
             }
         });
         
@@ -168,7 +168,7 @@ class AuthManager {
                 logoutBtn.setAttribute('data-logout-setup', 'true');
                 logoutBtn.addEventListener('click', (e) => {
                     e.preventDefault();
-                    this.logout();
+                    this.handleLogout();
                 });
             }
         };
@@ -179,16 +179,25 @@ class AuthManager {
     }
     
     /**
-     * Sign out user
+     * Sign out user and clear cache
      */
-    async logout() {
+    async handleLogout() {
         try {
-            console.log('Logout initiated...');
+            // Clear any cached data before logging out
+            if (typeof CacheManager !== 'undefined') {
+                await CacheManager.clearAll();
+                console.log('Cleared all cached data on logout');
+            }
+            
+            // Sign out from Firebase
             await this.auth.signOut();
-            console.log('Logout successful, redirecting...');
-            window.location.replace('/');
+            
+            // Redirect to login page
+            window.location.href = '/login';
         } catch (error) {
-            console.error('Logout error:', error);
+            console.error('Error during logout:', error);
+            // Still redirect even if cache clearing fails
+            window.location.href = '/login';
         }
     }
     
@@ -222,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Global logout function as fallback
 window.logoutUser = function() {
     if (window.authManager) {
-        window.authManager.logout();
+        window.authManager.handleLogout();
     } else if (typeof firebase !== 'undefined' && firebase.auth) {
         firebase.auth().signOut().then(() => {
             window.location.replace('/');

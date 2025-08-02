@@ -4,148 +4,23 @@
 
 {% block head %}
   {{ super() }}
-  <style>
-    body {
-      padding-top: 100px;
-      padding-bottom: 100px;
-      padding-left: 10px;
-      padding-right: 10px;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f5f7fa;
-      color: #333;
-      margin: 0;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-
-    .page-header {
-      max-width: 900px;
-      margin: 0 auto 30px auto;
-      padding: 0 10px;
-      text-align: center;
-    }
-    .page-header h1 {
-      font-weight: 700;
-      font-size: 2.5rem;
-      color: #222;
-      margin-bottom: 0;
-      letter-spacing: 0.02em;
-    }
-
-    #events-container {
-      max-width: 900px;
-      margin: 0 auto 60px auto;
-      padding: 0 10px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 24px;
-    }
-
-    .event-card {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      padding: 20px;
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-      transition: box-shadow 0.3s ease, transform 0.3s ease;
-      border: none;
-    }
-    .event-card:hover {
-      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-      transform: translateY(-6px);
-    }
-
-    .event-title {
-      font-size: 1.3rem;
-      font-weight: 700;
-      margin-bottom: 10px;
-      line-height: 1.2;
-      color: #1a202c;
-      flex-grow: 0;
-    }
-
-    .event-date,
-    .event-location {
-      font-size: 0.95rem;
-      color: #555;
-      margin-bottom: 6px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 600;
-    }
-    .event-date::before {
-      content: "📅";
-      font-size: 1rem;
-    }
-    .event-location::before {
-      content: "📍";
-      font-size: 1rem;
-    }
-
-    .event-description {
-      margin-top: auto;
-      font-size: 1rem;
-      color: #444;
-      line-height: 1.4;
-      margin-top: 14px;
-      flex-grow: 1;
-    }
-
-    @media (max-width: 480px) {
-      .page-header h1 {
-        font-size: 1.8rem;
-      }
-      #events-container {
-        padding: 0 5px;
-      }
-      .event-card {
-        padding: 16px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/explore.css') }}">
 {% endblock %}
 
 {% block content %}
+<explore-page>
   <div class="page-header">
-    <h1>Upcoming Events in Singapore</h1>
+    <h1>Upcoming Events</h1>
+    <p class="text-muted">Find and join events happening near you</p>
   </div>
-  <div id="events-container"></div>  <!-- ID matches CSS -->
+
+  <div id="events-container">
+    <!-- Events will be loaded here by JavaScript -->
+  </div>
+</explore-page>
 {% endblock %}
 
 {% block scripts %}
-<script>
-  async function fetchEvents() {
-    try {
-      const res = await fetch('/api/events');  // no trailing slash
-      if (!res.ok) throw new Error('Network response was not ok');
-
-      const events = await res.json();
-
-      const container = document.getElementById('events-container');
-      container.innerHTML = '';  // clear old content
-
-      events.forEach(event => {
-        const el = document.createElement('div');
-        el.className = 'event-card';
-        el.innerHTML = `
-          <h3 class="event-title"><a href="${event.url}" target="_blank" rel="noopener noreferrer">${event.title}</a></h3>
-          <p class="event-date">${event.date}</p>
-          <p class="event-description">${event.description}</p>
-        `;
-        container.appendChild(el);
-      });
-
-    } catch (err) {
-      console.error('Failed to load events:', err);
-      const container = document.getElementById('events-container');
-      container.innerHTML = `<p style="color: red;">Failed to load events. Please try again later.</p>`;
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', fetchEvents);
-</script>
+{{ super() }}
+<script type="module" src="{{ url_for('static', filename='js/pages/explore.js') }}"></script>
 {% endblock %}

@@ -30,7 +30,7 @@ function setupAuthObserver() {
 
 
 // Update UI elements for authenticated user
-function updateUIForAuthenticatedUser(user) {
+async function updateUIForAuthenticatedUser(user) {
     // Show logout link, hide login link
     document.getElementById('logout-nav')?.style.setProperty('display', 'block');
     document.getElementById('login-nav')?.style.setProperty('display', 'none');
@@ -39,6 +39,23 @@ function updateUIForAuthenticatedUser(user) {
     const userNameElement = document.getElementById('user-name');
     if (userNameElement) {
         userNameElement.textContent = user.displayName || user.email.split('@')[0];
+    }
+
+    // Pre-fetch events data in the background after successful login
+    try {
+        // Import the event service dynamically
+        const { eventService } = await import('./services/eventService.js');
+        
+        // Pre-fetch events in the background
+        eventService.fetchEvents()
+            .then(events => {
+                console.log('Events pre-fetched successfully', events);
+            })
+            .catch(err => {
+                console.warn('Background events pre-fetch failed:', err);
+            });
+    } catch (error) {
+        console.warn('Failed to load eventService:', error);
     }
 }
 
