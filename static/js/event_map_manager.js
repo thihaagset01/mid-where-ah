@@ -176,51 +176,103 @@ class EventMapManager {
     
     setupCollapsibleContainer() {
         const container = document.getElementById('event-locations-container');
+        const navHeader = document.querySelector('.event-nav-header');
         const handleArea = document.getElementById('container-handle');
+        const mapElement = document.getElementById('map');
         
-        if (!container || !handleArea) return;
+        if (!container || !navHeader) return;
         
         let startY = 0;
         let currentY = 0;
         let isDragging = false;
         let isExpanded = false;
         
-        // Toggle on click
-        handleArea.addEventListener('click', () => {
+        // Toggle on nav header click (avoid buttons)
+        navHeader.addEventListener('click', (e) => {
+            // Don't toggle if clicking buttons
+            if (e.target.closest('.header-nav-button')) return;
             this.toggleContainer();
         });
         
-        // Touch/drag support
-        handleArea.addEventListener('touchstart', (e) => {
+        // Handle area click for additional toggle
+        if (handleArea) {
+            handleArea.addEventListener('click', () => {
+                this.toggleContainer();
+            });
+        }
+        
+        // Collapse when interacting with map
+        if (mapElement) {
+            mapElement.addEventListener('click', () => {
+                if (this.containerState && this.containerState.isExpanded) {
+                    this.collapseContainer();
+                }
+            });
+            
+            mapElement.addEventListener('touchstart', () => {
+                if (this.containerState && this.containerState.isExpanded) {
+                    this.collapseContainer();
+                }
+            });
+        }
+        
+        // Also collapse when map tiles finish loading (user is interacting)
+        if (this.map) {
+            this.map.addListener('click', () => {
+                if (this.containerState && this.containerState.isExpanded) {
+                    this.collapseContainer();
+                }
+            });
+            
+            this.map.addListener('drag', () => {
+                if (this.containerState && this.containerState.isExpanded) {
+                    this.collapseContainer();
+                }
+            });
+            
+            this.map.addListener('zoom_changed', () => {
+                if (this.containerState && this.containerState.isExpanded) {
+                    this.collapseContainer();
+                }
+            });
+        }
+        
+        // Touch/drag support on nav header
+        navHeader.addEventListener('touchstart', (e) => {
+            // Don't drag if touching buttons
+            if (e.target.closest('.header-nav-button')) return;
+            
             startY = e.touches[0].clientY;
             isDragging = true;
             container.style.transition = 'none';
-        }, { passive: true });
+            e.preventDefault(); // Prevent scroll
+        }, { passive: false });
         
-        handleArea.addEventListener('touchmove', (e) => {
+        navHeader.addEventListener('touchmove', (e) => {
             if (!isDragging) return;
             
             currentY = e.touches[0].clientY;
             const deltaY = currentY - startY;
             
-            // Only allow dragging up when collapsed, down when expanded
-            if ((!isExpanded && deltaY < 0) || (isExpanded && deltaY > 0)) {
+            // Only allow dragging down when collapsed, up when expanded
+            if ((!isExpanded && deltaY > 0) || (isExpanded && deltaY < 0)) {
                 const progress = Math.abs(deltaY) / 100; // 100px drag distance
                 const clampedProgress = Math.min(Math.max(progress, 0), 1);
                 
                 if (!isExpanded) {
-                    // Dragging up when collapsed
-                    const translateY = (1 - clampedProgress) * (window.innerHeight * 0.7 - 60);
-                    container.style.transform = `translateY(${translateY}px)`;
+                    // Dragging down when collapsed - show container
+                    const translateY = -85 + (clampedProgress * 85); // -85% to 0%
+                    container.style.transform = `translateY(${translateY}%)`;
                 } else {
-                    // Dragging down when expanded
-                    const translateY = clampedProgress * (window.innerHeight * 0.7 - 60);
-                    container.style.transform = `translateY(${translateY}px)`;
+                    // Dragging up when expanded - hide container  
+                    const translateY = -(15 + (clampedProgress * 85)); // -15% to -100%
+                    container.style.transform = `translateY(${translateY}%)`;
                 }
             }
-        }, { passive: true });
+            e.preventDefault(); // Prevent scroll
+        }, { passive: false });
         
-        handleArea.addEventListener('touchend', (e) => {
+        navHeader.addEventListener('touchend', (e) => {
             if (!isDragging) return;
             
             isDragging = false;
@@ -230,11 +282,11 @@ class EventMapManager {
             const threshold = 50; // 50px threshold for toggle
             
             if (Math.abs(deltaY) > threshold) {
-                if (!isExpanded && deltaY < -threshold) {
-                    // Dragged up enough, expand
+                if (!isExpanded && deltaY > threshold) {
+                    // Dragged down enough, expand
                     this.expandContainer();
-                } else if (isExpanded && deltaY > threshold) {
-                    // Dragged down enough, collapse
+                } else if (isExpanded && deltaY < -threshold) {
+                    // Dragged up enough, collapse
                     this.collapseContainer();
                 } else {
                     // Return to current state
@@ -255,7 +307,10 @@ class EventMapManager {
         }, { passive: true });
         
         // Mouse support for desktop
-        handleArea.addEventListener('mousedown', (e) => {
+        navHeader.addEventListener('mousedown', (e) => {
+            // Don't drag if clicking buttons
+            if (e.target.closest('.header-nav-button')) return;
+            
             startY = e.clientY;
             isDragging = true;
             container.style.transition = 'none';
@@ -265,16 +320,16 @@ class EventMapManager {
                 currentY = e.clientY;
                 const deltaY = currentY - startY;
                 
-                if ((!isExpanded && deltaY < 0) || (isExpanded && deltaY > 0)) {
+                if ((!isExpanded && deltaY > 0) || (isExpanded && deltaY < 0)) {
                     const progress = Math.abs(deltaY) / 100;
                     const clampedProgress = Math.min(Math.max(progress, 0), 1);
                     
                     if (!isExpanded) {
-                        const translateY = (1 - clampedProgress) * (window.innerHeight * 0.7 - 60);
-                        container.style.transform = `translateY(${translateY}px)`;
+                        const translateY = -85 + (clampedProgress * 85);
+                        container.style.transform = `translateY(${translateY}%)`;
                     } else {
-                        const translateY = clampedProgress * (window.innerHeight * 0.7 - 60);
-                        container.style.transform = `translateY(${translateY}px)`;
+                        const translateY = -(15 + (clampedProgress * 85));
+                        container.style.transform = `translateY(${translateY}%)`;
                     }
                 }
             };
@@ -289,9 +344,9 @@ class EventMapManager {
                 const threshold = 50;
                 
                 if (Math.abs(deltaY) > threshold) {
-                    if (!isExpanded && deltaY < -threshold) {
+                    if (!isExpanded && deltaY > threshold) {
                         this.expandContainer();
-                    } else if (isExpanded && deltaY > threshold) {
+                    } else if (isExpanded && deltaY < -threshold) {
                         this.collapseContainer();
                     } else {
                         if (isExpanded) {
@@ -319,7 +374,8 @@ class EventMapManager {
         // Store state reference
         this.containerState = {
             isExpanded: false,
-            container: container
+            container: container,
+            navHeader: navHeader
         };
     }
     
@@ -332,24 +388,25 @@ class EventMapManager {
         }
     }
     
-    // Expand container
+    // Expand container (show from top)
     expandContainer() {
         const container = this.containerState.container;
+        const navHeader = this.containerState.navHeader;
+        
         container.classList.add('expanded');
         container.style.transform = 'translateY(0)';
+        navHeader.classList.add('container-expanded');
         this.containerState.isExpanded = true;
     }
     
-    // Collapse container
+    // Collapse container (hide to top)
     collapseContainer() {
         const container = this.containerState.container;
+        const navHeader = this.containerState.navHeader;
+        
         container.classList.remove('expanded');
-        
-        // Calculate collapsed position based on screen size
-        const collapsedOffset = window.innerWidth <= 480 ? 45 : 
-                               window.innerWidth <= 768 ? 50 : 60;
-        
-        container.style.transform = `translateY(calc(100% - ${collapsedOffset}px))`;
+        container.style.transform = 'translateY(-85%)'; /* Show 15% when collapsed */
+        navHeader.classList.remove('container-expanded');
         this.containerState.isExpanded = false;
     }
     
@@ -639,8 +696,6 @@ class EventMapManager {
             // Don't throw - this is optional optimization
         }
     }
-
-    
 
     createMemberLocationUI() {
         const memberLocationsContainer = document.getElementById('member-locations');

@@ -17,7 +17,7 @@
 {% endblock %}
 
 {% block content %}
-<!-- Full-screen map (same as homepage) -->
+<!-- Full-screen map -->
 <div id="map"></div>
 
 <!-- Loading Spinner -->
@@ -28,29 +28,34 @@
     </div>
 </div>
 
-<!-- Collapsible Bottom Drawer (like homepage locations-container) -->
-<div class="locations-container" id="event-locations-container">
-  <!-- Drag Handle -->
-  <div class="handle-area" id="container-handle">
-    <div class="container-handle"></div>
-    <h4 class="handle-title" id="handle-title">Event Locations</h4>
-  </div>
+<!-- Top Navigation Header - Enhanced for swipe functionality -->
+<div class="event-nav-header" id="event-nav-header">
+    <a href="{{ url_for('mobile.groups') }}" class="header-nav-button back-btn" aria-label="Go back to groups">
+        <i class="fas fa-arrow-left"></i>
+    </a>
+    <div class="nav-title" id="nav-event-title">Event Map</div>
+    <button class="header-nav-button filter-btn" aria-label="Open map options" id="options-toggle">
+        <i class="fas fa-ellipsis-h"></i>
+    </button>
+</div>
 
-  <!-- Container Content -->
+<!-- Collapsible Top Drawer (swipes down from nav header) -->
+<div class="locations-container" id="event-locations-container">
+  <!-- Container Content - Now appears first/top -->
   <div class="container-content">
-    <!-- Dynamic Member Location Containers (like homepage location inputs) -->
+    <!-- Dynamic Member Location Containers -->
     <div id="member-locations">
       <!-- Member locations will be dynamically inserted here -->
     </div>
 
-    <!-- Action Buttons Container (similar to homepage parent-container) -->
+    <!-- Action Buttons Container -->
     <div class="event-actions-container" id="event-actions">
-      <!-- Refresh Button (like add-person-btn) -->
+      <!-- Refresh Button -->
       <button id="refresh-locations-btn" class="action-circle-btn">
         <i class="fas fa-sync-alt"></i>
       </button>
       
-      <!-- Find Meeting Point Button (like find-central-btn) -->
+      <!-- Find Meeting Point Button -->
       <button class="find-central-btn" id="find-meeting-point-btn">
         <i class="fas fa-location-arrow"></i>
         Find Meeting Point
@@ -69,17 +74,12 @@
       </button>
     </div>
   </div>
-</div>
 
-<!-- Top Navigation Header -->
-<div class="event-nav-header">
-    <a href="{{ url_for('mobile.groups') }}" class="header-nav-button back-btn" aria-label="Go back to groups">
-        <i class="fas fa-arrow-left"></i>
-    </a>
-    <div class="nav-title" id="nav-event-title">Event Map</div>
-    <button class="header-nav-button filter-btn" aria-label="Open map options" id="options-toggle">
-        <i class="fas fa-ellipsis-h"></i>
-    </button>
+  <!-- Handle Area - Now appears at bottom as visual indicator -->
+  <div class="handle-area" id="container-handle">
+    <div class="container-handle"></div>
+    <h4 class="handle-title" id="handle-title">Event Locations</h4>
+  </div>
 </div>
 {% endblock %}
 

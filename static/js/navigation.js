@@ -92,6 +92,7 @@ class NavigationManager {
         if (path.includes('/groups')) activePage = 'groups';
         else if (path.includes('/profile')) activePage = 'profile';
         else if (path === '/app') activePage = 'home';
+        else if (path === '/mobile/explore') activePage = 'compass';
 
         const activeNavItem = document.querySelector(`[data-page="${activePage}"]`);
         if (activeNavItem) {

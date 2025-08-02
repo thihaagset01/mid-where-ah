@@ -62,26 +62,29 @@ body {
 }
 
 /* =============================================================================
-   NAVIGATION HEADER
+   TOP NAVIGATION HEADER - Enhanced for swipe functionality
    ============================================================================= */
 
 .event-nav-header {
     position: fixed;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 2000;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    width: 90%;
-    max-width: 600px;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: var(--border-radius);
-    padding: 10px 15px;
-    box-shadow: var(--box-shadow);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0 16px;
+    z-index: 1001;
+    cursor: pointer; /* Make header swipeable */
+    user-select: none;
+}
+
+.event-nav-header:active {
+    background: rgba(255, 255, 255, 0.9);
 }
 
 .header-nav-button {
@@ -113,52 +116,72 @@ body {
     color: #333;
     flex: 1;
     text-align: center;
+    pointer-events: none; /* Allow swipe through title */
 }
 
 /* =============================================================================
-   MAIN CONTAINER - COLLAPSIBLE BOTTOM DRAWER
+   MAIN CONTAINER - COLLAPSIBLE TOP DRAWER
    ============================================================================= */
 
 .locations-container {
     position: fixed;
-    bottom: 0;
+    top: 60px; /* Below nav header */
     left: 0;
     right: 0;
     background: rgba(255, 255, 255, 0.95);
-    border-radius: 20px 20px 0 0;
+    border-radius: 0 0 20px 20px;
     backdrop-filter: blur(10px);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     z-index: 1000;
-    transform: translateY(calc(100% - 60px)); /* Show only handle by default */
+    transform: translateY(-85%); /* Show more content by default - only hide 85% */
     transition: transform 0.3s ease;
     max-height: 70vh;
+    display: flex;
+    flex-direction: column;
 }
 
 .locations-container.expanded {
-    transform: translateY(0);
+    transform: translateY(0); /* Show from top */
 }
 
-/* Drag Handle */
+/* Visual indicator on nav header */
+.event-nav-header::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 3px;
+    background: var(--primary-color);
+    border-radius: 0 0 2px 2px;
+    opacity: 0.3;
+    transition: opacity 0.2s ease;
+}
+
+.event-nav-header.container-expanded::after {
+    opacity: 1;
+}
+
+/* Handle Area - Now at bottom of container */
+.handle-area {
+    padding: 12px 20px 8px;
+    text-align: center;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    order: 1; /* Move to bottom */
+}
+
 .container-handle {
     width: 40px;
     height: 4px;
     background: #ddd;
     border-radius: 2px;
-    margin: 8px auto;
-    cursor: pointer;
+    margin: 0 auto 8px;
     transition: background-color 0.2s ease;
 }
 
 .container-handle:hover {
     background: var(--primary-color);
-}
-
-/* Handle Area */
-.handle-area {
-    padding: 8px 20px 12px;
-    text-align: center;
-    cursor: pointer;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .handle-title {
@@ -168,18 +191,13 @@ body {
     margin: 0;
 }
 
-/* Container Content */
+/* Container Content - Now at top */
 .container-content {
     padding: 16px;
     overflow-y: auto;
     max-height: calc(70vh - 60px);
+    order: 0; /* Move to top */
 }
-
-/* =============================================================================
-   EVENT INFO CARD - REMOVED (title goes in nav header)
-   ============================================================================= */
-
-/* Event info card removed - title now in nav header */
 
 /* =============================================================================
    MEMBER LOCATION CONTAINERS
@@ -474,8 +492,8 @@ body {
 
 @media (max-width: 768px) {
     .locations-container {
-        border-radius: 16px 16px 0 0;
-        transform: translateY(calc(100% - 50px));
+        border-radius: 0 0 16px 16px;
+        /* Container stays at top: 60px, no transform change needed */
     }
     
     .container-content {
@@ -483,8 +501,7 @@ body {
     }
     
     .event-nav-header {
-        top: 12px;
-        width: 95%;
+        /* Keep fixed at top: 0 for mobile */
     }
     
     .event-actions-container, .venue-actions-container {
@@ -505,13 +522,13 @@ body {
 
 @media (max-width: 480px) {
     .locations-container {
-        border-radius: 12px 12px 0 0;
-        transform: translateY(calc(100% - 45px));
+        border-radius: 0 0 12px 12px;
+        /* Container stays at top: 60px, no transform change needed */
     }
     
     .container-content {
         padding: 10px;
-        max-height: calc(70vh - 50px);
+        max-height: calc(70vh - 60px); /* Keep consistent with desktop */
     }
     
     .handle-area {
@@ -523,9 +540,8 @@ body {
     }
     
     .event-nav-header {
-        top: 8px;
-        width: 96%;
-        padding: 8px 12px;
+        height: 60px; /* Keep consistent height */
+        padding: 0 12px;
     }
     
     .member-location-container {
