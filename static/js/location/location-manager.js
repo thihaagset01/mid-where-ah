@@ -1,19 +1,13 @@
-/**
- * location-manager.js - Manages location inputs and related functionality
- * Handles adding/removing location inputs, transport modes, and integration with MapManager
- */
+
 
 class LocationInputManager {
     constructor() {
-        this.personCount = 2; // Start with 2 default locations
-        this.maxPersons = 6;  // Maximum number of locations allowed
-        
-        // Store global reference
+        this.maxPersons = 10;
+        this.activePersonIds = new Set([1, 2]); // Track active IDs
         window.locationInputManager = this;
         
         console.log('LocationInputManager initialized');
         
-        // Auto-initialize when DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.init());
         } else {
@@ -21,27 +15,17 @@ class LocationInputManager {
         }
     }
     
-    /**
-     * Initialize location input manager
-     */
     init() {
         console.log('Initializing LocationInputManager');
-        
-        // Set up add person button
         this.setupAddPersonButton();
-        
         return this;
     }
     
-    /**
-     * Set up add person button
-     */
     setupAddPersonButton() {
         const addPersonBtn = document.getElementById('add-person-btn');
         
         if (addPersonBtn) {
             console.log('Setting up add person button');
-            
             addPersonBtn.addEventListener('click', () => {
                 this.addNewPerson();
             });
@@ -50,36 +34,45 @@ class LocationInputManager {
         }
     }
     
-    /**
-     * Add a new person/location input
-     */
+    // Find the next available person ID
+    getNextAvailableId() {
+        for (let i = 3; i <= this.maxPersons; i++) {
+            if (!this.activePersonIds.has(i)) {
+                return i;
+            }
+        }
+        return null; // No available IDs
+    }
+    
     addNewPerson() {
-        // Check if we've reached the maximum number of persons
-        if (this.personCount >= this.maxPersons) {
+        if (this.activePersonIds.size >= this.maxPersons) {
             console.log('Maximum number of persons reached');
-            
-            // Show notification if UIManager is available
             if (window.uiManager) {
                 window.uiManager.showNotification('Maximum number of locations reached (6)');
             }
-            
             return;
         }
         
-        // Increment person count
-        this.personCount++;
+        const personId = this.getNextAvailableId();
+        if (!personId) {
+            console.error('No available person ID');
+            return;
+        }
         
-        console.log(`Adding new person #${this.personCount}`);
+        // Add to active set
+        this.activePersonIds.add(personId);
         
-        // Create new location container
+        console.log(`Adding new person #${personId}`);
+        
+        // Create container
         const locationContainer = document.createElement('div');
         locationContainer.className = 'location-container';
-        locationContainer.setAttribute('data-person-id', this.personCount);
+        locationContainer.setAttribute('data-person-id', personId);
         
         // Create transport icon
         const transportIcon = document.createElement('div');
         transportIcon.className = 'transport-icon transit';
-        transportIcon.setAttribute('data-person', this.personCount);
+        transportIcon.setAttribute('data-person', personId);
         transportIcon.setAttribute('data-current-mode', 'TRANSIT');
         transportIcon.setAttribute('data-tooltip', 'Public Transport');
         
@@ -87,41 +80,72 @@ class LocationInputManager {
         transportIconInner.className = 'fas fa-subway';
         transportIcon.appendChild(transportIconInner);
         
-        // Create location input
+        // Create input
         const locationInput = document.createElement('input');
         locationInput.type = 'text';
-        locationInput.id = `location-${this.personCount}`;
+        locationInput.id = `location-${personId}`;
         locationInput.className = 'location-input';
-        locationInput.placeholder = `Address ${this.personCount}`;
+        locationInput.placeholder = `Address ${personId}`;
         locationInput.autocomplete = 'off';
         
-        // Assemble location container
+        // CREATE REMOVE BUTTON (only for person 3+)
+        let removeBtn = null;
+        if (personId > 2) {
+            removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-person-btn';
+            removeBtn.title = 'Remove Person';
+            removeBtn.style.display = 'inline-flex';
+            
+            const removeIcon = document.createElement('i');
+            removeIcon.className = 'fas fa-times';
+            removeBtn.appendChild(removeIcon);
+            
+            // Add click handler with proper ID tracking
+            removeBtn.addEventListener('click', () => {
+                console.log(`Removing person ${personId}`);
+                
+                // Remove from active set
+                this.activePersonIds.delete(personId);
+                
+                // Remove DOM element
+                locationContainer.remove();
+                
+                console.log('Active person IDs:', Array.from(this.activePersonIds));
+            });
+        }
+        
+        // Assemble container
         locationContainer.appendChild(transportIcon);
         locationContainer.appendChild(locationInput);
+        if (removeBtn) {
+            locationContainer.appendChild(removeBtn);
+        }
         
-        // Add to locations container before the parent container
+        // Add to DOM
         const locationsContainer = document.getElementById('locations-container');
         const parentContainer = document.getElementById('parent-container');
         
         if (locationsContainer && parentContainer) {
             locationsContainer.insertBefore(locationContainer, parentContainer);
             
-            // Set up autocomplete for the new input if MapManager is available
+            // Set up autocomplete
             if (window.mapManager) {
                 setTimeout(() => {
-                    window.mapManager.setupSingleInputAutocomplete(locationInput, this.personCount - 1);
+                    window.mapManager.setupSingleInputAutocomplete(locationInput, personId - 1);
                 }, 100);
             }
             
-            // Update find button state if MidpointCalculator is available
+            // Update find button
             if (window.midpointCalculator) {
                 window.midpointCalculator.updateFindButtonState();
             }
         } else {
             console.error('Locations container or parent container not found');
         }
+        
+        console.log('Active person IDs after add:', Array.from(this.activePersonIds));
     }
 }
 
 // Create instance when script loads
-new LocationInputManager();
+new LocationInputManager(); 

@@ -18,13 +18,12 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
 CORS(app)
 
-# =============================================================================
-# BLUEPRINTS
-# =============================================================================
-
-auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
-mobile_bp = Blueprint('mobile', __name__, url_prefix='/mobile')
-api_bp = Blueprint('api', __name__, url_prefix='/api')
+@app.route('/debug-routes')
+def debug_routes():
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append(f"{rule.rule} -> {rule.endpoint}")
+    return "<br>".join(routes)
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -123,6 +122,24 @@ def login_required(f):
     
     return decorated_function
 
+def api_response(data=None, error=None, status="success"):
+    """Standardized API response format"""
+    response = {"status": status}
+    if data is not None:
+        response["data"] = data
+    if error:
+        response["error"] = error
+        response["status"] = "error"
+    return jsonify(response)
+
+# =============================================================================
+# BLUEPRINTS
+# =============================================================================
+
+auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
+mobile_bp = Blueprint('mobile', __name__, url_prefix='/mobile')
+api_bp = Blueprint('api', __name__, url_prefix='/api')
+
 # =============================================================================
 # MAIN ROUTES
 # =============================================================================
@@ -139,11 +156,6 @@ def home():
     group_code = request.args.get('group')
     user_name = request.args.get('name')
     return render_template('mobile_home.html', group_code=group_code, user_name=user_name)
-
-@app.route('/join/<invite_code>')
-def join_group_direct(invite_code):
-    """Handle direct invite links"""
-    return render_template('group.html', invite_code=invite_code)
 
 @app.route('/event_map_manager')
 def event_map_manager():
@@ -179,6 +191,11 @@ def groups():
     """Groups management page"""
     return render_template('group.html')
 
+@mobile_bp.route('/join/<invite_code>')
+def join_group(invite_code):
+    """Handle group invite links"""
+    return render_template('group.html', invite_code=invite_code)
+
 @mobile_bp.route('/group_chat')
 @login_required
 def group_chat():
@@ -193,6 +210,12 @@ def group_chat():
 def profile():
     """User profile page"""
     return render_template('profile.html')
+
+@mobile_bp.route('/profile/friends')
+@login_required
+def friends():
+    """Friends management page"""
+    return render_template('friends.html') 
 
 @mobile_bp.route('/explore')
 @login_required
@@ -213,17 +236,124 @@ def swipe(group_id):
     return render_template('swipe.html', group_id=group_id)
 
 # =============================================================================
-# FRIENDS ROUTES
+# API BLUEPRINT ROUTES - USER & AUTH
 # =============================================================================
 
-@app.route('/profile/friends')
+@api_bp.route('/user', methods=['GET', 'POST'])
 @login_required
-def friends():
-    """Friends management page"""
-    return render_template('friends.html')
+def user_api():
+    """User API endpoint"""
+    user_info = g.user
+    
+    if request.method == 'POST':
+        # Handle user creation/update
+        return api_response(data={"message": "User updated successfully"})
+    else:
+        return api_response(data={
+            "authenticated": True,
+            "user": user_info
+        })
+
+# =============================================================================
+# API BLUEPRINT ROUTES - GROUPS
+# =============================================================================
+
+@api_bp.route('/groups', methods=['GET', 'POST'])
+@login_required
+def groups_api():
+    """Groups API endpoint"""
+    if request.method == 'POST':
+        # Handle group creation/update
+        return api_response(data={"message": "Group created successfully"})
+    else:
+        return api_response(data={"groups": []})
+
+@api_bp.route('/groups/join', methods=['POST'])
+@login_required
+def join_group_api():
+    """Handle group joining via invite code"""
+    try:
+        data = request.get_json()
+        invite_code = data.get('inviteCode', '').upper().strip()
+        
+        if not invite_code or len(invite_code) != 6:
+            return api_response(error='Invalid invite code format'), 400
+        
+        user_info = g.user
+        user_id = user_info.get('uid')
+        user_email = user_info.get('email')
+        user_name = user_info.get('name') or user_email.split('@')[0] if user_email else 'Anonymous User'
+        
+        if not user_id:
+            return api_response(error='User not authenticated'), 401
+        
+        db = firestore.client()
+        
+        # Find group by invite code
+        groups_ref = db.collection('groups')
+        query = groups_ref.where('inviteCode', '==', invite_code).limit(1)
+        groups = list(query.stream())
+        
+        if not groups:
+            return api_response(error='Invalid invite code'), 404
+        
+        group_doc = groups[0]
+        group_id = group_doc.id
+        group_data = group_doc.to_dict()
+        
+        # Check if already a member
+        if group_data.get('members', {}).get(user_id):
+            return api_response(data={
+                'alreadyMember': True,
+                'groupId': group_id,
+                'groupName': group_data.get('name'),
+                'message': f"You're already a member of \"{group_data.get('name')}\""
+            })
+        
+        # Add user to group
+        member_data = {
+            'name': user_name,
+            'email': user_email or 'anonymous@user.com',
+            'photoURL': user_info.get('picture'),
+            'joinedAt': firestore.SERVER_TIMESTAMP,
+            'role': 'member',
+            'status': 'active'
+        }
+        
+        # Update group with new member
+        group_ref = db.collection('groups').document(group_id)
+        group_ref.update({
+            f'members.{user_id}': member_data,
+            'memberCount': firestore.Increment(1),
+            'updatedAt': firestore.SERVER_TIMESTAMP,
+            'lastActivity': firestore.SERVER_TIMESTAMP
+        })
+        
+        # Add system message
+        group_ref.collection('messages').add({
+            'text': f'{member_data["name"]} joined the group',
+            'type': 'system',
+            'timestamp': firestore.SERVER_TIMESTAMP
+        })
+        
+        return api_response(data={
+            'groupId': group_id,
+            'groupName': group_data.get('name'),
+            'message': f'Welcome to "{group_data.get("name")}"!'
+        })
+        
+    except Exception as e:
+        print(f"Error in join_group_api: {e}")
+        return api_response(error='Failed to join group'), 500
 
 # =============================================================================
 # API BLUEPRINT ROUTES - FRIENDS
+# =============================================================================
+
+# Add these routes back to the main app (not in blueprint) to fix authentication
+
+# =============================================================================
+# FRIENDS API ROUTES (Main App - Fixed Authentication)
 # =============================================================================
 
 @app.route('/api/friends/search', methods=['GET'])
@@ -338,7 +468,7 @@ def send_friend_request():
         }
         
         request_ref.set(request_data)
-        return jsonify({'message': 'Friend request sent successfully'})
+        return jsonify({'success': True, 'message': 'Friend request sent successfully'})
         
     except Exception as e:
         print(f"Error sending friend request: {e}")
@@ -520,127 +650,27 @@ def remove_friend(friend_id):
         batch.delete(other_user_friend_ref)
         batch.commit()
         
-        return jsonify({'message': 'Friend removed successfully'})
+        return jsonify({'success': True, 'message': 'Friend removed successfully'})
         
     except Exception as e:
         print(f"Error removing friend: {e}")
         return jsonify({'error': 'Failed to remove friend'}), 500
 
 # =============================================================================
-# API BLUEPRINT ROUTES - GROUPS
+# API BLUEPRINT ROUTES - VENUES
 # =============================================================================
-
-@api_bp.route('/join-group-by-code', methods=['POST'])
-@login_required
-def join_group_by_code_api():
-    """Handle group joining via invite code"""
-    try:
-        data = request.get_json()
-        invite_code = data.get('inviteCode', '').upper().strip()
-        
-        if not invite_code or len(invite_code) != 6:
-            return jsonify({'success': False, 'error': 'Invalid invite code format'}), 400
-        
-        user_info = g.user
-        user_id = user_info.get('uid')
-        user_email = user_info.get('email')
-        user_name = user_info.get('name') or user_email.split('@')[0] if user_email else 'Anonymous User'
-        
-        if not user_id:
-            return jsonify({'success': False, 'error': 'User not authenticated'}), 401
-        
-        db = firestore.client()
-        
-        # Find group by invite code
-        groups_ref = db.collection('groups')
-        query = groups_ref.where('inviteCode', '==', invite_code).limit(1)
-        groups = list(query.stream())
-        
-        if not groups:
-            return jsonify({'success': False, 'error': 'Invalid invite code'}), 404
-        
-        group_doc = groups[0]
-        group_id = group_doc.id
-        group_data = group_doc.to_dict()
-        
-        # Check if already a member
-        if group_data.get('members', {}).get(user_id):
-            return jsonify({
-                'success': True,
-                'alreadyMember': True,
-                'groupId': group_id,
-                'groupName': group_data.get('name'),
-                'message': f"You're already a member of \"{group_data.get('name')}\""
-            })
-        
-        # Add user to group
-        member_data = {
-            'name': user_name,
-            'email': user_email or 'anonymous@user.com',
-            'photoURL': user_info.get('picture'),
-            'joinedAt': firestore.SERVER_TIMESTAMP,
-            'role': 'member',
-            'status': 'active'
-        }
-        
-        # Update group with new member
-        group_ref = db.collection('groups').document(group_id)
-        group_ref.update({
-            f'members.{user_id}': member_data,
-            'memberCount': firestore.Increment(1),
-            'updatedAt': firestore.SERVER_TIMESTAMP,
-            'lastActivity': firestore.SERVER_TIMESTAMP
-        })
-        
-        # Add system message
-        group_ref.collection('messages').add({
-            'text': f'{member_data["name"]} joined the group',
-            'type': 'system',
-            'timestamp': firestore.SERVER_TIMESTAMP
-        })
-        
-        return jsonify({
-            'success': True,
-            'groupId': group_id,
-            'groupName': group_data.get('name'),
-            'message': f'Welcome to "{group_data.get("name")}"!'
-        })
-        
-    except Exception as e:
-        print(f"Error in join_group_by_code_api: {e}")
-        return jsonify({'success': False, 'error': 'Failed to join group'}), 500
-
-@api_bp.route('/user', methods=['GET', 'POST'])
-@login_required
-def user_api():
-    """User API endpoint"""
-    user_info = g.user
-    
-    if request.method == 'POST':
-        # Handle user creation/update
-        return jsonify({"status": "success"})
-    else:
-        return jsonify({
-            "status": "success", 
-            "authenticated": True,
-            "user": user_info
-        })
-
-@api_bp.route('/group', methods=['GET', 'POST'])
-@login_required
-def group_api():
-    """Group API endpoint"""
-    if request.method == 'POST':
-        # Handle group creation/update
-        return jsonify({"status": "success"})
-    else:
-        return jsonify({"status": "success", "data": {}})
 
 @api_bp.route('/venues', methods=['GET'])
 @login_required
 def venues_api():
     """Calculate and return venue recommendations"""
-    return jsonify({"status": "success", "data": []})
+    try:
+        # Venue calculation logic here
+        venues = []  # Replace with actual logic
+        return api_response(data={"venues": venues})
+    except Exception as e:
+        print(f"Error in venues_api: {e}")
+        return api_response(error='Failed to get venues'), 500
 
 # =============================================================================
 # ERROR HANDLERS
@@ -657,28 +687,36 @@ def internal_error(error):
     return render_template('error.html', error="Internal server error"), 500
 
 # =============================================================================
+# LEGACY ROUTE REDIRECTS (for backward compatibility)
+# =============================================================================
+
+@app.route('/join/<invite_code>')
+def legacy_join_group(invite_code):
+    """Redirect legacy join links to mobile blueprint"""
+    return redirect(url_for('mobile.join_group', invite_code=invite_code))
+
+@app.route('/login')
+def legacy_login():
+    """Redirect to auth blueprint"""
+    return redirect(url_for('auth.login'))
+
+@app.route('/groups')
+def legacy_groups():
+    """Redirect to mobile blueprint"""
+    return redirect(url_for('mobile.groups'))
+
+@app.route('/profile')
+def legacy_profile():
+    """Redirect to mobile blueprint"""
+    return redirect(url_for('mobile.profile'))
+
+# =============================================================================
 # REGISTER BLUEPRINTS
 # =============================================================================
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(mobile_bp)
 app.register_blueprint(api_bp)
-
-# =============================================================================
-# LEGACY ROUTE REDIRECTS (for backward compatibility)
-# =============================================================================
-
-@app.route('/login')
-def legacy_login():
-    return redirect(url_for('auth.login'))
-
-@app.route('/groups')
-def legacy_groups():
-    return redirect(url_for('mobile.groups'))
-
-@app.route('/profile')
-def legacy_profile():
-    return redirect(url_for('mobile.profile'))
 
 if __name__ == '__main__':
     app.run(debug=True)

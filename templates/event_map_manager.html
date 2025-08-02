@@ -35,7 +35,7 @@
 
 <!-- Top Navigation Header -->
 <div class="group group-row center" style="width: 90%; max-width: 600px; margin-top: 20px; position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 100;">
-    <a href="/groups" class="header-nav-button back-btn" aria-label="Go back to groups">
+    <a href="{{ url_for('mobile.groups') }}" class="header-nav-button back-btn" aria-label="Go back to groups">
         <img src="{{ url_for('static', filename='images/Back Button.svg') }}" alt="Back" loading="lazy">
     </a>
     <img src="{{ url_for('static', filename='images/group-bar-placeholder.png') }}" class="center-img" alt="Group Header" loading="lazy">
@@ -46,25 +46,25 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- CRITICAL: Load scripts in correct order to avoid conflicts -->
+<!-- FIXED: Load scripts in correct dependency order -->
 
-<!-- 1. FIRST: Core MapManager (creates the map) -->
-<script src="{{ url_for('static', filename='js/location/MapManager.js') }}" defer></script>
-
-<!-- 2. SECOND: Event-specific functionality (uses MapManager's map) -->
-<script src="{{ url_for('static', filename='js/event_map_manager.js') }}" defer></script>
-
-<!-- 3. THIRD: Venue features (uses MapManager's map) -->
-<script src="{{ url_for('static', filename='js/VenueMapFeatures.js') }}" defer></script>
-
-<!-- 4. FOURTH: Service dependencies -->
+<!-- 1. Core services first -->
 <script src="{{ url_for('static', filename='js/services/DistanceMatrixService.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/services/MeetingPointOptimizer.js') }}" defer></script>
 
-<!-- 5. LAST: Google Maps API with callback to MapManager ONLY -->
-{% if config.GOOGLE_MAPS_API_KEY %}
+<!-- 2. Base map functionality -->
+<script src="{{ url_for('static', filename='js/location/MapManager.js') }}" defer></script>
+
+<!-- 3. Feature modules that depend on MapManager -->
+<script src="{{ url_for('static', filename='js/VenueMapFeatures.js') }}" defer></script>
+
+<!-- 4. Page-specific functionality (loads last) -->
+<script src="{{ url_for('static', filename='js/event_map_manager.js') }}" defer></script>
+
+<!-- 5. Google Maps API with proper callback -->
+{% if google_maps_api_key %}
 <script async defer 
-    src="https://maps.googleapis.com/maps/api/js?key={{ config.GOOGLE_MAPS_API_KEY }}&libraries=places,geometry&callback=initMap&loading=async"
+    src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places,geometry&callback=initMap&loading=async"
     onerror="handleMapError()">
 </script>
 {% else %}
@@ -134,7 +134,22 @@ window.addEventListener('load', () => {
     console.log('📊 Page fully loaded at:', Math.round(performance.now()), 'ms');
 });
 
-// Clean up any existing error handling to avoid duplicates
-window.removeEventListener('error', arguments.callee);
-</script>
-{% endblock %}
+// Initialize map when Google Maps API loads
+function initMap() {
+    console.log('🗺️ Google Maps API loaded, initializing...');
+    
+    // Initialize MapManager first
+    if (typeof MapManager !== 'undefined') {
+        window.mapManager = new MapManager('map');
+        console.log('✅ MapManager initialized');
+        
+        // Then initialize event-specific functionality
+        if (typeof EventMapManager !== 'undefined') {
+            window.eventMapManager = new EventMapManager();
+            console.log('✅ EventMapManager initialized');
+        }
+    } else {
+        console.error('❌ MapManager not found');
+        handleMapError('Map initialization failed - MapManager not loaded');
+    }
+}
