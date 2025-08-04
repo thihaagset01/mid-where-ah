@@ -405,7 +405,7 @@ class EventMapManager {
         const navHeader = this.containerState.navHeader;
         
         container.classList.remove('expanded');
-        container.style.transform = 'translateY(-85%)'; /* Show 15% when collapsed */
+        container.style.transform = 'translateY(-80%)'; /* Show 20% when collapsed */
         navHeader.classList.remove('container-expanded');
         this.containerState.isExpanded = false;
     }

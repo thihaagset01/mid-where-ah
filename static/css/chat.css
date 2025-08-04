@@ -97,7 +97,7 @@ nav,
 
 .group-avatar-container {
     background: linear-gradient(135deg, #8b5db8, #a76cc7);
-    padding: 0 15px 12px 15px;
+    padding-top: var(--header-height);
     display: flex;
     justify-content: center;
     flex-shrink: 0;

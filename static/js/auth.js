@@ -3,6 +3,8 @@
  * Fixed version with better logout handling
  */
 
+import { CacheManager } from './utils/cacheManager.js';
+
 class AuthManager {
     constructor() {
         // Prevent multiple instances
@@ -14,6 +16,7 @@ class AuthManager {
         this.currentUser = null;
         this.initialized = false;
         this.authObserverSet = false;
+        this.cacheManager = CacheManager; // Store reference to CacheManager
         
         // Define protected paths globally for consistency
         this.protectedPaths = [
@@ -183,20 +186,53 @@ class AuthManager {
      */
     async handleLogout() {
         try {
-            // Clear any cached data before logging out
-            if (typeof CacheManager !== 'undefined') {
-                await CacheManager.clearAll();
-                console.log('Cleared all cached data on logout');
+            // Clear all caches using CacheManager
+            if (this.cacheManager) {
+                try {
+                    // Clear all cache types
+                    await Promise.all([
+                        this.cacheManager.clear('EVENTS'),
+                        this.cacheManager.clear('PROFILES'),
+                        this.cacheManager.clear('GROUPS'),
+                        this.cacheManager.clear('USER_DATA')
+                    ]);
+                    console.log('All caches cleared on logout');
+                } catch (cacheError) {
+                    console.error('Error clearing caches on logout:', cacheError);
+                    // Continue with logout even if cache clearing fails
+                }
+            } else if (window.CacheManager) {
+                // Fallback to global CacheManager if available
+                try {
+                    await window.CacheManager.clearAll();
+                    console.log('All caches cleared on logout (fallback)');
+                } catch (cacheError) {
+                    console.error('Error clearing caches on logout (fallback):', cacheError);
+                }
             }
             
             // Sign out from Firebase
-            await this.auth.signOut();
+            if (this.auth) {
+                await this.auth.signOut();
+            } else if (window.firebase && window.firebase.auth) {
+                await window.firebase.auth().signOut();
+            }
+            
+            // Clear any remaining local storage items
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('cache_') || key.startsWith('midwhereah_')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            // Clear session storage
+            sessionStorage.clear();
             
             // Redirect to login page
             window.location.href = '/login';
         } catch (error) {
             console.error('Error during logout:', error);
-            // Still redirect even if cache clearing fails
+            // Still redirect even if there's an error
             window.location.href = '/login';
         }
     }
@@ -229,12 +265,22 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Global logout function as fallback
-window.logoutUser = function() {
+window.logoutUser = async function() {
     if (window.authManager) {
-        window.authManager.handleLogout();
+        await window.authManager.handleLogout();
     } else if (typeof firebase !== 'undefined' && firebase.auth) {
-        firebase.auth().signOut().then(() => {
-            window.location.replace('/');
-        });
+        try {
+            // Clear caches if possible
+            if (window.CacheManager) {
+                await window.CacheManager.clearAll();
+            }
+            await firebase.auth().signOut();
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Error during global logout:', error);
+            window.location.href = '/login';
+        }
+    } else {
+        window.location.href = '/login';
     }
 };
