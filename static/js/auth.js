@@ -2,9 +2,6 @@
  * auth.js - Authentication functionality for MidWhereAh
  * Fixed version with better logout handling
  */
-
-import { CacheManager } from './utils/cacheManager.js';
-
 class AuthManager {
     constructor() {
         // Prevent multiple instances
@@ -251,7 +248,8 @@ class AuthManager {
         return this.currentUser !== null;
     }
 }
-
+// Make it globally available
+window.AuthManager = AuthManager;
 // SINGLE initialization with better error handling
 document.addEventListener('DOMContentLoaded', function() {
     if (!window.authManager) {

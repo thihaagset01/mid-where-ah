@@ -283,13 +283,17 @@ class GroupChatManager {
         }
     }
 
-    setupMessageListener() {
+    async setupMessageListener() {
         if (this.messagesListener) {
             this.messagesListener();
         }
     
         console.log('🔧 Setting up message listener for group:', this.groupId);
-    
+            // Load cached messages first for instant display
+        const cachedMessages = await CacheManager.get('MESSAGES', `recent_${this.groupId}`);
+        if (cachedMessages) {
+            this.renderCachedMessages(cachedMessages);
+        }
         this.messagesListener = this.db
             .collection('groups')
             .doc(this.groupId)
@@ -944,8 +948,7 @@ class GroupChatManager {
     // ===============================================================
 
     formatTimestamp(timestamp) {
-        if (!timestamp) return 'Now';
-        
+        if (!timestamp) return new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         const date = timestamp.seconds ? 
             new Date(timestamp.seconds * 1000) : 
             new Date(timestamp);

@@ -398,7 +398,7 @@ async function loadUserGroups() {
                 'Recently';
             
             const groupHTML = `
-                <a href="/mobile/group_chat?groupId=${group.id}" class="group-item">
+                <a href="/mobile/group_chat?groupId=${group.id}" class="preload-link group-item">
                     <div class="group-avatar">
                         <img src="${group.avatar || '/static/images/group-placeholder.png'}" alt="Group">
                     </div>

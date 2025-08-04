@@ -528,7 +528,7 @@ function createGroupCard(group) {
                     <small class="text-muted">Created: ${createdDate}</small>
                 </div>
                 <div class="d-grid gap-2">
-                    <a href="/group/${group.id}" class="btn btn-outline-primary">View Group</a>
+                    <a href="/group/${group.id}" class="preload-link btn btn-outline-primary">View Group</a>
                 </div>
             </div>
         </div>

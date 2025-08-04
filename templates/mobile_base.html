@@ -111,6 +111,10 @@
         window.mapsApiLoaded = false;
     </script>
     
+    <!-- CRITICAL: Load utilities FIRST -->
+    <script src="{{ url_for('static', filename='js/utils/cacheManager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/services/eventService.js') }}"></script>
+    
     <!-- SINGLE Firebase Initialization -->
     <script src="{{ url_for('static', filename='js/firebase-config.js') }}"></script>
     
@@ -128,6 +132,9 @@
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
     <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
     {% endblock %}
+    
+    <!-- Load preload system after utilities -->
+    <script src="{{ url_for('static', filename='js/preload-system.js') }}"></script>
     
     <!-- Navigation should be one of the last things to initialize -->
     <script src="{{ url_for('static', filename='js/navigation.js') }}"></script>

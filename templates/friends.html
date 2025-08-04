@@ -12,7 +12,7 @@
 <div class="friends-container">
   <!-- Header -->
   <div class="friends-header">
-    <a href="{{ url_for('mobile.profile') }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ url_for('mobile.profile') }}" class="preload-link btn btn-outline-secondary btn-sm">
       <i class="fas fa-arrow-left"></i> Back
     </a>
     <h1>Friends</h1>
@@ -146,10 +146,10 @@ function loadFriends() {
                                             <i class="fas fa-ellipsis-v"></i>
                                         </button>
                                         <ul class="dropdown-menu">
-                                            <li><a class="dropdown-item" href="#"><i class="fas fa-comment"></i> Message</a></li>
-                                            <li><a class="dropdown-item" href="#"><i class="fas fa-users"></i> Invite to Group</a></li>
+                                            <li><a class="preload-link dropdown-item" href="#"><i class="fas fa-comment"></i> Message</a></li>
+                                            <li><a class="preload-link dropdown-item" href="#"><i class="fas fa-users"></i> Invite to Group</a></li>
                                             <li><hr class="dropdown-divider"></li>
-                                            <li><a class="dropdown-item text-danger" href="#" onclick="removeFriend('${friend.userId}', '${friend.name}')">
+                                            <li><a class="preload-link dropdown-item text-danger" href="#" onclick="removeFriend('${friend.userId}', '${friend.name}')">
                                                 <i class="fas fa-user-minus"></i> Remove Friend
                                             </a></li>
                                         </ul>

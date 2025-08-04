@@ -283,7 +283,7 @@ function showNoVenuesMessage() {
             <i class="fas fa-map-marker-alt"></i>
             <h4>No Venues to Vote On</h4>
             <p class="text-muted">No venues have been added to the voting list yet.</p>
-            <a href="/venues/${groupId}" class="btn btn-primary mt-3">
+            <a href="/venues/${groupId}" class="preload-link btn btn-primary mt-3">
                 <i class="fas fa-search me-2"></i>Find Venues
             </a>
         </div>
@@ -300,7 +300,7 @@ function showAllVotesCompletedMessage() {
             <i class="fas fa-check-circle"></i>
             <h4>You've Voted on All Venues</h4>
             <p class="text-muted">You've already voted on all venues in this group.</p>
-            <a href="/results/${groupId}" class="btn btn-primary mt-3">
+            <a href="/results/${groupId}" class="preload-link btn btn-primary mt-3">
                 <i class="fas fa-chart-bar me-2"></i>See Results
             </a>
         </div>
@@ -317,7 +317,7 @@ function showVotingCompleteMessage() {
             <i class="fas fa-check-circle"></i>
             <h4>Voting Complete!</h4>
             <p class="text-muted">You've voted on all venues. Check out the results!</p>
-            <a href="/results/${groupId}" class="btn btn-primary mt-3">
+            <a href="/results/${groupId}" class="preload-link btn btn-primary mt-3">
                 <i class="fas fa-chart-bar me-2"></i>See Results
             </a>
         </div>
