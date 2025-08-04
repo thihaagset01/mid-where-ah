@@ -15,7 +15,7 @@
             <button class="btn btn-link p-0" onclick="goBack()">
                 <i class="fas fa-arrow-left"></i> Back
             </button>
-            <h1 class="h5 mb-0">Nearby Venues</h1>
+            <h1 class="h5 mb-0">Top Picks</h1>
             <div style="width: 40px;"></div> <!-- Spacer for alignment -->
         </div>
     </div>
@@ -23,28 +23,14 @@
 
 <main class="venue-content">
     <!-- Midpoint Info Summary -->
-    <div class="midpoint-info mb-4" id="midpoint-summary">
-        <h5><i class="fas fa-map-marker-alt"></i> Meeting Point Found</h5>
-        <p id="midpoint-description">Calculating optimal location...</p>
-        <div class="midpoint-stats" id="midpoint-stats" style="display: none;">
-            <div class="stat-item">
-                <span class="stat-value" id="fairness-score">-</span>
-                <span>Fairness</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="avg-time">-</span>
-                <span>Avg Time</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="venue-count">-</span>
-                <span>Venues</span>
-            </div>
-        </div>
+    <div class="midpoint-info" id="midpoint-summary">
+        <span class="stat-item"><span class="stat-value" id="fairness-score">-</span> Fairness</span>
+        <span class="stat-item"><span class="stat-value" id="avg-time">-</span> Avg Time</span>
+        <span class="stat-item"><span class="stat-value" id="venue-count">-</span> Venues</span>
     </div>
 
     <!-- Venues Grid -->
     <div class="venues-grid">
-        <h6 class="mb-3"><i class="fas fa-utensils"></i> Nearby Venues</h6>
         <div id="venues-container">
             <div class="empty-state">
                 <div class="spinner-border text-primary" role="status">
@@ -100,7 +86,7 @@ function loadTempVenues() {
 
 function updateMidpointInfo(data) {
     const midpointDesc = document.getElementById('midpoint-description');
-    const statsContainer = document.getElementById('midpoint-stats');
+    const statsContainer = document.getElementById('midpoint-summary');
     
     if (data.midpoint && data.midpoint.address) {
         midpointDesc.textContent = data.midpoint.address;
