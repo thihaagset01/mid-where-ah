@@ -70,7 +70,7 @@
       
       <!-- Create popup -->
       <div class="nav-create-popup hidden" id="dropdown-menu">
-        <div class="pop-icon pop1">
+        <div class="pop-icon pop1" id = "add_friend">
           <i class="fas fa-user"></i>
         </div>
         <div class="pop-icon pop2" id="new_event">
@@ -80,16 +80,31 @@
           <i class="fas fa-compass"></i>
         </div>
       </div>
-    </div>
 
     <!-- create new event popup -->
       <div class="create-event-popup hidden" id="groupslist">
         <div id = "header-container" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%;">
           <i class="fa-regular fa-rectangle-xmark" id="close" style="font-size: 20px; cursor: pointer; margin-left: 10px;"></i>
-          <!-- <p style="margin: 0; font-size: 16px; position: absolute; left: 50%; transform: translateX(-50%);">Select a group</p> -->
         </div>
         <div id = "popupgroupslist">
+        </div>
+      </div>
 
+      <div class="create-event-popup hidden" id="searchfriend">
+        <div id = "header-container2" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%;">
+          <i class="fa-regular fa-rectangle-xmark" id="close2" style="font-size: 20px; cursor: pointer; margin-left: 10px;"></i>
+        </div>
+        <div id = "friendsearchbar">
+          <div class="search-section">
+            <h5><i class="fas fa-search"></i> Find New Friends</h5>
+            <div class="input-group">
+              <input type="text" id="user-search-input" class="form-control" placeholder="Search by name or email..." aria-label="Search users">
+              <span class="input-group-text">
+                <i class="fas fa-search"></i>
+              </span>
+            </div>
+            <small class="text-muted">Search for friends by their name, username, or email address</small>
+          </div>
         </div>
       </div>
     {% endblock %}
@@ -139,8 +154,7 @@
     <!-- Load preload system after utilities -->
     <script src="{{ url_for('static', filename='js/preload-system.js') }}"></script>
     
-    <!-- Navigation should be one of the last things to initialize -->
-    <script src="{{ url_for('static', filename='js/navigation.js') }}"></script>
+    
     
     <!-- Service Worker Registration -->
     <script>
@@ -156,7 +170,8 @@
             });
         }
     </script>
-    
+    <!-- Navigation should be one of the last things to initialize -->
+    <script src="{{ url_for('static', filename='js/navigation.js') }}"></script>
     <!-- Page-specific scripts -->
     {% block scripts %}{% endblock %}
 </body>
