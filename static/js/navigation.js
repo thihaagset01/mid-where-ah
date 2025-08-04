@@ -271,6 +271,13 @@ async saveEvent() {
         document.getElementById('title').textContent = 'Your Groups';
         this.loadUserGroups();
 
+        const new_event = document.getElementById('groupslist');
+        if (new_event){
+            new_event.classList.toggle("hidden")
+        };
+
+        
+
     } catch (error) {
         console.error('Error creating event:', error);
         this.showToast('Failed to create event: ' + error.message, 'error');
@@ -337,6 +344,7 @@ async sendEventMessage(groupId, eventId, eventData) {
             userName: user.displayName || user.email.split('@')[0],
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
+        
 }
 
 validateEventData(data) {
