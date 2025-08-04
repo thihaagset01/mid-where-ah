@@ -217,11 +217,11 @@ function createWinnerCard(venue) {
                         </div>
                         <div class="d-flex">
                             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.name + ' ' + venue.address)}" 
-                               class="btn btn-sm btn-outline-primary me-2" target="_blank">
+                               class="preload-link btn btn-sm btn-outline-primary me-2" target="_blank">
                                 <i class="fas fa-map-marker-alt me-1"></i>View on Map
                             </a>
                             ${venue.website ? 
-                                `<a href="${venue.website}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                `<a href="${venue.website}" class="preload-link btn btn-sm btn-outline-primary" target="_blank">
                                     <i class="fas fa-external-link-alt me-1"></i>Website
                                 </a>` : ''
                             }
@@ -278,7 +278,7 @@ function showNoVotesMessage() {
             <i class="fas fa-vote-yea"></i>
             <h4>No Votes Yet</h4>
             <p class="text-muted">No one has voted on venues yet.</p>
-            <a href="/swipe/${groupId}" class="btn btn-primary mt-3">
+            <a href="/swipe/${groupId}" class="preload-link btn btn-primary mt-3">
                 <i class="fas fa-thumbs-up me-2"></i>Start Voting
             </a>
         </div>

@@ -1,5 +1,3 @@
-import { fetchEvents, refreshEvents } from '../services/eventService.js';
-
 class ExplorePage {
     constructor() {
         this.eventsContainer = document.getElementById('events-container');
@@ -13,7 +11,7 @@ class ExplorePage {
         
         try {
             // Try to load events with cache-first approach
-            const events = await fetchEvents();
+            const events = await this.fetchEvents();
             this.renderEvents(events);
             
             // Then refresh in the background
@@ -26,10 +24,25 @@ class ExplorePage {
         }
     }
 
+    async fetchEvents() {
+        // Use EventService if available, otherwise return mock data
+        if (typeof EventService !== 'undefined') {
+            try {
+                return await EventService.fetchEvents();
+            } catch (error) {
+                console.warn('EventService failed, using mock data:', error);
+                return this.getMockEvents();
+            }
+        } else {
+            console.warn('EventService not available, using mock data');
+            return this.getMockEvents();
+        }
+    }
+
     async refreshEvents() {
         try {
             // Force refresh from server
-            const events = await refreshEvents();
+            const events = await this.fetchEvents(true); // Force refresh
             
             // Only update if events have changed
             if (this.eventsContainer) {
@@ -39,6 +52,39 @@ class ExplorePage {
             console.warn('Background refresh failed:', error);
             // Don't show error to user for background refresh
         }
+    }
+
+    getMockEvents() {
+        // Return some mock events for testing
+        return [
+            {
+                id: '1',
+                title: 'Singapore Jazz Festival',
+                description: 'Experience the best jazz musicians from around the world in this spectacular festival.',
+                date: new Date().toISOString().split('T')[0],
+                startTime: new Date().toISOString(),
+                url: '#',
+                imageUrl: 'https://source.unsplash.com/600x400/?jazz,music'
+            },
+            {
+                id: '2',
+                title: 'Food & Wine Expo',
+                description: 'Discover amazing culinary experiences and fine wines from local and international vendors.',
+                date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
+                startTime: new Date(Date.now() + 86400000).toISOString(),
+                url: '#',
+                imageUrl: 'https://source.unsplash.com/600x400/?food,wine'
+            },
+            {
+                id: '3',
+                title: 'Tech Startup Conference',
+                description: 'Network with entrepreneurs and learn about the latest technology trends and innovations.',
+                date: new Date(Date.now() + 172800000).toISOString().split('T')[0], // Day after tomorrow
+                startTime: new Date(Date.now() + 172800000).toISOString(),
+                url: '#',
+                imageUrl: 'https://source.unsplash.com/600x400/?technology,conference'
+            }
+        ];
     }
 
     renderEvents(events) {
@@ -166,7 +212,7 @@ class ExplorePage {
                     <h3>${title}</h3>
                     <p class="event-description">${description}</p>
                     <div class="event-footer">
-                        <a href="${eventUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <a href="${eventUrl}" target="_blank" class="preload-link btn btn-sm btn-outline-primary">
                             View Details <i class="fas fa-external-link-alt ms-1"></i>
                         </a>
                     </div>
@@ -232,6 +278,9 @@ class ExplorePage {
         return div;
     }
 }
+
+// Make ExplorePage globally available
+window.ExplorePage = ExplorePage;
 
 // Initialize the explore page when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

@@ -7,6 +7,8 @@
 <!-- Page specific CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/event-enhancements.css') }}">
+<script src="{{ url_for('static', filename='js/utils/cacheManager.js') }}"></script>
+
 <style>
 /* Override any base template styles */
 body { margin: 0 !important; padding: 0 !important; }
@@ -16,15 +18,13 @@ body { margin: 0 !important; padding: 0 !important; }
 
 {% block bottom_navigation %}{% endblock %}
 {% block show_navigation %}{% set show_navigation = false %}{% endblock %}
-   
-{% block mobile_js %}{% endblock %}
 
 {% block content %}
 
 
 <!-- Chat Header -->
 <div class="chat-header">
-  <a href="/groups" class="back-button">
+  <a href="/groups" class="preload-link back-button">
     <i class="fas fa-arrow-left"></i>
   </a>
   <div class="group-title" id="groupTitle">Group Chat</div>
