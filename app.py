@@ -270,6 +270,14 @@ def swipe(group_id):
     """Swipe interface for group"""
     return render_template('swipe.html', group_id=group_id)
 
+@mobile_bp.route('/venues/event/<group_id>')
+@login_required
+def event_venues(group_id):
+    """Event-specific venues page"""
+    return render_template('venues_temp.html', 
+                         group_id=group_id, 
+                         is_event_context=True)
+
 # =============================================================================
 # API BLUEPRINT ROUTES - USER & AUTH
 # =============================================================================

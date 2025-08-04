@@ -1,11 +1,107 @@
-<!-- templates/venues_temp.html -->
+<!-- templates/venues_temp.html - Updated for correct design flow -->
 {% extends "mobile_base.html" %}
 
-{% block title %}Nearby Venues - MidWhereAh{% endblock %}
+{% block title %}Top Picks - MidWhereAh{% endblock %}
 
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/venue-cards.css') }}">
+<style>
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    color: white;
+}
+
+.filter-controls {
+    background: white;
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+}
+
+.filter-btn {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    background: white;
+    white-space: nowrap;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filter-btn.active {
+    background: var(--primary-purple);
+    color: white;
+    border-color: var(--primary-purple);
+}
+
+.venue-rank {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--primary-purple);
+    color: white;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.vote-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #666;
+}
+
+.vote-count i {
+    color: #e74c3c;
+}
+
+/* Navigation toggle button styling */
+.nav-toggle-btn {
+    background: var(--primary-purple);
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(139, 93, 184, 0.3);
+    transition: all 0.3s ease;
+}
+
+.nav-toggle-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(139, 93, 184, 0.4);
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -15,11 +111,30 @@
             <button class="btn btn-link p-0" onclick="goBack()">
                 <i class="fas fa-arrow-left"></i> Back
             </button>
-            <h1 class="h5 mb-0">Top Picks</h1>
-            <div style="width: 40px;"></div> <!-- Spacer for alignment -->
+            <h1 class="h5 mb-0">
+                <i class="fas fa-trophy me-2 text-warning"></i>
+                Top Picks
+            </h1>
+            <div style="width: 40px;"></div> <!-- Spacer -->
         </div>
     </div>
 </header>
+
+<!-- Filter Controls -->
+<div class="filter-controls" id="filter-controls">
+    <button class="filter-btn active" data-sort="votes" onclick="sortVenues('votes', this)">
+        <i class="fas fa-heart me-1"></i> Most Liked
+    </button>
+    <button class="filter-btn" data-sort="rating" onclick="sortVenues('rating', this)">
+        <i class="fas fa-star me-1"></i> Highest Rated
+    </button>
+    <button class="filter-btn" data-sort="price" onclick="sortVenues('price', this)">
+        <i class="fas fa-dollar-sign me-1"></i> Price
+    </button>
+    <button class="filter-btn" data-sort="distance" onclick="sortVenues('distance', this)">
+        <i class="fas fa-map-marker-alt me-1"></i> Nearest
+    </button>
+</div>
 
 <main class="venue-content">
     <!-- Midpoint Info Summary -->
@@ -29,33 +144,74 @@
         <span class="stat-item"><span class="stat-value" id="venue-count">-</span> Venues</span>
     </div>
 
-    <!-- Venues Grid -->
+    <!-- Venues Grid - Read-only results view -->
     <div class="venues-grid">
         <div id="venues-container">
             <div class="empty-state">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Loading venues...</span>
                 </div>
-                <p class="mt-3">Loading nearby venues...</p>
+                <p class="mt-3">Loading top picks...</p>
             </div>
         </div>
     </div>
 </main>
+
+<!-- Toggle Button - Changes based on context -->
+<button class="nav-toggle-btn" id="nav-toggle-btn" onclick="toggleVotingView()" title="Switch to voting">
+    <i class="fas fa-heart"></i>
+</button>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
-// Add this near the top of the file, after the document ready check
-if (!window.googleMapsApiKey) {
-    console.error('Google Maps API key is not defined!');
-}
+// Global variables
+let isFirebaseReady = false;
+let currentVenues = [];
+let currentSort = 'votes';
+let groupId = null;
 
-// Load venue data from sessionStorage
-document.addEventListener('DOMContentLoaded', () => {
-    loadTempVenues();
+// Initialize on DOM load
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        await initializeFirebaseAuth();
+        loadTempVenues();
+    } catch (error) {
+        console.error('Initialization error:', error);
+        loadTempVenues();
+    }
 });
 
+// Initialize Firebase auth state
+function initializeFirebaseAuth() {
+    return new Promise((resolve) => {
+        if (typeof firebase === 'undefined') {
+            console.warn('Firebase not available');
+            isFirebaseReady = false;
+            resolve(null);
+            return;
+        }
+
+        const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+            isFirebaseReady = true;
+            unsubscribe();
+            console.log('Firebase auth ready, user:', user ? user.email : 'not logged in');
+            resolve(user);
+        });
+        
+        setTimeout(() => {
+            if (!isFirebaseReady) {
+                console.warn('Firebase auth timeout');
+                isFirebaseReady = true;
+                unsubscribe();
+                resolve(null);
+            }
+        }, 5000);
+    });
+}
+
+// Load venue data and determine context
 function loadTempVenues() {
     try {
         const tempData = sessionStorage.getItem('tempVenues');
@@ -67,88 +223,153 @@ function loadTempVenues() {
         const venueData = JSON.parse(tempData);
         console.log('Venue data from sessionStorage:', venueData);
 
-        // Debug: Log first venue's photo data
-        if (venueData.venues && venueData.venues.length > 0) {
-            console.log('First venue data:', venueData.venues[0]);
-            console.log('First venue photos:', venueData.venues[0].photos);
-        }
-
-        // Update midpoint info
+        // Store group context
+        groupId = venueData.groupId;
+        
+        // Update UI based on context
+        updateBackButton(venueData.source, venueData.groupId, venueData.eventId);
+        updateToggleButton(venueData.groupId);
         updateMidpointInfo(venueData);
         
-        // Display venues
-        displayVenues(venueData.venues);
+        // Load venues with vote data if group context
+        if (venueData.groupId) {
+            loadVenuesWithVotes(venueData);
+        } else {
+            displayReadOnlyVenues(venueData.venues);
+        }
+        
     } catch (error) {
         console.error('Error loading venue data:', error);
         showEmptyState('Error loading venue data. Please try again.');
     }
 }
 
-function updateMidpointInfo(data) {
-    const midpointDesc = document.getElementById('midpoint-description');
-    const statsContainer = document.getElementById('midpoint-summary');
-    
-    if (data.midpoint && data.midpoint.address) {
-        midpointDesc.textContent = data.midpoint.address;
-    }
-    
-    // Update stats if available
-    if (data.fairness || data.avgTime || data.venues) {
-        statsContainer.style.display = 'flex';
-        document.getElementById('fairness-score').textContent = data.fairness ? `${Math.round(data.fairness * 100)}%` : '-';
-        document.getElementById('avg-time').textContent = data.avgTime ? `${Math.round(data.avgTime)} min` : '-';
-        document.getElementById('venue-count').textContent = data.venues ? data.venues.length : '-';
+// Load venues with voting data from Firestore
+async function loadVenuesWithVotes(venueData) {
+    try {
+        if (!venueData.groupId) {
+            displayReadOnlyVenues(venueData.venues);
+            return;
+        }
+
+        // Get votes from Firestore
+        const votesSnapshot = await firebase.firestore()
+            .collection('groups')
+            .doc(venueData.groupId)
+            .collection('votes')
+            .get();
+
+        // Process votes
+        const allVotes = {};
+        votesSnapshot.forEach(doc => {
+            const userVotes = doc.data().votes || {};
+            Object.keys(userVotes).forEach(venueId => {
+                if (!allVotes[venueId]) {
+                    allVotes[venueId] = { likes: 0, total: 0 };
+                }
+                allVotes[venueId].total++;
+                if (userVotes[venueId] === 'yes') {
+                    allVotes[venueId].likes++;
+                }
+            });
+        });
+
+        // Merge venue data with vote counts
+        const venuesWithVotes = venueData.venues.map(venue => {
+            const venueId = venue.placeId || venue.place_id;
+            const voteData = allVotes[venueId] || { likes: 0, total: 0 };
+            return {
+                ...venue,
+                votes: voteData,
+                voteScore: voteData.total > 0 ? voteData.likes / voteData.total : 0
+            };
+        });
+
+        currentVenues = venuesWithVotes;
+        sortVenues('votes'); // Default sort by votes
+
+    } catch (error) {
+        console.error('Error loading votes:', error);
+        displayReadOnlyVenues(venueData.venues);
     }
 }
 
-function displayVenues(venues) {
-    const container = document.getElementById('venues-container');
+// Display venues in read-only results format
+function displayReadOnlyVenues(venues) {
     if (!venues || venues.length === 0) {
-        showEmptyState('No venues found near the selected location.');
+        showEmptyState('No venues found near the meeting point.');
         return;
     }
 
-    let venuesHTML = '';
-    venues.forEach(venue => {
-        venuesHTML += createVenueCard(venue);
-    });
-
-    container.innerHTML = venuesHTML;
+    currentVenues = venues.map(venue => ({ ...venue, votes: { likes: 0, total: 0 }, voteScore: 0 }));
+    sortVenues(currentSort);
 }
 
-function createVenueCard(venue) {
-    // Price level display logic
-    let priceLevel = 'N/A';
-    if (venue.price_level > 0) {
-        priceLevel = '$'.repeat(Math.min(4, venue.price_level));
-    } else if (venue.price_level === 0) {
-        priceLevel = '$';
+// Sort venues by different criteria
+function sortVenues(sortBy, buttonElement) {
+    currentSort = sortBy;
+    
+    // Update active filter button
+    if (buttonElement) {
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        buttonElement.classList.add('active');
     }
 
-    // Handle photo URL
-    let photoHtml = '';
-    if (venue.photos && venue.photos.length > 0 && venue.photos[0].photo_reference && window.googleMapsApiKey) {
-        const photo = venue.photos[0];
-        const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=300&photoreference=${photo.photo_reference}&key=${window.googleMapsApiKey}`;
-        photoHtml = `
-            <img src="${photoUrl}" 
-                 class="venue-img" 
-                 alt="${venue.name || 'Venue image'}"
-                 onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'venue-placeholder\'><i class=\'fas fa-utensils\'></i> No image</div>';"
-            >`;
-    } else {
-        photoHtml = `
-            <div class="venue-placeholder">
-                <i class="fas fa-utensils"></i> No image
-            </div>`;
+    let sortedVenues = [...currentVenues];
+    
+    switch (sortBy) {
+        case 'votes':
+            sortedVenues.sort((a, b) => {
+                if (b.voteScore !== a.voteScore) return b.voteScore - a.voteScore;
+                return (b.votes?.likes || 0) - (a.votes?.likes || 0);
+            });
+            break;
+        case 'rating':
+            sortedVenues.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+            break;
+        case 'price':
+            sortedVenues.sort((a, b) => (a.price_level || 0) - (b.price_level || 0));
+            break;
+        case 'distance':
+            // Would need distance calculation - for now use rating as fallback
+            sortedVenues.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+            break;
     }
 
-    const address = venue.address || venue.vicinity || venue.formatted_address || 'No address available';
-    const rating = venue.rating ? `${venue.rating.toFixed(1)} ★` : 'No rating';
+    displaySortedVenues(sortedVenues);
+}
+
+// Display sorted venues
+function displaySortedVenues(venues) {
+    let html = '';
+    venues.forEach((venue, index) => {
+        html += createResultsVenueCard(venue, index + 1);
+    });
+
+    document.getElementById('venues-container').innerHTML = html;
+}
+
+// Create venue card for results view (read-only)
+function createResultsVenueCard(venue, rank) {
+    const photoUrl = getVenuePhotoUrl(venue);
+    const photoHtml = photoUrl 
+        ? `<img src="${photoUrl}" class="card-img-top venue-photo" alt="${venue.name}" loading="lazy">`
+        : `<div class="card-img-top venue-photo-placeholder d-flex align-items-center justify-content-center">
+             <i class="fas fa-utensils text-muted"></i>
+           </div>`;
+
+    const address = venue.vicinity || venue.formatted_address || 'Address not available';
+    const priceLevel = venue.price_level ? '$'.repeat(venue.price_level) : '$';
+    const rating = venue.rating ? `${venue.rating.toFixed(1)}` : 'N/A';
     const ratingClass = venue.rating >= 4 ? 'text-success' : venue.rating >= 3 ? 'text-warning' : 'text-danger';
 
+    const voteCount = venue.votes ? venue.votes.likes : 0;
+    const totalVotes = venue.votes ? venue.votes.total : 0;
+    const votePercentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+
     return `
-    <div class="card venue-card mb-3">
+    <div class="card venue-card mb-3 position-relative">
+        <div class="venue-rank">${rank}</div>
         <div class="row g-0">
             <div class="col-4 p-0">
                 ${photoHtml}
@@ -157,22 +378,25 @@ function createVenueCard(venue) {
                 <div class="card-body p-2">
                     <h6 class="card-title mb-1 text-truncate">${venue.name || 'Unnamed Venue'}</h6>
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="badge ${ratingClass} bg-light">${rating}</span>
+                        <span class="badge ${ratingClass} bg-light">
+                            <i class="fas fa-star me-1"></i>${rating}
+                        </span>
                         <span class="text-muted small">${priceLevel}</span>
                     </div>
                     <p class="card-text small text-muted mb-1">
                         <i class="fas fa-map-marker-alt me-1"></i>
-                        <span class="text-truncate d-inline-block" style="max-width: 200px;" 
+                        <span class="text-truncate d-inline-block" style="max-width: 180px;" 
                               title="${address}">${address}</span>
                     </p>
                     <div class="d-flex justify-content-between align-items-center">
-                        <button class="btn btn-outline-primary btn-sm me-1" 
-                                onclick="viewOnMap('${venue.placeId || venue.place_id || `temp-${Math.random().toString(36).substr(2, 9)}`}', ${venue.geometry?.location?.lat || 0}, ${venue.geometry?.location?.lng || 0})">
+                        <div class="vote-count">
+                            <i class="fas fa-heart"></i>
+                            <span>${voteCount} likes</span>
+                            ${totalVotes > 0 ? `<span class="text-muted">(${votePercentage}%)</span>` : ''}
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm" 
+                                onclick="viewOnMap('${venue.placeId || venue.place_id}', ${venue.geometry?.location?.lat || 0}, ${venue.geometry?.location?.lng || 0})">
                             <i class="fas fa-map-marker-alt me-1"></i> Map
-                        </button>
-                        <button class="btn btn-primary btn-sm" 
-                                onclick="shareVenue('${venue.name.replace(/'/g, "\\'")}', ${venue.geometry?.location?.lat || 0}, ${venue.geometry?.location?.lng || 0})">
-                            <i class="fas fa-share me-1"></i> Share
                         </button>
                     </div>
                 </div>
@@ -181,36 +405,375 @@ function createVenueCard(venue) {
     </div>`;
 }
 
+// Update toggle button based on context
+function updateToggleButton(groupId) {
+    const toggleBtn = document.getElementById('nav-toggle-btn');
+    if (!toggleBtn) return;
+
+    if (groupId) {
+        // Show voting toggle - heart icon for swipe voting
+        toggleBtn.innerHTML = '<i class="fas fa-heart"></i>';
+        toggleBtn.title = 'Switch to Swipe Voting';
+        toggleBtn.style.display = 'flex';
+    } else {
+        // Hide toggle for non-group contexts
+        toggleBtn.style.display = 'none';
+    }
+}
+
+// Toggle between results view and voting view
+function toggleVotingView() {
+    if (!groupId) {
+        showToast('Group context required for voting', 'error');
+        return;
+    }
+
+    // Navigate to swipe voting interface
+    startSwipeVoting(groupId);
+}
+
+// Navigate to swipe voting with proper authentication
+async function startSwipeVoting(groupId) {
+    try {
+        if (!isFirebaseReady || !firebase.auth().currentUser) {
+            showToast('Please sign in to start voting', 'error');
+            return;
+        }
+
+        const user = firebase.auth().currentUser;
+        console.log('Starting swipe voting for user:', user.email);
+
+        // Get fresh token and sync session
+        const idToken = await user.getIdToken(true);
+        
+        // Set cookie with proper attributes
+        const isSecure = window.location.protocol === 'https:';
+        document.cookie = `id_token=${idToken}; path=/; max-age=3600; ${isSecure ? 'secure; ' : ''}samesite=lax`;
+        
+        // Sync with Flask session
+        const response = await fetch('/api/user', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            console.log('Session synced, navigating to swipe interface');
+            // Store return path
+            sessionStorage.setItem('swipe_return_path', window.location.href);
+            // Navigate to swipe interface
+            window.location.href = `/mobile/swipe/${groupId}`;
+        } else {
+            throw new Error('Session sync failed');
+        }
+
+    } catch (error) {
+        console.error('Error starting swipe voting:', error);
+        showToast('Failed to start voting. Please try refreshing the page.', 'error');
+    }
+}
+
+// Update back button behavior
+function updateBackButton(source, groupId, eventId) {
+    const backButton = document.querySelector('.btn-link');
+    if (!backButton) return;
+    
+    if (source === 'event_map' && groupId && eventId) {
+        backButton.onclick = () => {
+            window.location.href = `/event_map_manager?eventId=${eventId}&groupId=${groupId}`;
+        };
+    } else {
+        backButton.onclick = goBack;
+    }
+}
+
+// Update midpoint information
+function updateMidpointInfo(data) {
+    const statsContainer = document.getElementById('midpoint-summary');
+    
+    if (data.fairness !== undefined || data.avgTime !== undefined || data.venues) {
+        statsContainer.style.display = 'flex';
+        
+        const fairnessEl = document.getElementById('fairness-score');
+        const avgTimeEl = document.getElementById('avg-time');
+        const venueCountEl = document.getElementById('venue-count');
+        
+        if (fairnessEl) fairnessEl.textContent = data.fairness ? `${Math.round(data.fairness * 100)}%` : '-';
+        if (avgTimeEl) avgTimeEl.textContent = data.avgTime ? `${Math.round(data.avgTime)} min` : '-';
+        if (venueCountEl) venueCountEl.textContent = data.venues ? data.venues.length : '-';
+    }
+}
+
+// Helper functions
+function getVenuePhotoUrl(venue) {
+    if (!venue.photos || venue.photos.length === 0) return null;
+    const photo = venue.photos[0];
+    if (photo.getUrl) {
+        return photo.getUrl({ maxWidth: 400, maxHeight: 300 });
+    }
+    return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photo.photo_reference}&key=${window.googleMapsApiKey}`;
+}
+
+function showToast(message, type = 'info') {
+    const toastId = `toast-${Date.now()}`;
+    const bgClass = type === 'error' ? 'bg-danger' : type === 'success' ? 'bg-success' : 'bg-primary';
+    
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `toast show align-items-center text-white ${bgClass} border-0`;
+    toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; z-index: 9999; min-width: 250px;';
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="removeToast('${toastId}')"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    setTimeout(() => removeToast(toastId), 5000);
+}
+
+function removeToast(toastId) {
+    const toast = document.getElementById(toastId);
+    if (toast?.parentNode) {
+        toast.classList.remove('show');
+        setTimeout(() => toast.parentNode.removeChild(toast), 300);
+    }
+}
+
 function showEmptyState(message) {
-    const container = document.getElementById('venues-container');
-    container.innerHTML = `
-        <div class="empty-state">
-            <i class="fas fa-utensils"></i>
+    document.getElementById('venues-container').innerHTML = `
+        <div class="empty-state text-center py-5">
+            <i class="fas fa-utensils fa-3x text-muted mb-3"></i>
             <h4>No Venues Found</h4>
-            <p>${message}</p>
-            <button class="btn btn-primary mt-2" onclick="goBack()">Go Back</button>
+            <p class="text-muted">${message}</p>
+            <button class="btn btn-primary mt-3" onclick="goBack()">Go Back</button>
         </div>`;
 }
 
 function viewOnMap(placeId, lat, lng) {
-    // Implementation for viewing venue on map
-    console.log('Viewing venue on map:', placeId, lat, lng);
-    // You can implement this function based on your map implementation
-}
-
-function shareVenue(venueName, lat, lng) {
-    // Implementation for sharing venue
-    console.log('Sharing venue:', venueName, lat, lng);
-    // You can implement this function based on your sharing requirements
-}
-
-function goBack() {
-    // Try to go back in history, otherwise go to home
-    if (document.referrer && document.referrer.includes('/app')) {
-        window.history.back();
+    if (lat && lng) {
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}&query_place_id=${placeId}`;
+        window.open(mapsUrl, '_blank');
     } else {
-        window.location.href = '/app';
+        showToast('Location not available for this venue', 'error');
     }
+}
+
+// Add debugging script to venues_temp.html before the closing </script> tag
+
+// Enhanced debugging for authentication issues
+class AuthDebugger {
+    constructor() {
+        this.logs = [];
+        this.startTime = Date.now();
+    }
+
+    log(message, data = null) {
+        const timestamp = Date.now() - this.startTime;
+        const logEntry = { timestamp, message, data, time: new Date().toISOString() };
+        this.logs.push(logEntry);
+        console.log(`[AUTH DEBUG ${timestamp}ms]`, message, data || '');
+    }
+
+    async checkAuthState() {
+        this.log('=== AUTHENTICATION STATE CHECK ===');
+        
+        try {
+            const user = firebase.auth().currentUser;
+            this.log('Firebase currentUser:', user ? {
+                uid: user.uid, email: user.email, emailVerified: user.emailVerified
+            } : 'null');
+
+            if (user) {
+                const token = await user.getIdToken();
+                this.log('Firebase ID token length:', token.length);
+            }
+        } catch (error) {
+            this.log('Firebase auth error:', error.message);
+        }
+
+        const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+            const [name, value] = cookie.trim().split('=');
+            acc[name] = value;
+            return acc;
+        }, {});
+        
+        this.log('id_token cookie:', cookies.id_token ? `present (${cookies.id_token.length} chars)` : 'missing');
+
+        try {
+            const response = await fetch('/api/user', {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            this.log('Flask /api/user response:', response.status);
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.log('Flask user data:', data);
+            } else {
+                const text = await response.text();
+                this.log('Flask error:', text);
+            }
+        } catch (error) {
+            this.log('Flask API error:', error.message);
+        }
+
+        return this.logs;
+    }
+
+    exportLogs() {
+        const logText = this.logs.map(log => 
+            `[${log.timestamp}ms] ${log.message} ${log.data ? JSON.stringify(log.data) : ''}`
+        ).join('\n');
+        
+        console.log('=== FULL DEBUG LOG ===');
+        console.log(logText);
+        
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(logText);
+            console.log('✅ Debug log copied to clipboard');
+        }
+        
+        return logText;
+    }
+}
+
+// Initialize debugger
+window.authDebugger = new AuthDebugger();
+
+// Enhanced startSwipeVoting with comprehensive debugging
+async function startSwipeVotingDebug(groupId) {
+    const debugger = window.authDebugger;
+    
+    debugger.log('🚀 STARTING SWIPE VOTING', { groupId });
+    
+    // Check initial state
+    await debugger.checkAuthState();
+    
+    try {
+        if (!isFirebaseReady || !firebase.auth().currentUser) {
+            debugger.log('❌ No Firebase user');
+            showToast('Please sign in to start voting', 'error');
+            debugger.exportLogs();
+            return;
+        }
+
+        const user = firebase.auth().currentUser;
+        debugger.log('✅ User authenticated', user.email);
+
+        // Get fresh token
+        const idToken = await user.getIdToken(true);
+        debugger.log('✅ Fresh token obtained', idToken.length);
+        
+        // Set cookie
+        const isSecure = window.location.protocol === 'https:';
+        const cookieString = `id_token=${idToken}; path=/; max-age=3600; ${isSecure ? 'secure; ' : ''}samesite=lax`;
+        document.cookie = cookieString;
+        debugger.log('✅ Cookie set');
+        
+        // Sync attempts
+        let syncSuccess = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            debugger.log(`🔄 Sync attempt ${attempt}/3`);
+            
+            try {
+                const response = await fetch('/api/user', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${idToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                
+                debugger.log(`📡 Response ${attempt}:`, response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    debugger.log(`✅ Sync ${attempt} success:`, data);
+                    syncSuccess = true;
+                    break;
+                } else {
+                    const errorText = await response.text();
+                    debugger.log(`❌ Sync ${attempt} failed:`, errorText);
+                }
+            } catch (syncError) {
+                debugger.log(`💥 Sync ${attempt} error:`, syncError.message);
+            }
+            
+            if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        if (!syncSuccess) {
+            debugger.log('💀 ALL SYNC ATTEMPTS FAILED');
+            debugger.exportLogs();
+            throw new Error('Session sync failed');
+        }
+        
+        // Final check
+        debugger.log('🔍 Final auth check...');
+        await debugger.checkAuthState();
+        
+        // Navigate
+        debugger.log('🚢 Navigating to swipe interface...');
+        debugger.exportLogs(); // Export before navigation
+        
+        sessionStorage.setItem('swipe_return_path', window.location.href);
+        window.location.href = `/mobile/swipe/${groupId}`;
+        
+    } catch (error) {
+        debugger.log('💀 CRITICAL ERROR:', error.message);
+        debugger.exportLogs();
+        showToast('Navigation failed. Check console for debug info.', 'error');
+    }
+}
+
+// Debug helper functions for manual testing
+window.debugAuth = () => window.authDebugger.checkAuthState();
+window.debugCookies = () => {
+    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+        const [name, value] = cookie.trim().split('=');
+        acc[name] = value ? `${value.length} chars` : 'empty';
+        return acc;
+    }, {});
+    console.table(cookies);
+    return cookies;
+};
+
+// Replace the original function with debug version
+const originalStartSwipeVoting = startSwipeVoting;
+startSwipeVoting = startSwipeVotingDebug;
+
+// Add debug panel to page (only in development)
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const debugPanel = document.createElement('div');
+        debugPanel.style.cssText = `
+            position: fixed; 
+            top: 10px; 
+            left: 10px; 
+            background: rgba(0,0,0,0.8); 
+            color: white; 
+            padding: 10px; 
+            border-radius: 5px; 
+            font-size: 12px;
+            z-index: 10000;
+            max-width: 200px;
+        `;
+        debugPanel.innerHTML = `
+            <div><strong>🐛 DEBUG PANEL</strong></div>
+            <button onclick="debugAuth().then(console.table)" style="margin: 2px; padding: 2px 6px; font-size: 10px;">Check Auth</button>
+            <button onclick="debugCookies()" style="margin: 2px; padding: 2px 6px; font-size: 10px;">Check Cookies</button>
+            <button onclick="window.authDebugger.exportLogs()" style="margin: 2px; padding: 2px 6px; font-size: 10px;">Export Logs</button>
+        `;
+        document.body.appendChild(debugPanel);
+    });
 }
 </script>
 {% endblock %}

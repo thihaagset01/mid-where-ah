@@ -1,389 +1,716 @@
-// MidWhereAh - Swipe Voting Interface
+// static/js/swipe.js
 
-// Global variables
-let currentVenueIndex = 0;
-let venues = [];
-let groupId = '';
-let userId = '';
-let hammertime = null;
-let isAnimating = false;
-let totalVenues = 0;
+class SwipeInterface {
+    constructor() {
+        this.groupId = null;
+        this.venues = [];
+        this.currentIndex = 0;
+        this.votes = {};
+        this.isAnimating = false;
+        this.dragStartX = 0;
+        this.dragStartY = 0;
+        this.isDragging = false;
+        this.members = [];
+        this.currentUser = null;
+        
+        // DOM elements
+        this.swipeContainer = null;
+        this.loadingContainer = null;
+        this.emptyContainer = null;
+        this.instructionsElement = null;
+        this.progressBar = null;
+        this.progressText = null;
+        this.membersContainer = null;
+        this.actionButtons = null;
+    }
 
-// Initialize swipe interface
-function initSwipeInterface(groupIdParam, userIdParam) {
-    groupId = groupIdParam;
-    userId = userIdParam;
-    
-    // Get swipe container
-    const swipeContainer = document.getElementById('swipe-container');
-    if (!swipeContainer) return;
-    
-    // Show loading state
-    swipeContainer.innerHTML = `
-        <div class="text-center p-5">
-            <div class="spinner-border" style="color: var(--primary-purple);" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-3">Loading venues for voting...</p>
-        </div>
-    `;
-    
-    // Load venues from Firestore
-    loadVenuesForVoting(groupId);
-}
+    async initialize(groupId) {
+        console.log('🎯 Initializing Swipe Interface for group:', groupId);
+        this.groupId = groupId;
+        
+        // Initialize DOM elements
+        this.initializeDOMElements();
+        
+        // Wait for Firebase auth
+        await this.waitForAuth();
+        
+        // Load group members
+        await this.loadGroupMembers();
+        
+        // Load venues for voting
+        await this.loadVenues();
+        
+        // Set up event listeners
+        this.setupEventListeners();
+        
+        console.log('✅ Swipe Interface initialized');
+    }
 
-// Load venues for voting from Firestore
-function loadVenuesForVoting(groupId) {
-    if (!groupId) return;
-    
-    // Get venues that have been added to voting
-    db.collection('groups').doc(groupId).collection('venues')
-        .where('addedToVoting', '==', true)
-        .orderBy('addedToVotingAt', 'asc')
-        .get()
-        .then(snapshot => {
-            if (snapshot.empty) {
-                showNoVenuesMessage();
-                return;
+    initializeDOMElements() {
+        this.swipeContainer = document.getElementById('swipe-container');
+        this.loadingContainer = document.getElementById('loading-container');
+        this.emptyContainer = document.getElementById('empty-container');
+        this.instructionsElement = document.getElementById('swipe-instructions');
+        this.progressBar = document.getElementById('progress-bar');
+        this.progressText = document.getElementById('progress-text');
+        this.membersContainer = document.getElementById('members-container');
+        this.actionButtons = document.querySelectorAll('.action-btn');
+    }
+
+    async waitForAuth() {
+        return new Promise((resolve) => {
+            if (firebase.auth().currentUser) {
+                this.currentUser = firebase.auth().currentUser;
+                resolve();
+            } else {
+                const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+                    if (user) {
+                        this.currentUser = user;
+                        unsubscribe();
+                        resolve();
+                    }
+                });
             }
+        });
+    }
+
+    async loadGroupMembers() {
+        try {
+            const groupDoc = await firebase.firestore()
+                .collection('groups')
+                .doc(this.groupId)
+                .get();
+
+            if (groupDoc.exists) {
+                const groupData = groupDoc.data();
+                this.members = Object.values(groupData.members || {});
+                this.displayMembers();
+                console.log('✅ Loaded', this.members.length, 'group members');
+            }
+        } catch (error) {
+            console.error('Error loading group members:', error);
+        }
+    }
+
+    displayMembers() {
+        if (!this.membersContainer) return;
+
+        this.membersContainer.innerHTML = '';
+        this.members.forEach(member => {
+            const memberElement = document.createElement('div');
+            memberElement.className = 'member-avatar';
+            memberElement.title = member.name || member.email;
             
-            // Store venues
-            venues = [];
-            snapshot.forEach(doc => {
-                venues.push({
+            // Get initials
+            const name = member.name || member.email;
+            const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            
+            memberElement.innerHTML = `
+                ${initials}
+                <div class="vote-indicator" style="display: none;">
+                    <i class="fas fa-check"></i>
+                </div>
+            `;
+            
+            this.membersContainer.appendChild(memberElement);
+        });
+    }
+
+    async loadVenues() {
+        try {
+            console.log('🔍 Loading venues for voting...');
+            
+            // Get venues that have been added to voting
+            const venuesSnapshot = await firebase.firestore()
+                .collection('groups')
+                .doc(this.groupId)
+                .collection('venues')
+                .where('addedToVoting', '==', true)
+                .get();
+
+            this.venues = [];
+            venuesSnapshot.forEach(doc => {
+                this.venues.push({
                     id: doc.id,
                     ...doc.data()
                 });
             });
-            
-            totalVenues = venues.length;
-            
-            // Check if user has already voted on some venues
-            checkExistingVotes();
-        })
-        .catch(error => {
-            console.error('Error loading venues for voting:', error);
-            showNotification('Error loading venues for voting', 'danger');
-        });
-}
 
-// Check if user has already voted on some venues
-function checkExistingVotes() {
-    // Filter out venues that the user has already voted on
-    const unvotedVenues = venues.filter(venue => {
-        return !venue.votes || !venue.votes[userId];
-    });
-    
-    if (unvotedVenues.length === 0) {
-        // User has voted on all venues
-        showAllVotesCompletedMessage();
-    } else {
-        // Update venues array to only include unvoted venues
-        venues = unvotedVenues;
-        currentVenueIndex = 0;
-        
-        // Initialize swipe cards
-        initSwipeCards();
+            console.log('✅ Loaded', this.venues.length, 'venues for voting');
+
+            // Load existing votes
+            await this.loadExistingVotes();
+
+            // Filter out already voted venues
+            this.filterUnvotedVenues();
+
+            // Display venues
+            this.displayVenues();
+
+        } catch (error) {
+            console.error('Error loading venues:', error);
+            this.showError('Failed to load venues');
+        }
     }
-}
 
-// Initialize swipe cards
-function initSwipeCards() {
-    const swipeContainer = document.getElementById('swipe-container');
-    if (!swipeContainer) return;
-    
-    // Create swipe card HTML
-    let html = '';
-    
-    if (venues.length > 0) {
-        const venue = venues[currentVenueIndex];
-        
-        html = `
-            <div class="swipe-card" data-venue-id="${venue.id}">
-                <div class="card-image">
-                    ${venue.photoUrl ? 
-                        `<img src="${venue.photoUrl}" alt="${venue.name}">` : 
-                        `<div class="d-flex align-items-center justify-content-center bg-light" style="height: 250px;">
-                            <i class="fas fa-utensils fa-3x text-secondary"></i>
-                        </div>`
-                    }
+    async loadExistingVotes() {
+        if (!this.currentUser) return;
+
+        try {
+            const voteDoc = await firebase.firestore()
+                .collection('groups')
+                .doc(this.groupId)
+                .collection('votes')
+                .doc(this.currentUser.uid)
+                .get();
+
+            if (voteDoc.exists) {
+                this.votes = voteDoc.data().votes || {};
+                console.log('✅ Loaded existing votes:', Object.keys(this.votes).length);
+            }
+        } catch (error) {
+            console.error('Error loading votes:', error);
+        }
+    }
+
+    filterUnvotedVenues() {
+        // Filter out venues that user has already voted on
+        const unvotedVenues = this.venues.filter(venue => {
+            const venueId = venue.id || venue.placeId || venue.place_id;
+            return !this.votes[venueId];
+        });
+
+        this.venues = unvotedVenues;
+        console.log('📊 Unvoted venues:', this.venues.length);
+    }
+
+    displayVenues() {
+        this.hideLoading();
+
+        if (this.venues.length === 0) {
+            this.showEmptyState();
+            return;
+        }
+
+        // Create venue cards
+        this.venues.forEach((venue, index) => {
+            const card = this.createVenueCard(venue, index);
+            this.swipeContainer.appendChild(card);
+        });
+
+        // Hide instructions after first card
+        if (this.venues.length > 0) {
+            setTimeout(() => {
+                this.instructionsElement.style.opacity = '0';
+                setTimeout(() => {
+                    this.instructionsElement.style.display = 'none';
+                }, 300);
+            }, 2000);
+        }
+
+        // Update progress
+        this.updateProgress();
+
+        // Enable action buttons
+        this.enableActionButtons();
+    }
+
+    createVenueCard(venue, index) {
+        const card = document.createElement('div');
+        card.className = 'swipe-card entering';
+        card.dataset.venueId = venue.id || venue.placeId || venue.place_id;
+        card.dataset.index = index;
+
+        const photoUrl = this.getVenuePhotoUrl(venue);
+        const rating = venue.rating ? venue.rating.toFixed(1) : 'N/A';
+        const priceLevel = venue.price_level ? '$'.repeat(venue.price_level) : '$';
+        const address = venue.vicinity || venue.formatted_address || 'Address not available';
+        const venueTypes = venue.types ? venue.types.slice(0, 3) : [];
+
+        card.innerHTML = `
+            <div class="card-image">
+                ${photoUrl 
+                    ? `<img src="${photoUrl}" alt="${venue.name}" loading="lazy">`
+                    : `<div class="card-image-placeholder">
+                         <i class="fas fa-utensils"></i>
+                       </div>`
+                }
+                <div class="vote-overlay like">
+                    <i class="fas fa-heart me-2"></i>LIKE
                 </div>
-                <div class="card-content">
-                    <h2 class="venue-name">${venue.name}</h2>
-                    <p class="venue-address text-muted">${venue.address}</p>
-                    <div class="venue-details">
-                        <span class="rating">
-                            <span class="text-warning">★</span> ${venue.rating || 'N/A'}
-                            <small class="text-muted">(${venue.userRatingsTotal || 0})</small>
-                        </span>
-                        <span class="price">
-                            ${getPriceLevel(venue.priceLevel)}
-                        </span>
-                    </div>
-                    <div class="venue-tags mt-2">
-                        ${getVenueTags(venue)}
-                    </div>
+                <div class="vote-overlay dislike">
+                    <i class="fas fa-times me-2"></i>SKIP
                 </div>
             </div>
-            
-            <div class="swipe-actions">
-                <button class="btn-dislike" onclick="voteDislike()">✗</button>
-                <button class="btn-like" onclick="voteLike()">♡</button>
-            </div>
-            
-            <div class="voting-progress">
-                <span>Venue ${currentVenueIndex + 1} of ${venues.length}</span>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${((currentVenueIndex) / venues.length) * 100}%"></div>
+            <div class="card-content">
+                <div class="venue-name">${venue.name || 'Unnamed Venue'}</div>
+                <div class="venue-details">
+                    <div class="venue-rating">
+                        <i class="fas fa-star"></i>
+                        ${rating}
+                    </div>
+                    <div class="venue-price">${priceLevel}</div>
+                </div>
+                <div class="venue-address">
+                    <i class="fas fa-map-marker-alt"></i>
+                    ${address}
+                </div>
+                <div class="venue-tags">
+                    ${venueTypes.map(type => 
+                        `<span class="venue-tag">${this.formatVenueType(type)}</span>`
+                    ).join('')}
                 </div>
             </div>
         `;
-        
-        swipeContainer.innerHTML = html;
-        
-        // Initialize Hammer.js for swipe gestures
-        initHammer();
-    } else {
-        showNoVenuesMessage();
-    }
-}
 
-// Initialize Hammer.js for swipe gestures
-function initHammer() {
-    const swipeCard = document.querySelector('.swipe-card');
-    if (!swipeCard) return;
-    
-    // Clean up previous Hammer instance
-    if (hammertime) {
-        hammertime.destroy();
+        // Add touch/mouse event listeners
+        this.addCardEventListeners(card);
+
+        return card;
     }
-    
-    // Create new Hammer instance
-    hammertime = new Hammer(swipeCard);
-    
-    // Configure horizontal swipe recognition
-    hammertime.get('pan').set({ direction: Hammer.DIRECTION_HORIZONTAL });
-    
-    // Handle pan events
-    hammertime.on('pan', function(event) {
-        if (isAnimating) return;
+
+    addCardEventListeners(card) {
+        // Touch events
+        card.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+        card.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+        card.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+
+        // Mouse events
+        card.addEventListener('mousedown', this.handleMouseDown.bind(this));
+        card.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        card.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        card.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+    }
+
+    handleTouchStart(e) {
+        if (this.isAnimating) return;
+        e.preventDefault();
         
-        const deltaX = event.deltaX;
-        const opacity = Math.min(Math.abs(deltaX) / 200, 1);
+        const touch = e.touches[0];
+        this.startDrag(touch.clientX, touch.clientY, e.target);
+    }
+
+    handleTouchMove(e) {
+        if (!this.isDragging || this.isAnimating) return;
+        e.preventDefault();
         
-        // Move card
-        swipeCard.style.transform = `translateX(${deltaX}px) rotate(${deltaX * 0.05}deg)`;
+        const touch = e.touches[0];
+        this.updateDrag(touch.clientX, touch.clientY);
+    }
+
+    handleTouchEnd(e) {
+        if (!this.isDragging || this.isAnimating) return;
+        e.preventDefault();
         
-        // Show like/dislike indicators
-        if (deltaX > 0) {
-            // Swiping right (like)
-            swipeCard.classList.add('swipe-right');
-            swipeCard.classList.remove('swipe-left');
-        } else if (deltaX < 0) {
-            // Swiping left (dislike)
-            swipeCard.classList.add('swipe-left');
-            swipeCard.classList.remove('swipe-right');
-        } else {
-            swipeCard.classList.remove('swipe-left', 'swipe-right');
-        }
-    });
-    
-    // Handle pan end events
-    hammertime.on('panend', function(event) {
-        if (isAnimating) return;
+        this.endDrag();
+    }
+
+    handleMouseDown(e) {
+        if (this.isAnimating) return;
+        e.preventDefault();
         
-        const deltaX = event.deltaX;
+        this.startDrag(e.clientX, e.clientY, e.target);
+    }
+
+    handleMouseMove(e) {
+        if (!this.isDragging || this.isAnimating) return;
+        e.preventDefault();
         
-        if (Math.abs(deltaX) > 100) {
-            // Swipe threshold reached
+        this.updateDrag(e.clientX, e.clientY);
+    }
+
+    handleMouseUp(e) {
+        if (!this.isDragging || this.isAnimating) return;
+        e.preventDefault();
+        
+        this.endDrag();
+    }
+
+    startDrag(x, y, target) {
+        const card = target.closest('.swipe-card');
+        if (!card || parseInt(card.dataset.index) !== this.currentIndex) return;
+
+        this.isDragging = true;
+        this.dragStartX = x;
+        this.dragStartY = y;
+        this.currentCard = card;
+        
+        card.classList.add('dragging');
+    }
+
+    updateDrag(x, y) {
+        if (!this.currentCard) return;
+
+        const deltaX = x - this.dragStartX;
+        const deltaY = y - this.dragStartY;
+        const rotation = deltaX * 0.1;
+        const opacity = Math.max(0.7, 1 - Math.abs(deltaX) / 300);
+
+        // Update card position and rotation
+        this.currentCard.style.transform = `translateX(${deltaX}px) translateY(${deltaY}px) rotate(${rotation}deg)`;
+        this.currentCard.style.opacity = opacity;
+
+        // Show vote overlays based on drag direction
+        const likeOverlay = this.currentCard.querySelector('.vote-overlay.like');
+        const dislikeOverlay = this.currentCard.querySelector('.vote-overlay.dislike');
+
+        if (Math.abs(deltaX) > 50) {
             if (deltaX > 0) {
-                // Swiped right (like)
-                animateSwipe(swipeCard, 1, voteLike);
+                // Dragging right - show like
+                likeOverlay.classList.add('show');
+                dislikeOverlay.classList.remove('show');
+                this.currentCard.classList.add('like-hint');
+                this.currentCard.classList.remove('dislike-hint');
             } else {
-                // Swiped left (dislike)
-                animateSwipe(swipeCard, -1, voteDislike);
+                // Dragging left - show dislike
+                dislikeOverlay.classList.add('show');
+                likeOverlay.classList.remove('show');
+                this.currentCard.classList.add('dislike-hint');
+                this.currentCard.classList.remove('like-hint');
             }
         } else {
-            // Reset card position
-            swipeCard.style.transform = '';
-            swipeCard.classList.remove('swipe-left', 'swipe-right');
+            // Not far enough - hide overlays
+            likeOverlay.classList.remove('show');
+            dislikeOverlay.classList.remove('show');
+            this.currentCard.classList.remove('like-hint', 'dislike-hint');
         }
-    });
-}
+    }
 
-// Animate swipe
-function animateSwipe(card, direction, callback) {
-    isAnimating = true;
-    
-    // Animate card off screen
-    card.style.transition = 'transform 0.5s ease';
-    card.style.transform = `translateX(${direction * window.innerWidth}px) rotate(${direction * 30}deg)`;
-    
-    // Wait for animation to complete
-    setTimeout(() => {
-        isAnimating = false;
-        callback();
-    }, 500);
-}
+    endDrag() {
+        if (!this.currentCard) return;
 
-// Vote like
-function voteLike() {
-    if (currentVenueIndex >= venues.length) return;
-    
-    const venue = venues[currentVenueIndex];
-    saveVote(venue.id, 'like');
-}
+        const deltaX = parseInt(this.currentCard.style.transform.match(/translateX\(([^)]+)px\)/)?.[1] || 0);
+        const threshold = 100;
 
-// Vote dislike
-function voteDislike() {
-    if (currentVenueIndex >= venues.length) return;
-    
-    const venue = venues[currentVenueIndex];
-    saveVote(venue.id, 'dislike');
-}
+        this.isDragging = false;
+        this.currentCard.classList.remove('dragging');
 
-// Save vote to Firestore
-function saveVote(venueId, voteType) {
-    if (!venueId || !groupId || !userId) return;
-    
-    // Get venue reference
-    const venueRef = db.collection('groups').doc(groupId).collection('venues').doc(venueId);
-    
-    // Update vote in Firestore
-    venueRef.update({
-        [`votes.${userId}`]: voteType,
-        [`voteCount.${voteType}s`]: firebase.firestore.FieldValue.increment(1),
-        'voteCount.total': firebase.firestore.FieldValue.increment(1)
-    })
-    .then(() => {
-        // Move to next venue
-        currentVenueIndex++;
-        
-        if (currentVenueIndex < venues.length) {
-            // Show next venue
-            initSwipeCards();
+        if (Math.abs(deltaX) > threshold) {
+            // Swipe detected
+            if (deltaX > 0) {
+                this.performSwipe('right');
+            } else {
+                this.performSwipe('left');
+            }
         } else {
-            // All venues voted
-            showVotingCompleteMessage();
+            // Snap back to center
+            this.currentCard.style.transform = '';
+            this.currentCard.style.opacity = '';
+            this.currentCard.classList.remove('like-hint', 'dislike-hint');
+            
+            // Hide overlays
+            this.currentCard.querySelectorAll('.vote-overlay').forEach(overlay => {
+                overlay.classList.remove('show');
+            });
         }
-    })
-    .catch(error => {
-        console.error('Error saving vote:', error);
-        showNotification('Error saving vote', 'danger');
-    });
-}
 
-// Show no venues message
-function showNoVenuesMessage() {
-    const swipeContainer = document.getElementById('swipe-container');
-    if (!swipeContainer) return;
-    
-    swipeContainer.innerHTML = `
-        <div class="empty-state">
-            <i class="fas fa-map-marker-alt"></i>
-            <h4>No Venues to Vote On</h4>
-            <p class="text-muted">No venues have been added to the voting list yet.</p>
-            <a href="/venues/${groupId}" class="preload-link btn btn-primary mt-3">
-                <i class="fas fa-search me-2"></i>Find Venues
-            </a>
-        </div>
-    `;
-}
-
-// Show all votes completed message
-function showAllVotesCompletedMessage() {
-    const swipeContainer = document.getElementById('swipe-container');
-    if (!swipeContainer) return;
-    
-    swipeContainer.innerHTML = `
-        <div class="empty-state">
-            <i class="fas fa-check-circle"></i>
-            <h4>You've Voted on All Venues</h4>
-            <p class="text-muted">You've already voted on all venues in this group.</p>
-            <a href="/results/${groupId}" class="preload-link btn btn-primary mt-3">
-                <i class="fas fa-chart-bar me-2"></i>See Results
-            </a>
-        </div>
-    `;
-}
-
-// Show voting complete message
-function showVotingCompleteMessage() {
-    const swipeContainer = document.getElementById('swipe-container');
-    if (!swipeContainer) return;
-    
-    swipeContainer.innerHTML = `
-        <div class="empty-state">
-            <i class="fas fa-check-circle"></i>
-            <h4>Voting Complete!</h4>
-            <p class="text-muted">You've voted on all venues. Check out the results!</p>
-            <a href="/results/${groupId}" class="preload-link btn btn-primary mt-3">
-                <i class="fas fa-chart-bar me-2"></i>See Results
-            </a>
-        </div>
-    `;
-    
-    // Show notification
-    showNotification('Voting complete! Thanks for your input.', 'success');
-}
-
-// Helper function to get price level string
-function getPriceLevel(level) {
-    if (!level) return '';
-    
-    let priceString = '';
-    for (let i = 0; i < level; i++) {
-        priceString += '$';
+        this.currentCard = null;
     }
-    
-    return priceString;
-}
 
-// Helper function to get venue tags HTML
-function getVenueTags(venue) {
-    if (!venue.types || venue.types.length === 0) return '';
-    
-    const displayTypes = ['restaurant', 'cafe', 'bar', 'food', 'bakery', 'meal_takeaway'];
-    const tags = [];
-    
-    venue.types.forEach(type => {
-        if (displayTypes.includes(type)) {
-            tags.push(`<span class="tag badge bg-secondary me-1">${type.replace('_', ' ')}</span>`);
-        }
-    });
-    
-    return tags.slice(0, 3).join('');
-}
+    async performSwipe(direction) {
+        if (this.isAnimating) return;
+        
+        this.isAnimating = true;
+        const card = this.getCurrentCard();
+        if (!card) return;
 
-// Show notification
-function showNotification(message, type = 'success') {
-    const toast = document.getElementById('notification-toast');
-    const toastMessage = document.getElementById('notification-message');
-    
-    if (toast && toastMessage) {
-        // Set message and type
-        toastMessage.textContent = message;
+        const venueId = card.dataset.venueId;
+        const vote = direction === 'right' ? 'yes' : 'no';
+
+        // Animate card exit
+        card.classList.add(direction === 'right' ? 'swiped-right' : 'swiped-left');
         
-        // Remove existing color classes
-        toast.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info');
-        
-        // Add appropriate color class
-        switch (type) {
-            case 'danger':
-                toast.classList.add('bg-danger');
-                break;
-            case 'warning':
-                toast.classList.add('bg-warning');
-                break;
-            case 'info':
-                toast.classList.add('bg-info');
-                break;
-            default:
-                toast.classList.add('bg-success');
-        }
-        
-        // Show toast
-        const bsToast = new bootstrap.Toast(toast);
-        bsToast.show();
+        // Submit vote
+        await this.submitVote(venueId, vote);
+
+        // Show vote confirmation
+        this.showVoteConfirmation(vote, this.venues[this.currentIndex]);
+
+        // Pulse corresponding action button
+        const button = direction === 'right' ? document.querySelector('.like-btn') : document.querySelector('.dislike-btn');
+        button.classList.add('pulse');
+        setTimeout(() => button.classList.remove('pulse'), 300);
+
+        // Move to next card
+        setTimeout(() => {
+            this.nextCard();
+            this.isAnimating = false;
+        }, 300);
     }
+
+    async submitVote(venueId, vote) {
+        try {
+            if (!this.currentUser) return;
+
+            // Update local votes
+            this.votes[venueId] = vote;
+
+            // Update Firestore
+            const voteRef = firebase.firestore()
+                .collection('groups')
+                .doc(this.groupId)
+                .collection('votes')
+                .doc(this.currentUser.uid);
+
+            await voteRef.set({
+                userId: this.currentUser.uid,
+                userName: this.currentUser.displayName || this.currentUser.email.split('@')[0],
+                votes: this.votes,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            console.log('✅ Vote submitted:', vote, 'for venue', venueId);
+
+        } catch (error) {
+            console.error('Error submitting vote:', error);
+        }
+    }
+
+    showVoteConfirmation(vote, venue) {
+        const modal = document.getElementById('vote-modal');
+        const icon = document.getElementById('vote-result-icon');
+        const text = document.getElementById('vote-result-text');
+        const venueName = document.getElementById('vote-result-venue');
+
+        // Update modal content
+        icon.className = `vote-result-icon ${vote === 'yes' ? 'like' : 'dislike'}`;
+        icon.innerHTML = vote === 'yes' 
+            ? '<i class="fas fa-heart fa-3x"></i>' 
+            : '<i class="fas fa-times fa-3x"></i>';
+            
+        text.textContent = vote === 'yes' ? 'You liked this venue!' : 'You skipped this venue';
+        venueName.textContent = venue.name || 'Venue';
+
+        // Show modal briefly
+        const bootstrapModal = new bootstrap.Modal(modal);
+        bootstrapModal.show();
+
+        setTimeout(() => {
+            bootstrapModal.hide();
+        }, 1500);
+    }
+
+    nextCard() {
+        this.currentIndex++;
+        
+        // Remove the swiped card
+        const swipedCard = this.swipeContainer.querySelector('.swipe-card');
+        if (swipedCard) {
+            swipedCard.remove();
+        }
+
+        // Update progress
+        this.updateProgress();
+
+        // Check if we're done
+        if (this.currentIndex >= this.venues.length) {
+            this.showCompletionState();
+        }
+    }
+
+    getCurrentCard() {
+        return this.swipeContainer.querySelector(`.swipe-card[data-index="${this.currentIndex}"]`);
+    }
+
+    updateProgress() {
+        const progress = this.venues.length > 0 ? (this.currentIndex / this.venues.length) * 100 : 0;
+        const remaining = this.venues.length - this.currentIndex;
+
+        if (this.progressBar) {
+            this.progressBar.style.width = `${progress}%`;
+        }
+
+        if (this.progressText) {
+            this.progressText.textContent = `${this.currentIndex} of ${this.venues.length} venues`;
+        }
+
+        console.log('📊 Progress:', `${this.currentIndex}/${this.venues.length}`, `(${progress.toFixed(1)}%)`);
+    }
+
+    showCompletionState() {
+        console.log('🎉 Voting completed!');
+        
+        // Hide action buttons
+        this.disableActionButtons();
+
+        // Show completion message
+        setTimeout(() => {
+            this.showEmptyState();
+        }, 500);
+
+        // Update member avatar to show completion
+        this.markUserAsCompleted();
+    }
+
+    markUserAsCompleted() {
+        // Find current user's avatar and mark as voted
+        const userEmail = this.currentUser?.email;
+        const memberElements = this.membersContainer.querySelectorAll('.member-avatar');
+        
+        memberElements.forEach(element => {
+            if (element.title.includes(userEmail)) {
+                element.classList.add('voted');
+                element.querySelector('.vote-indicator').style.display = 'flex';
+            }
+        });
+    }
+
+    // Button actions
+    swipeLeft() {
+        if (this.isAnimating) return;
+        const card = this.getCurrentCard();
+        if (card) {
+            this.currentCard = card;
+            this.performSwipe('left');
+        }
+    }
+
+    swipeRight() {
+        if (this.isAnimating) return;
+        const card = this.getCurrentCard();
+        if (card) {
+            this.currentCard = card;
+            this.performSwipe('right');
+        }
+    }
+
+    // Setup event listeners
+    setupEventListeners() {
+        // Disable default touch behaviors
+        document.addEventListener('touchmove', (e) => {
+            if (e.target.closest('.swipe-card')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (this.isAnimating) return;
+            
+            switch(e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    this.swipeLeft();
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    this.swipeRight();
+                    break;
+            }
+        });
+    }
+
+    // Helper methods
+    getVenuePhotoUrl(venue) {
+        if (!venue.photos || venue.photos.length === 0) return null;
+        
+        const photo = venue.photos[0];
+        if (photo.getUrl) {
+            return photo.getUrl({ maxWidth: 400, maxHeight: 300 });
+        }
+        
+        // Fallback for photo reference
+        if (photo.photo_reference && window.googleMapsApiKey) {
+            return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photo.photo_reference}&key=${window.googleMapsApiKey}`;
+        }
+        
+        return null;
+    }
+
+    formatVenueType(type) {
+        return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    // UI State Management
+    hideLoading() {
+        if (this.loadingContainer) {
+            this.loadingContainer.style.display = 'none';
+        }
+    }
+
+    showEmptyState() {
+        if (this.emptyContainer) {
+            this.emptyContainer.style.display = 'block';
+        }
+        
+        // Hide swipe container
+        if (this.swipeContainer) {
+            this.swipeContainer.style.display = 'none';
+        }
+    }
+
+    showError(message) {
+        console.error('❌ Swipe Interface Error:', message);
+        
+        if (this.loadingContainer) {
+            this.loadingContainer.innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h4>Error Loading Venues</h4>
+                    <p class="text-muted">${message}</p>
+                    <button class="btn btn-primary" onclick="location.reload()">
+                        Try Again
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    enableActionButtons() {
+        this.actionButtons.forEach(btn => {
+            btn.disabled = false;
+        });
+    }
+
+    disableActionButtons() {
+        this.actionButtons.forEach(btn => {
+            btn.disabled = true;
+        });
+    }
+}
+
+// Global swipe interface instance
+let swipeInterface = null;
+
+// Global functions for template usage
+function initializeSwipeInterface(groupId) {
+    swipeInterface = new SwipeInterface();
+    swipeInterface.initialize(groupId);
+}
+
+function swipeLeft() {
+    if (swipeInterface) {
+        swipeInterface.swipeLeft();
+    }
+}
+
+function swipeRight() {
+    if (swipeInterface) {
+        swipeInterface.swipeRight();
+    }
+}
+
+function goBackToVenues() {
+    // Return to venues temp page
+    const returnPath = sessionStorage.getItem('swipe_return_path');
+    if (returnPath) {
+        window.location.href = returnPath;
+    } else {
+        window.location.href = '/mobile/venues/temp';
+    }
+}
+
+function toggleToResults() {
+    // Navigate back to results view
+    goBackToVenues();
+}
+
+function showResults() {
+    // Navigate to results/top picks page
+    goBackToVenues();
+}
+
+// Export for module usage
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = SwipeInterface;
 }

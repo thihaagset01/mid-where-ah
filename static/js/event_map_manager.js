@@ -832,7 +832,7 @@ class EventMapManager {
                     </button>
                     <button onclick="window.eventMapManager.exploreEventVenues()" 
                             style="background: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                        🔍 Vote on Venues
+                        🔍 Explore Venues
                     </button>
                 </div>
             </div>
@@ -1006,10 +1006,13 @@ class EventMapManager {
                 
             batch.set(venueRef, {
                 ...venue,
-                addedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                addedBy: firebase.auth().currentUser?.uid || 'system',
-                source: 'event_optimization',
-                eventId: this.eventData?.eventId || null
+                // Ensure we have the necessary properties for the venue card
+                name: venue.name || 'Unnamed Venue',
+                vicinity: venue.vicinity || venue.formatted_address || 'No address available',
+                rating: venue.rating || 0,
+                price_level: venue.price_level || 0,
+                photos: venue.photos || [],
+                geometry: venue.geometry || { location: this.lastOptimalResult.point }
             });
         });
         
@@ -1290,6 +1293,64 @@ class EventMapManager {
     getDirectionsTo(lat, lng) {
         const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
         window.open(googleMapsUrl, '_blank');
+    }
+
+    // =============================================================================
+    // VENUE EXPLORATION
+    // =============================================================================
+
+    /**
+     * Navigate to the temporary venues page with current optimization results
+     * This follows the same pattern as the homepage venue exploration
+     */
+    exploreEventVenues() {
+        if (!this.lastOptimalResult) {
+            this.showErrorMessage('No meeting point to explore');
+            return;
+        }
+
+        const point = this.lastOptimalResult.point;
+        const venues = this.lastOptimalResult.venues || [];
+        
+        console.log('🔍 Exploring venues from event map...');
+        
+        // Create session data following the same pattern as homepage
+        const tempSession = {
+            midpoint: point,
+            venues: venues.map(v => ({
+                ...v,
+                // Ensure we have the necessary properties for the venue card
+                name: v.name || 'Unnamed Venue',
+                vicinity: v.vicinity || v.formatted_address || 'No address available',
+                rating: v.rating || 0,
+                price_level: v.price_level || 0,
+                photos: v.photos || [],
+                geometry: v.geometry || { location: point }
+            })),
+            locationData: this.memberLocations.map(loc => ({
+                name: loc.name,
+                position: loc.position,
+                isValid: true
+            })),
+            timestamp: Date.now(),
+            source: 'event_map',
+            groupId: this.eventData?.groupId, // Add group context
+            eventId: this.eventData?.eventId, // Add event context
+            fairness: this.lastOptimalResult.fairness,
+            avgTime: this.lastOptimalResult.avgTime,
+            timeRange: this.lastOptimalResult.timeRange
+        };
+
+        try {
+            // Store the data in sessionStorage (same key as homepage)
+            sessionStorage.setItem('tempVenues', JSON.stringify(tempSession));
+            
+            // Navigate to the temp venues page
+            window.location.href = '/mobile/venues/temp';
+        } catch (error) {
+            console.error('Error saving session data:', error);
+            this.showErrorMessage('Failed to load venues. Please try again.');
+        }
     }
 }
 
