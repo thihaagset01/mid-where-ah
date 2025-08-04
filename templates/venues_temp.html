@@ -6,100 +6,65 @@
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/venue-cards.css') }}">
-<style>
-.venue-card {
-    border-radius: 12px;
-    overflow: hidden;
-    transition: transform 0.2s;
-    margin-bottom: 1rem;
-}
-
-.venue-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.badge {
-    font-weight: 500;
-    padding: 0.35em 0.65em;
-    font-size: 0.75em;
-    border-radius: 4px;
-}
-
-.btn-sm {
-    font-size: 0.75rem;
-    border-radius: 6px;
-    white-space: nowrap;
-}
-
-.card-title {
-    font-size: 0.9rem;
-    line-height: 1.2;
-    margin-bottom: 0.25rem;
-}
-
-.card-text {
-    font-size: 0.8rem;
-    line-height: 1.3;
-    margin-bottom: 0.5rem;
-}
-
-.empty-state {
-    text-align: center;
-    padding: 2rem;
-    color: #6c757d;
-}
-
-.empty-state i {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    color: #dee2e6;
-}
-</style>
 {% endblock %}
 
 {% block content %}
-<!-- Back Button -->
-<button class="back-button" onclick="goBack()">
-    <i class="fas fa-arrow-left"></i>
-</button>
-
-<!-- Midpoint Info Summary -->
-<div class="midpoint-info" id="midpoint-summary">
-    <h5><i class="fas fa-map-marker-alt"></i> Meeting Point Found</h5>
-    <p id="midpoint-description">Calculating optimal location...</p>
-    <div class="midpoint-stats" id="midpoint-stats" style="display: none;">
-        <div class="stat-item">
-            <span class="stat-value" id="fairness-score">-</span>
-            <span>Fairness</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value" id="avg-time">-</span>
-            <span>Avg Time</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value" id="venue-count">-</span>
-            <span>Venues</span>
+<header class="venue-header">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center">
+            <button class="btn btn-link p-0" onclick="goBack()">
+                <i class="fas fa-arrow-left"></i> Back
+            </button>
+            <h1 class="h5 mb-0">Nearby Venues</h1>
+            <div style="width: 40px;"></div> <!-- Spacer for alignment -->
         </div>
     </div>
-</div>
+</header>
 
-<!-- Venues Grid -->
-<div class="venues-grid">
-    <h6 class="mb-3"><i class="fas fa-utensils"></i> Nearby Venues</h6>
-    <div id="venues-container">
-        <div class="text-center p-4">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading venues...</span>
+<main class="venue-content">
+    <!-- Midpoint Info Summary -->
+    <div class="midpoint-info mb-4" id="midpoint-summary">
+        <h5><i class="fas fa-map-marker-alt"></i> Meeting Point Found</h5>
+        <p id="midpoint-description">Calculating optimal location...</p>
+        <div class="midpoint-stats" id="midpoint-stats" style="display: none;">
+            <div class="stat-item">
+                <span class="stat-value" id="fairness-score">-</span>
+                <span>Fairness</span>
             </div>
-            <p class="mt-2">Loading nearby venues...</p>
+            <div class="stat-item">
+                <span class="stat-value" id="avg-time">-</span>
+                <span>Avg Time</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="venue-count">-</span>
+                <span>Venues</span>
+            </div>
         </div>
     </div>
-</div>
+
+    <!-- Venues Grid -->
+    <div class="venues-grid">
+        <h6 class="mb-3"><i class="fas fa-utensils"></i> Nearby Venues</h6>
+        <div id="venues-container">
+            <div class="empty-state">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading venues...</span>
+                </div>
+                <p class="mt-3">Loading nearby venues...</p>
+            </div>
+        </div>
+    </div>
+</main>
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
+// Add this near the top of the file, after the document ready check
+if (!window.googleMapsApiKey) {
+    console.error('Google Maps API key is not defined!');
+}
+
 // Load venue data from sessionStorage
 document.addEventListener('DOMContentLoaded', () => {
     loadTempVenues();
@@ -114,192 +79,144 @@ function loadTempVenues() {
         }
 
         const venueData = JSON.parse(tempData);
-        console.log('Loading temp venues:', venueData);
+        console.log('Venue data from sessionStorage:', venueData);
 
-        // Debug: Log the first venue to check its structure
+        // Debug: Log first venue's photo data
         if (venueData.venues && venueData.venues.length > 0) {
-            console.log('Sample venue data:', venueData.venues[0]);
+            console.log('First venue data:', venueData.venues[0]);
+            console.log('First venue photos:', venueData.venues[0].photos);
         }
 
-        // Update midpoint summary
-        updateMidpointSummary(venueData);
-
+        // Update midpoint info
+        updateMidpointInfo(venueData);
+        
         // Display venues
-        displayVenues(venueData.venues || []);
-
+        displayVenues(venueData.venues);
     } catch (error) {
-        console.error('Error loading temp venues:', error);
-        showEmptyState('Error loading venue data: ' + error.message);
+        console.error('Error loading venue data:', error);
+        showEmptyState('Error loading venue data. Please try again.');
     }
 }
-function updateMidpointSummary(data) {
-    const description = document.getElementById('midpoint-description');
-    const stats = document.getElementById('midpoint-stats');
+
+function updateMidpointInfo(data) {
+    const midpointDesc = document.getElementById('midpoint-description');
+    const statsContainer = document.getElementById('midpoint-stats');
     
-    if (data.fairness) {
-        description.textContent = `Optimized meeting point for ${data.locationData?.length || 0} locations`;
-        
-        // Show stats
-        document.getElementById('fairness-score').textContent = `${(data.fairness * 100).toFixed(1)}%`;
-        document.getElementById('avg-time').textContent = `${Math.round(data.avgTime || 0)}min`;
-        document.getElementById('venue-count').textContent = data.venues?.length || 0;
-        
-        stats.style.display = 'flex';
-    } else {
-        description.textContent = `Basic midpoint calculated for ${data.locationData?.length || 0} locations`;
+    if (data.midpoint && data.midpoint.address) {
+        midpointDesc.textContent = data.midpoint.address;
+    }
+    
+    // Update stats if available
+    if (data.fairness || data.avgTime || data.venues) {
+        statsContainer.style.display = 'flex';
+        document.getElementById('fairness-score').textContent = data.fairness ? `${Math.round(data.fairness * 100)}%` : '-';
+        document.getElementById('avg-time').textContent = data.avgTime ? `${Math.round(data.avgTime)} min` : '-';
+        document.getElementById('venue-count').textContent = data.venues ? data.venues.length : '-';
     }
 }
 
 function displayVenues(venues) {
     const container = document.getElementById('venues-container');
-    
     if (!venues || venues.length === 0) {
-        showEmptyState('No venues found near this location. Try a different area.');
+        showEmptyState('No venues found near the selected location.');
         return;
     }
 
-    let venuesHTML = '<div class="row g-3">';
+    let venuesHTML = '';
     venues.forEach(venue => {
         venuesHTML += createVenueCard(venue);
     });
-    venuesHTML += '</div>';
 
     container.innerHTML = venuesHTML;
 }
 
 function createVenueCard(venue) {
-    if (!venue) return '';
-    
-    // Safely get location data with fallbacks
-    const location = venue.geometry?.location || venue.location || { lat: 0, lng: 0 };
-    
-    // Format rating
-    const rating = venue.rating ? 
-        `${venue.rating} ⭐` : 
-        'No rating';
-    
-    // Format price level - handle all cases
-    let priceLevel = '';
-    if (venue.price_level >= 1) {
+    // Price level display logic
+    let priceLevel = 'N/A';
+    if (venue.price_level > 0) {
         priceLevel = '$'.repeat(Math.min(4, venue.price_level));
-    } else {
-        priceLevel = 'N/A'; // Show N/A when price level is not available
+    } else if (venue.price_level === 0) {
+        priceLevel = '$';
     }
 
-    // Get photo URL - handle empty photos array
-    let photoUrl = '';
-    if (venue.photos && venue.photos.length > 0) {
+    // Handle photo URL
+    let photoHtml = '';
+    if (venue.photos && venue.photos.length > 0 && venue.photos[0].photo_reference && window.googleMapsApiKey) {
         const photo = venue.photos[0];
-        const photoRef = photo.photo_reference || photo.reference;
-        if (photoRef && window.googleMapsApiKey) {
-            photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=300&photoreference=${photoRef}&key=${window.googleMapsApiKey}`;
-        }
+        const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=300&photoreference=${photo.photo_reference}&key=${window.googleMapsApiKey}`;
+        photoHtml = `
+            <img src="${photoUrl}" 
+                 class="venue-img" 
+                 alt="${venue.name || 'Venue image'}"
+                 onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'venue-placeholder\'><i class=\'fas fa-utensils\'></i> No image</div>';"
+            >`;
+    } else {
+        photoHtml = `
+            <div class="venue-placeholder">
+                <i class="fas fa-utensils"></i> No image
+            </div>`;
     }
 
-    // Use address or vicinity, with a fallback
     const address = venue.address || venue.vicinity || venue.formatted_address || 'No address available';
-    const venueName = venue.name || 'Unnamed Venue';
-    const placeId = venue.placeId || venue.place_id || `temp-${Math.random().toString(36).substr(2, 9)}`;
+    const rating = venue.rating ? `${venue.rating.toFixed(1)} ★` : 'No rating';
+    const ratingClass = venue.rating >= 4 ? 'text-success' : venue.rating >= 3 ? 'text-warning' : 'text-danger';
 
     return `
-        <div class="col-12 mb-3">
-            <div class="card venue-card h-100 border-0 shadow-sm">
-                <div class="row g-0">
-                    <!-- Left side - Photo -->
-                    <div class="col-4">
-                        ${photoUrl ? 
-                            `<img src="${photoUrl}" class="img-fluid rounded-start h-100" style="object-fit: cover; min-height: 100px;" alt="${venueName}">` : 
-                            `<div class="bg-light d-flex align-items-center justify-content-center h-100">
-                                <i class="fas fa-utensils fa-2x text-muted"></i>
-                            </div>`
-                        }
+    <div class="card venue-card mb-3">
+        <div class="row g-0">
+            <div class="col-4 p-0">
+                ${photoHtml}
+            </div>
+            <div class="col-8">
+                <div class="card-body p-2">
+                    <h6 class="card-title mb-1 text-truncate">${venue.name || 'Unnamed Venue'}</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="badge ${ratingClass} bg-light">${rating}</span>
+                        <span class="text-muted small">${priceLevel}</span>
                     </div>
-                    
-                    <!-- Right side - Content -->
-                    <div class="col-8">
-                        <div class="card-body p-2 h-100 d-flex flex-column">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <h6 class="card-title mb-0" style="font-weight: 600;">${venueName}</h6>
-                                <span class="badge bg-primary">${rating}</span>
-                            </div>
-                            
-                            <p class="card-text small text-muted mb-2 flex-grow-1">
-                                ${address}
-                            </p>
-                            
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="badge bg-success">${priceLevel}</span>
-                                <div>
-                                    <button class="btn btn-outline-primary btn-sm me-1" 
-                                            style="--bs-btn-padding-y: 0.15rem; --bs-btn-padding-x: 0.5rem;"
-                                            onclick="viewOnMap('${placeId}', ${location.lat}, ${location.lng})">
-                                        <i class="fas fa-map-marker-alt me-1"></i> Map
-                                    </button>
-                                    <button class="btn btn-primary btn-sm" 
-                                            style="--bs-btn-padding-y: 0.15rem; --bs-btn-padding-x: 0.5rem;"
-                                            onclick="shareVenue('${venueName.replace(/'/g, "\\'")}', ${location.lat}, ${location.lng})">
-                                        <i class="fas fa-share me-1"></i> Share
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                    <p class="card-text small text-muted mb-1">
+                        <i class="fas fa-map-marker-alt me-1"></i>
+                        <span class="text-truncate d-inline-block" style="max-width: 200px;" 
+                              title="${address}">${address}</span>
+                    </p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button class="btn btn-outline-primary btn-sm me-1" 
+                                onclick="viewOnMap('${venue.placeId || venue.place_id || `temp-${Math.random().toString(36).substr(2, 9)}`}', ${venue.geometry?.location?.lat || 0}, ${venue.geometry?.location?.lng || 0})">
+                            <i class="fas fa-map-marker-alt me-1"></i> Map
+                        </button>
+                        <button class="btn btn-primary btn-sm" 
+                                onclick="shareVenue('${venue.name.replace(/'/g, "\\'")}', ${venue.geometry?.location?.lat || 0}, ${venue.geometry?.location?.lng || 0})">
+                            <i class="fas fa-share me-1"></i> Share
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
-    `;
+    </div>`;
 }
 
 function showEmptyState(message) {
-    document.getElementById('venues-container').innerHTML = `
+    const container = document.getElementById('venues-container');
+    container.innerHTML = `
         <div class="empty-state">
-            <i class="fas fa-search"></i>
-            <h5>No Venues Found</h5>
+            <i class="fas fa-utensils"></i>
+            <h4>No Venues Found</h4>
             <p>${message}</p>
-            <button class="btn btn-primary" onclick="goBack()">
-                <i class="fas fa-arrow-left"></i> Go Back
-            </button>
-        </div>
-    `;
+            <button class="btn btn-primary mt-2" onclick="goBack()">Go Back</button>
+        </div>`;
 }
 
 function viewOnMap(placeId, lat, lng) {
-    const googleMapsUrl = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
-    window.open(googleMapsUrl, '_blank');
+    // Implementation for viewing venue on map
+    console.log('Viewing venue on map:', placeId, lat, lng);
+    // You can implement this function based on your map implementation
 }
 
-function shareVenue(name, lat, lng) {
-    if (!name || lat === undefined || lng === undefined) {
-        console.error('Invalid parameters for shareVenue:', { name, lat, lng });
-        return;
-    }
-
-    const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-    const shareText = `Check out ${name} on Google Maps: ${googleMapsUrl}`;
-
-    if (navigator.share) {
-        navigator.share({
-            title: `${name} - MidWhereAh`,
-            text: shareText,
-            url: googleMapsUrl
-        }).catch(err => {
-            console.error('Error sharing:', err);
-            if (err.name !== 'AbortError') {
-                this.fallbackShare(shareText);
-            }
-        });
-    } else if (navigator.clipboard) {
-        navigator.clipboard.writeText(shareText).then(() => {
-            alert('Venue location copied to clipboard!');
-        }).catch(err => {
-            console.error('Error copying to clipboard:', err);
-            this.fallbackShare(shareText);
-        });
-    } else {
-        this.fallbackShare(shareText);
-    }
+function shareVenue(venueName, lat, lng) {
+    // Implementation for sharing venue
+    console.log('Sharing venue:', venueName, lat, lng);
+    // You can implement this function based on your sharing requirements
 }
-
 
 function goBack() {
     // Try to go back in history, otherwise go to home
