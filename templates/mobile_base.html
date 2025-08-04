@@ -73,7 +73,7 @@
         <div class="pop-icon pop1">
           <i class="fas fa-user"></i>
         </div>
-        <div class="pop-icon pop2">
+        <div class="pop-icon pop2" id="new_event">
           <i class="fa-regular fa-calendar-plus"></i>
         </div>
         <div class="pop-icon pop3">
@@ -81,6 +81,14 @@
         </div>
       </div>
     </div>
+
+    <!-- create new event popup -->
+      <div class="create-event-popup hidden" id="groupslist">
+        <i class="fa-regular fa-rectangle-xmark" id="close"></i>
+        <div id = "popupgroupslist">
+          
+        </div>
+      </div>
     {% endblock %}
 
     <!-- Bootstrap 5 JS Bundle with Popper -->
