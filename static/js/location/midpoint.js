@@ -530,30 +530,45 @@ class MidpointCalculator {
             this.showErrorMessage('No meeting point to share');
             return;
         }
-
+    
         const point = this.lastOptimalResult.point;
         const fairnessText = this.lastOptimalResult.fairness ? 
             ` (${(this.lastOptimalResult.fairness * 100).toFixed(1)}% fairness)` : '';
-        const shareText = `Let's meet here! 📍${fairnessText}`;
-        const googleMapsUrl = `https://www.google.com/maps?q=${point.lat},${point.lng}`;
         
+        // Create shareable Google Maps link
+        const googleMapsUrl = `https://www.google.com/maps?q=${point.lat},${point.lng}`;
+        const shareText = `Let's meet here!${fairnessText}\n${googleMapsUrl}`;
+    
+        // Try to use Web Share API if available
         if (navigator.share) {
-            // Use native sharing if available
             navigator.share({
-                title: 'Meeting Point Found!',
+                title: 'Meeting Point - MidWhereAh',
                 text: shareText,
                 url: googleMapsUrl
-            }).catch(err => console.log('Error sharing:', err));
-        } else {
-            // Fallback to copying to clipboard
-            const fullText = `${shareText}\n\n${googleMapsUrl}`;
-            navigator.clipboard.writeText(fullText).then(() => {
-                this.showInfoMessage('📋 Meeting point details copied to clipboard!');
             }).catch(err => {
-                console.error('Failed to copy:', err);
-                // Final fallback - open in new tab
-                window.open(googleMapsUrl, '_blank');
+                console.log('Error sharing:', err);
+                this.fallbackShare(shareText);
             });
+        } else {
+            this.fallbackShare(shareText);
+        }
+    }
+    
+    /**
+     * Fallback sharing method
+     */
+    fallbackShare(text) {
+        // Copy to clipboard
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => {
+                this.showInfoMessage('📋 Meeting point copied to clipboard!');
+            }).catch(() => {
+                // Show shareable text in alert as last resort
+                prompt('Copy this meeting point:', text);
+            });
+        } else {
+            // Show shareable text in prompt for older browsers
+            prompt('Copy this meeting point:', text);
         }
     }
 
@@ -562,17 +577,46 @@ class MidpointCalculator {
      */
     exploreArea() {
         if (!this.lastOptimalResult) {
-            this.showErrorMessage('No meeting point available');
+            this.showErrorMessage('No meeting point to explore');
             return;
         }
-
+    
         const point = this.lastOptimalResult.point;
-        
-        // Open Google Maps with nearby restaurants/cafes
-        const searchUrl = `https://www.google.com/maps/search/restaurants+cafes/@${point.lat},${point.lng},15z`;
-        window.open(searchUrl, '_blank');
-        
-        this.showInfoMessage('🔍 Opening venue explorer...');
+        const venues = this.lastOptimalResult.venues || [];
+    
+        console.log('🔍 Exploring area from home page...');
+    
+        // Store venues data in sessionStorage for temp venues page
+        const tempSession = {
+            midpoint: point,
+            venues: venues.map(v => ({
+                ...v,
+                // Ensure we have the necessary properties for the venue card
+                name: v.name || 'Unnamed Venue',
+                vicinity: v.vicinity || v.formatted_address || 'No address available',
+                rating: v.rating || 0,
+                price_level: v.price_level || 0,
+                photos: v.photos || [],
+                geometry: v.geometry || { location: point }
+            })),
+            locationData: this.getAllLocationData().filter(loc => loc.isValid),
+            timestamp: Date.now(),
+            source: 'home_page',
+            fairness: this.lastOptimalResult.fairness,
+            avgTime: this.lastOptimalResult.avgTime,
+            timeRange: this.lastOptimalResult.timeRange
+        };
+
+        try {
+            // Store the data in sessionStorage
+            sessionStorage.setItem('tempVenues', JSON.stringify(tempSession));
+            
+            // Navigate to the temp venues page
+            window.location.href = '/mobile/venues/temp';
+        } catch (error) {
+            console.error('Error saving session data:', error);
+            this.showErrorMessage('Failed to load venues. Please try again.');
+        }
     }
 }
 

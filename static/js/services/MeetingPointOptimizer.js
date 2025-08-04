@@ -392,13 +392,21 @@ class MeetingPointOptimizer {
                             )
                             .sort((a, b) => (b.rating || 0) - (a.rating || 0))
                             .slice(0, 10)
+                            // In findVenues method, around line 390
                             .map(place => ({
                                 name: place.name,
                                 rating: place.rating,
-                                placeId: place.place_id,
-                                address: place.vicinity,
-                                location: place.geometry.location.toJSON()
-                            }));
+                                place_id: place.place_id,  // Changed from placeId to place_id for consistency
+                                vicinity: place.vicinity,
+                                formatted_address: place.vicinity,  // Add formatted_address
+                                price_level: place.price_level,     // Add price_level
+                                geometry: {                         // Add geometry with location
+                                    location: place.geometry.location.toJSON()
+                                },
+                                photos: place.photos ? [{
+                                    photo_reference: place.photos[0].photo_reference
+                                }] : []
+                            }))
                         console.log(`📍 Found ${filteredVenues.length} quality venues within ${radius}m (legacy)`);
                         resolve(filteredVenues);
                     } else {

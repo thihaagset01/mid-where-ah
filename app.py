@@ -215,6 +215,10 @@ def logout():
 # =============================================================================
 # MOBILE BLUEPRINT ROUTES
 # =============================================================================
+@mobile_bp.route('/venues/temp')
+def temp_venues():
+    """Temporary venues page for home page users (no group required)"""
+    return render_template('venues_temp.html')
 
 @mobile_bp.route('/groups')
 @login_required
