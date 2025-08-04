@@ -84,9 +84,12 @@
 
     <!-- create new event popup -->
       <div class="create-event-popup hidden" id="groupslist">
-        <i class="fa-regular fa-rectangle-xmark" id="close"></i>
+        <div id = "header-container" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%;">
+          <i class="fa-regular fa-rectangle-xmark" id="close" style="font-size: 20px; cursor: pointer; margin-left: 10px;"></i>
+          <!-- <p style="margin: 0; font-size: 16px; position: absolute; left: 50%; transform: translateX(-50%);">Select a group</p> -->
+        </div>
         <div id = "popupgroupslist">
-          
+
         </div>
       </div>
     {% endblock %}
