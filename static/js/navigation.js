@@ -69,19 +69,37 @@ class NavigationManager {
     }
 
     handleCreateClick() {
-        const dropdown = document.getElementById('dropdown-menu');
-        if (dropdown) {
-            dropdown.classList.toggle('hidden');
-            const new_event = document.getElementById('new_event');
+    const dropdown = document.getElementById('dropdown-menu');
+    if (dropdown) {
+        dropdown.classList.toggle('hidden');
 
-            if (this._boundHandleNewEventClick) {
-                new_event.removeEventListener('click', this._boundHandleNewEventClick);
-            }
+        const new_event = document.getElementById('new_event');
 
-            this._boundHandleNewEventClick = this.handle_newevent_click.bind(this);
-            new_event.addEventListener('click', this._boundHandleNewEventClick);
+        // Remove previously bound event listener if it exists
+        if (this._boundHandleNewEventClick) {
+            new_event.removeEventListener('click', this._boundHandleNewEventClick);
+        }
+
+        // Bind the method once and store it so it can be removed later
+        this._boundHandleNewEventClick = this.handle_newevent_click.bind(this);
+        new_event.addEventListener('click', this._boundHandleNewEventClick);
+
+        // Create the HTML string
+        const innerHTML = `
+            <p style="margin: 0; font-size: 16px; position: absolute; left: 50%; transform: translateX(-50%);" id = "title">
+                Select a group
+            </p>
+        `;
+
+        // Fix: get the correct banner element
+        const banner = document.getElementById('header-container'); // Use dash not space
+
+        // Fix: insert the innerHTML, not the element itself
+        if (banner) {
+            banner.insertAdjacentHTML("beforeend", innerHTML);
         }
     }
+}
 
     async handle_newevent_click() {
         const popup = document.getElementById('groupslist');
@@ -147,24 +165,33 @@ class NavigationManager {
                     ? this.formatLastActivity(group.lastActivity.toDate())
                     : 'Recently';
 
-                const groupHTML = `
-                    <a href="/mobile/group_chat?groupId=${group.id}" class="group-item">
-                        <div class="group-avatar">
-                            <img src="${group.avatar || '/static/images/group-placeholder.png'}" alt="Group">
-                        </div>
-                        <div class="group-details">
-                            <h3 class="group-name">${this.escapeHtml(group.name)}</h3>
-                            <p class="group-message">${memberCount} member${memberCount !== 1 ? 's' : ''}</p>
-                            <p class="group-message-text">${this.escapeHtml(group.description || 'Tap to open chat')}</p>
-                        </div>
-                        <div class="group-meta">
-                            <span class="invite-code">Code: ${group.inviteCode}</span>
-                            <span class="member-count">${lastActivity}</span>
-                        </div>
-                    </a>
+                const groupItem = document.createElement('a');
+                groupItem.className = 'grp-card';
+                groupItem.setAttribute('data-group-id', group.id);
+
+                groupItem.innerHTML = `
+                    <div class="grp-img-wrap">
+                        <img src="${group.avatar || '/static/images/group-placeholder.png'}" alt="Group">
+                    </div>
+                    <div class="grp-details">
+                        <h3 class="grp-title" style="margin: 0;">${this.escapeHtml(group.name)}</h3>
+                        <p class="grp-subtext" style="margin: 2px 0;">${memberCount} member${memberCount !== 1 ? 's' : ''}</p>
+                        <p class="grp-desc" style="margin: 2px 0;">${this.escapeHtml(group.description || 'Tap to open chat')}</p>
+                    </div>
+                    <div class="grp-meta" style="margin-left: auto; text-align: right;">
+                        <span class="invite-code" style="display: block;">Code: ${group.inviteCode}</span>
+                        <span class="member-count" style="display: block;">${lastActivity}</span>
+                    </div>
                 `;
 
-                groupsContainer.insertAdjacentHTML('beforeend', groupHTML);
+                // Track clicked group
+                groupItem.addEventListener('click', () => {
+                    console.log('Clicked group ID:', group.id);
+                    this.selectedGroupId = group.id; // Store selected group ID
+                    this.create_eventfield();
+                });
+
+                groupsContainer.appendChild(groupItem);
             }
 
             console.log(`Successfully loaded ${groups.length} groups`);
@@ -174,6 +201,194 @@ class NavigationManager {
             this.showEmptyGroupsState();
         }
     }
+
+// Called when user selects a group
+handleGroupClick(groupId) {
+    this.selectedGroupId = groupId;
+    this.create_eventfield();
+}
+
+create_eventfield() {
+    const p = document.getElementById('title');
+    p.textContent = 'Enter Details';
+
+    const body = document.getElementById('popupgroupslist');
+    body.innerHTML = `
+        <div class="eventpop group-col" id="eventpop" style="display: block;">
+            <span class="event-title">New Event</span>
+            <input type="text" placeholder="Event Name" id="eventname" class="event-input">
+            <input type="text" placeholder="Event Description" id="eventdescription" class="event-input">
+
+            <div class="event-date-time">
+                <input type="date" id="eventdate" class="event-date-input">
+                <input type="time" id="eventtime" class="event-time-input">
+            </div>
+            <div class="event-buttons" style="display: flex; justify-content: center; gap: 10px; margin-top: 10px;">
+                <button class="event-cancel-btn" id="cancel">Cancel</button>
+                <button class="event-save-btn" id="save">Save</button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('cancel').addEventListener('click', () => {
+        p.textContent = 'Your Groups';
+        this.loadUserGroups();
+    });
+
+    document.getElementById('save').addEventListener('click', () => {
+        this.saveEvent();
+    });
+}
+
+async saveEvent() {
+    const eventName = document.getElementById('eventname').value.trim();
+    const eventDescription = document.getElementById('eventdescription').value.trim();
+    const eventDate = document.getElementById('eventdate').value;
+    const eventTime = document.getElementById('eventtime').value;
+
+    const errors = this.validateEventData({ name: eventName, description: eventDescription, date: eventDate, time: eventTime });
+    if (errors.length > 0) {
+        this.showToast(errors[0], 'error');
+        return;
+    }
+
+    const saveBtn = document.getElementById('save');
+    const originalText = saveBtn?.textContent || 'Save';
+
+    try {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+
+        const result = await this.createEvent({
+            name: eventName,
+            description: eventDescription,
+            date: eventDate,
+            time: eventTime
+        });
+
+        this.showToast('Event created successfully!', 'success');
+
+        document.getElementById('title').textContent = 'Your Groups';
+        this.loadUserGroups();
+
+    } catch (error) {
+        console.error('Error creating event:', error);
+        this.showToast('Failed to create event: ' + error.message, 'error');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = originalText;
+    }
+}
+
+async createEvent(eventData) {
+    const user = firebase.auth().currentUser;
+    if (!user) throw new Error('User not authenticated');
+
+    const groupId = this.selectedGroupId;
+    if (!groupId) throw new Error('No group selected');
+
+    try {
+        const eventRef = await firebase.firestore()
+            .collection('groups')
+            .doc(groupId)
+            .collection('events')
+            .add({
+                name: eventData.name,
+                description: eventData.description,
+                date: eventData.date,
+                time: eventData.time,
+                createdBy: user.uid,
+                createdByName: user.displayName || user.email.split('@')[0],
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                status: 'active',
+                attendees: {},
+                locations: {}
+            });
+
+        await this.sendEventMessage(groupId, eventRef.id, eventData);
+
+        return { success: true, eventId: eventRef.id };
+    } catch (error) {
+        if (error.code === 'permission-denied') {
+            throw new Error("You don't have permission to create events in this group");
+        } else if (error.code === 'unavailable') {
+            throw new Error("Service temporarily unavailable. Please try again");
+        } else {
+            throw new Error("Failed to create event: " + error.message);
+        }
+    }
+}
+
+async sendEventMessage(groupId, eventId, eventData) {
+    const user = firebase.auth().currentUser;
+
+    await firebase.firestore()
+        .collection('groups')
+        .doc(groupId)
+        .collection('messages')
+        .add({
+            type: 'event',
+            eventId: eventId,
+            eventName: eventData.name,
+            eventDescription: eventData.description,
+            eventDate: eventData.date,
+            eventTime: eventData.time,
+            userId: user.uid,
+            userName: user.displayName || user.email.split('@')[0],
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+}
+
+validateEventData(data) {
+    const errors = [];
+
+    if (!data.name) {
+        errors.push('Event name is required');
+    } else if (data.name.length > 50) {
+        errors.push('Event name must be 50 characters or less');
+    }
+
+    if (!data.date) {
+        errors.push('Event date is required');
+    } else {
+        const eventDate = new Date(data.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (eventDate < today) {
+            errors.push('Event date cannot be in the past');
+        }
+    }
+
+    if (!data.time) {
+        errors.push('Event time is required');
+    }
+
+    return errors;
+}
+
+showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <div class="toast-content">
+            <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+            <span>${this.escapeHtml(message)}</span>
+        </div>
+    `;
+
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 100);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => document.body.removeChild(toast), 300);
+    }, 3000);
+}
+
+escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
     setActiveNavItem(activeItem) {
         this.navItems.forEach(item => {

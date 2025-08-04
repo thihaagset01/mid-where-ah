@@ -557,7 +557,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);  /* Offsets by half its own width/height */
-  
+  z-index: 500;
   width: 75%;
   height:auto;
   background: rgba(255, 255, 255);  /* Optional: for visibility */
@@ -566,7 +566,7 @@
   box-shadow: 0 4px 20px rgba(0,0,0,0.3); /* Optional: nice visual effect */
 }
 
-.group-item {
+.grp-card {
   display: flex;
   align-items: center;
   padding: 12px;
@@ -575,7 +575,7 @@
   color: inherit;
 }
 
-.group-avatar {
+.grp-img-wrap {
   flex-shrink: 0;
   width: 48px;
   height: 48px;
@@ -584,34 +584,139 @@
   margin-right: 12px;
 }
 
-.group-avatar img {
+.grp-img-wrap img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.group-details {
+.grp-details {
   flex-grow: 1;
 }
 
-.group-name {
+.grp-title{
   margin: 0;
   font-size: 16px;
   font-weight: bold;
 }
 
-.group-message,
-.group-message-text {
+.grp-subtext,
+.grp-desc {
   margin: 2px 0;
   font-size: 14px;
   color: #555;
 }
 
-.group-meta {
+.grp-meta {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   font-size: 12px;
   color: #888;
+}
+.eventpop {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  max-width: 400px;
+  width: 100%; /* allow container to shrink on smaller screens */
+  margin: 0 auto;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  box-sizing: border-box;
+}
+
+.group-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #222;
+  text-align: center;
+}
+
+/* Make inputs full width inside container */
+.event-input,
+.event-date-input,
+.event-time-input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 1rem;
+  border: 1.8px solid #ccc;
+  border-radius: 6px;
+  outline-offset: 2px;
+  transition: border-color 0.3s ease;
+  box-sizing: border-box; /* include padding in width */
+}
+
+.event-input:focus,
+.event-date-input:focus,
+.event-time-input:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+.event-date-time {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+/* Make date/time inputs share space equally */
+.event-date-input,
+.event-time-input {
+  flex: 1;
+}
+
+/* Responsive stack on smaller widths */
+@media (max-width: 480px) {
+  .event-date-time {
+    flex-direction: column;
+  }
+}
+
+.event-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.event-cancel-btn {
+  background: transparent;
+  border: 2px solid #dc3545;
+  color: #dc3545;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.event-cancel-btn:hover {
+  background-color: #dc3545;
+  color: white;
+}
+
+.event-save-btn {
+  background-color: #007bff;
+  border: none;
+  color: white;
+  padding: 8px 24px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.event-save-btn:hover {
+  background-color: #0056b3;
 }
