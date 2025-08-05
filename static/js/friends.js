@@ -158,22 +158,28 @@ class FriendsTabManager {
     }
     
     setupSearchFunctionality() {
-        const searchInput = document.getElementById('user-search-input');
-        const searchResults = document.getElementById('search-results');
+        const searchInput = document.getElementById('user-search-input1');
+        const searchResults = document.getElementById('search-results1');
         
-        if (!searchInput || !searchResults) return;
-        
+        if (!searchInput || !searchResults) {
+            console.warn('Search input or search results container not found in DOM');
+            return;
+        }
+
+        console.log('Search input and results container found. Setting up listener.');
+
         // Debounce function to limit API calls
         let searchTimeout;
-        
+
         searchInput.addEventListener('input', () => {
             const query = searchInput.value.trim();
-            
+            console.log(`Search input changed: "${query}"`);
+
             // Clear previous timeout
             clearTimeout(searchTimeout);
-            
-            // Don't search if query is too short
+
             if (query.length < 2) {
+                console.log('Query too short, showing default prompt');
                 searchResults.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-search"></i>
@@ -182,17 +188,19 @@ class FriendsTabManager {
                 `;
                 return;
             }
-            
+
             // Show loading state
+            console.log('Valid query, showing loading spinner...');
             searchResults.innerHTML = `
                 <div class="loading">
                     <i class="fas fa-spinner fa-spin"></i>
                     <p>Searching...</p>
                 </div>
             `;
-            
+
             // Debounce search to prevent too many API calls
             searchTimeout = setTimeout(() => {
+                console.log('Executing debounced search for:', query);
                 this.searchUsers(query);
             }, 800);
         });
@@ -211,6 +219,7 @@ class FriendsTabManager {
                 return response.json();
             })
             .then(data => {
+                console.log(data)
                 if (data.users && data.users.length > 0) {
                     this.displaySearchResults(data.users);
                 } else {

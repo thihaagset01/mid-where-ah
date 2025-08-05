@@ -5,6 +5,8 @@ class NavigationManager {
         this.navItems = [];
         this._boundHandleNewEventClick = null;
         this._boundClosePopup = this.closePopup.bind(this); // bound close
+        this.setupSearchFunctionality();
+        
 
         if (window.navigationManager) {
             return window.navigationManager;
@@ -478,6 +480,154 @@ escapeHtml(text) {
         if (container) {
             container.innerHTML = '<p class="empty-state">No groups found</p>';
         }
+    }
+
+    setupSearchFunctionality() {
+        const searchInput = document.getElementById('user-search-input1');
+        const searchResults = document.getElementById('search-results1');
+        
+        if (!searchInput || !searchResults) {
+            console.warn('Search input or search results container not found in DOM');
+            return;
+        }
+
+        console.log('Search input and results container found. Setting up listener.');
+
+        // Debounce function to limit API calls
+        let searchTimeout;
+
+        searchInput.addEventListener('input', () => {
+            const query = searchInput.value.trim();
+            console.log(`Search input changed: "${query}"`);
+
+            // Clear previous timeout
+            clearTimeout(searchTimeout);
+
+            if (query.length < 2) {
+                console.log('Query too short, showing default prompt');
+                searchResults.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-search"></i>
+                        <p>Search for friends by name, username, or email address</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Show loading state
+            console.log('Valid query, showing loading spinner...');
+            searchResults.innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Searching...</p>
+                </div>
+            `;
+
+            // Debounce search to prevent too many API calls
+            searchTimeout = setTimeout(() => {
+                console.log('Executing debounced search for:', query);
+                this.searchUsers(query);
+            }, 800);
+        });
+    }
+    
+    searchUsers(query) {
+        const searchResults = document.getElementById('search-results1');
+        if (!searchResults) {
+            console.warn('Search results container not found');
+            return;
+        }
+
+        console.log(`Sending fetch request for search query: "${query}"`);
+
+        fetch(`/api/friends/search?q=${encodeURIComponent(query)}`)
+            .then(response => {
+                console.log(`Received response with status: ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(data)
+                if (data.users && data.users.length > 0) {
+                    console.log('tri')
+                    this.displaySearchResults(data.users);
+                } else {
+                    searchResults.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-user-times"></i>
+                            <p>No users found matching "${query}"</p>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error searching users:', error);
+                searchResults.innerHTML = `
+                    <div class="empty-state error">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>Error searching users</p>
+                    </div>
+                `;
+            });
+    }
+    displaySearchResults(users) {
+        const searchResults = document.getElementById('search-results1');
+        if (!searchResults) return;
+        
+        let html = '';
+        users.forEach(user => {
+            // Determine button state based on relationship
+            let buttonHtml;
+            if (user.isFriend) {
+                buttonHtml = `
+                    <button class="btn btn-sm btn-success" disabled>
+                        <i class="fas fa-check"></i> Friends
+                    </button>
+                `;
+            } else if (user.requestPending) {
+                buttonHtml = `
+                    <button class="btn btn-sm btn-secondary" disabled>
+                        <i class="fas fa-clock"></i> Request Sent
+                    </button>
+                `;
+            } else {
+                buttonHtml = `
+                    <button class="btn btn-sm btn-primary send-request" data-user-id="${user.userId}">
+                        <i class="fas fa-user-plus"></i> Add Friend
+                    </button>
+                `;
+            }
+            
+            html += `
+                <div class="user-card" data-user-id="${user.userId}">
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <img src="${user.photoURL || '/static/images/profile_photo-placeholder.png' }" alt="${user.name}">
+                        </div>
+                        <div class="user-details">
+                            <h5>${user.name}</h5>
+                            <p>${user.email}</p>
+                        </div>
+                    </div>
+                    <div class="user-actions">
+                        ${buttonHtml}
+                    </div>
+                </div>
+            `;
+        });
+        
+        searchResults.innerHTML = html;
+        
+        // Add event listeners for send request buttons
+        const sendRequestButtons = searchResults.querySelectorAll('.send-request');
+        sendRequestButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const userId = button.getAttribute('data-user-id');
+                this.sendFriendRequest(userId, button);
+            });
+        });
     }
 }
 
