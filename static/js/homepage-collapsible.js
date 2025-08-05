@@ -40,7 +40,7 @@ class HomepageCollapsibleManager {
                 backdrop-filter: blur(10px) !important;
                 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
                 z-index: 1000 !important;
-                transform: translateY(-75%) !important; /* Show some content by default */
+                transform: translateY(-80%) !important; /* Show some content by default */
                 transition: transform 0.3s ease !important;
                 max-height: 70vh !important;
                 display: flex !important;
@@ -713,14 +713,7 @@ class HomepageCollapsibleManager {
                 }
             });
         }
-        
-        if (validCount === 0) {
-            handleTitle.textContent = 'Add Locations to Find Meetup';
-        } else if (validCount === 1) {
-            handleTitle.textContent = '1 Location • Add More';
-        } else {
-            handleTitle.textContent = `${validCount} Locations • Find Meetup`;
-        }
+    
     }
 }
 

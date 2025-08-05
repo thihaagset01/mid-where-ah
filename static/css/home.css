@@ -18,16 +18,13 @@ body {
 .locations-container {
   position: fixed;
   top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90%;
-  max-width: 400px;
   z-index: 10;
   backdrop-filter: blur(10px);
   border-radius: 16px;
   padding: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.3);
+  width: 100vw !important;
 }
 
 /* Location Container Styles */
