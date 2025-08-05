@@ -1,9 +1,9 @@
 /**
  * MidWhereAh - Enhanced Stylized Autofill
  * Provides a beautiful, custom-styled autofill dropdown for location inputs
- * Now with full-screen mobile support
+ * Now with full-screen mobile support and proper legacy Places API handling
  * 
- * IMPORTANT: This script must be loaded AFTER location/MapManager.js to avoid conflicts
+ * FIXED: Proper integration with LocationInputEnhancer and coordinates setting
  */
 
 class StylizedAutofill {
@@ -158,21 +158,27 @@ class StylizedAutofill {
         }
     }
 
+    // FIX for autofill.js - Replace the getPlaceSuggestions method
+
     getPlaceSuggestions(query) {
-        if (!window.google?.maps?.places) {
-            console.error('Google Maps API not loaded');
+        // CRITICAL FIX: Use legacy AutocompleteService (still supported) with correct types
+        if (!window.google?.maps?.places?.AutocompleteService) {
+            console.error('Google Maps AutocompleteService not available');
             return;
         }
 
         const service = new google.maps.places.AutocompleteService();
+        
+        // FIX: Don't mix 'address' with other types - Google API restriction
         service.getPlacePredictions({
             input: query,
             componentRestrictions: { country: 'sg' },
-            types: ['address']
+            types: ['geocode'] // Use 'geocode' instead of mixing 'address' and 'establishment'
         }, (predictions, status) => {
             if (status === google.maps.places.PlacesServiceStatus.OK && predictions?.length) {
                 this.renderSuggestions(predictions);
             } else {
+                console.log('No predictions found or error:', status);
                 this.showRecentSearches();
             }
         });
@@ -299,7 +305,7 @@ class StylizedAutofill {
                 await this.triggerPlaceSelection(placeId, inputId);
             }
             
-            // Dispatch events
+            // CRITICAL FIX: Dispatch events after a delay to ensure processing is complete
             setTimeout(() => {
                 const element = document.getElementById(inputId) || inputElement;
                 if (!element) return;
@@ -323,17 +329,29 @@ class StylizedAutofill {
                 return;
             }
 
-            const service = new google.maps.places.PlacesService(document.createElement('div'));
-            service.getDetails({ placeId }, (place, status) => {
+            // CRITICAL FIX: Use legacy PlacesService (still supported) with proper div element
+            const service = new google.maps.places.PlacesService(
+                window.map || document.createElement('div')
+            );
+            
+            service.getDetails({ 
+                placeId: placeId,
+                fields: ['geometry', 'formatted_address', 'place_id', 'name', 'types']
+            }, (place, status) => {
                 if (status === google.maps.places.PlacesServiceStatus.OK && place) {
                     const input = document.getElementById(inputId);
                     if (input) {
-                        // Store place data in the input element
+                        // CRITICAL FIX: Set coordinates in dataset for LocationInputEnhancer
                         input.dataset.placeId = place.place_id;
                         input.dataset.lat = place.geometry.location.lat();
                         input.dataset.lng = place.geometry.location.lng();
                         
-                        // Trigger map update
+                        console.log(`📍 Set coordinates for ${inputId}:`, {
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng()
+                        });
+                        
+                        // CRITICAL FIX: Fire location-updated event with proper data
                         const event = new CustomEvent('location-updated', {
                             detail: {
                                 inputId: inputId,
@@ -341,6 +359,11 @@ class StylizedAutofill {
                             }
                         });
                         document.dispatchEvent(event);
+                        
+                        // CRITICAL FIX: Also trigger input event to notify LocationInputEnhancer
+                        setTimeout(() => {
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                        }, 10);
                     }
                     resolve();
                 } else {
@@ -459,6 +482,7 @@ if (!document.getElementById('stylized-autofill-styles')) {
             font-size: 24px;
             cursor: pointer;
             color: #666;
+            z-index: 10000;
         }
         
         .location-autofill {
@@ -466,6 +490,7 @@ if (!document.getElementById('stylized-autofill-styles')) {
             border-radius: 8px;
             max-height: 70vh;
             overflow-y: auto;
+            background: white;
         }
         
         .autofill-item {
@@ -474,10 +499,15 @@ if (!document.getElementById('stylized-autofill-styles')) {
             padding: 12px 15px;
             border-bottom: 1px solid #f5f5f5;
             cursor: pointer;
+            transition: background-color 0.2s ease;
         }
         
         .autofill-item:hover {
             background-color: #f9f9f9;
+        }
+        
+        .autofill-item:last-child {
+            border-bottom: none;
         }
         
         .autofill-item i {
@@ -490,25 +520,99 @@ if (!document.getElementById('stylized-autofill-styles')) {
         
         .autofill-content {
             flex: 1;
+            min-width: 0;
         }
         
         .autofill-main {
             font-weight: 500;
             color: #333;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         
         .autofill-secondary {
             font-size: 13px;
             color: #888;
             margin-top: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         
         .autofill-header {
             padding: 10px 15px;
             font-size: 14px;
+            font-weight: 600;
             color: #666;
             background-color: #f9f9f9;
             border-bottom: 1px solid #eee;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .fullscreen-autofill {
+                padding: 10px;
+            }
+            
+            .search-input {
+                font-size: 16px; /* Prevent zoom on iOS */
+            }
+            
+            .autofill-item {
+                padding: 15px 12px;
+                min-height: 60px;
+            }
+            
+            .autofill-main {
+                font-size: 16px;
+                line-height: 1.3;
+            }
+            
+            .autofill-secondary {
+                font-size: 14px;
+                line-height: 1.2;
+            }
+        }
+        
+        /* Loading state */
+        .location-autofill.loading {
+            opacity: 0.7;
+        }
+        
+        .location-autofill.loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #333;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Empty state */
+        .autofill-empty {
+            padding: 20px;
+            text-align: center;
+            color: #999;
+            font-style: italic;
+        }
+        
+        .autofill-empty i {
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: block;
         }
     `;
     document.head.appendChild(style);

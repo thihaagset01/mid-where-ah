@@ -599,10 +599,15 @@ class HomepageCollapsibleManager {
             }
         });
         
-        // Also setup map event listeners when map is ready
-        const setupMapListeners = () => {
-            const map = window.mapManager?.getMap() || window.map;
-            if (map) {
+        // CRITICAL FIX: Setup map event listeners with proper checking
+        const setupMapListeners = (map) => {
+            // FIXED: Check if map exists and has addListener method
+            if (!map || typeof map.addListener !== 'function') {
+                console.warn('Map not ready for listeners, skipping map interaction setup');
+                return;
+            }
+            
+            try {
                 map.addListener('click', () => {
                     if (this.isExpanded) {
                         this.collapseContainer();
@@ -614,14 +619,41 @@ class HomepageCollapsibleManager {
                         this.collapseContainer();
                     }
                 });
+                
+                console.log('✅ Map listeners set up successfully');
+            } catch (error) {
+                console.warn('Failed to set up map listeners:', error);
             }
         };
         
-        // Setup now if map exists, or wait for map ready event
-        if (window.map) {
-            setupMapListeners();
+        // FIXED: Setup now if map exists and is ready, or wait for map ready event
+        const currentMap = window.mapManager?.getMap() || window.map;
+        if (currentMap && typeof currentMap.addListener === 'function') {
+            setupMapListeners(currentMap);
         } else {
-            document.addEventListener('mapReady', setupMapListeners);
+            // Wait for map to be ready
+            document.addEventListener('mapReady', () => {
+                const readyMap = window.mapManager?.getMap() || window.map;
+                if (readyMap && typeof readyMap.addListener === 'function') {
+                    setupMapListeners(readyMap);
+                }
+            });
+            
+            // Alternative: Wait for window.map to be available
+            let mapCheckAttempts = 0;
+            const checkForMap = () => {
+                const map = window.mapManager?.getMap() || window.map;
+                if (map && typeof map.addListener === 'function') {
+                    setupMapListeners(map);
+                } else if (mapCheckAttempts < 20) { // Try for 10 seconds
+                    mapCheckAttempts++;
+                    setTimeout(checkForMap, 500);
+                } else {
+                    console.warn('Map not available after 10 seconds, skipping map listeners');
+                }
+            };
+            
+            setTimeout(checkForMap, 1000); // Start checking after 1 second
         }
     }
     

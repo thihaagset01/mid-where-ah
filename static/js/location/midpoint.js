@@ -46,8 +46,9 @@ class MidpointCalculator {
         if (!findCentralBtn) return;
         
         const locationData = this.getAllLocationData();
-        const validLocations = locationData.filter(loc => loc.isValid);
-        
+        const validLocations = locationData.filter(loc => 
+            loc.lat && loc.lng && !isNaN(loc.lat) && !isNaN(loc.lng)
+        );        
         if (validLocations.length >= 2) {
             findCentralBtn.classList.remove('disabled');
             findCentralBtn.disabled = false;
@@ -72,7 +73,12 @@ class MidpointCalculator {
         try {
             // Get locations from your LocationManager
             const locationData = this.getAllLocationData();
-            const validLocations = locationData.filter(loc => loc.isValid);
+            const validLocations = locationData.filter(loc => 
+                loc.lat && loc.lng && !isNaN(loc.lat) && !isNaN(loc.lng)
+            );
+            
+            console.log('📍 Found locations:', locationData.length);
+            console.log('✅ Valid locations:', validLocations.length, validLocations);
             
             if (validLocations.length < 2) {
                 this.showErrorMessage('Please add at least 2 valid locations');
@@ -259,8 +265,9 @@ class MidpointCalculator {
         console.log('🔄 Using fallback to basic midpoint with venue search...');
         
         const locationData = this.getAllLocationData();
-        const validLocations = locationData.filter(loc => loc.isValid);
-        
+        const validLocations = locationData.filter(loc => 
+            loc.lat && loc.lng && !isNaN(loc.lat) && !isNaN(loc.lng)
+        );        
         if (validLocations.length === 0) {
             this.showErrorMessage('No valid locations available');
             return;
@@ -462,65 +469,63 @@ class MidpointCalculator {
     }
     
     /**
-     * Get all location data from the LocationManager
-     */
-    getAllLocationData() {
-        // If using LocationManager
-        if (window.LocationModule && window.locationManager) {
-            const locations = [];
-            
-            window.locationManager.locations.forEach((locationInput, personId) => {
-                if (locationInput.isValid()) {
-                    locations.push({
-                        personId: personId,
-                        lat: locationInput.lat,
-                        lng: locationInput.lng,
-                        name: locationInput.address,
-                        transportMode: locationInput.transportMode,
-                        isValid: true
-                    });
-                } else {
-                    locations.push({
-                        personId: personId,
-                        isValid: false
-                    });
-                }
-            });
-            
-            return locations;
-        }
+ * Get all location data from various location management systems
+ */
+getAllLocationData() {
+    let locations = [];
+    
+    // Method 1: New LocationManager system
+    if (window.locationManager && window.locationManager.locations) {
+        window.locationManager.locations.forEach((locationInput, personId) => {
+            if (locationInput.state.isValid && locationInput.state.position) {
+                locations.push({
+                    personId: personId,
+                    lat: locationInput.state.position.lat(),
+                    lng: locationInput.state.position.lng(), 
+                    name: locationInput.state.address,
+                    transportMode: locationInput.state.transportMode,
+                    isValid: true
+                });
+            } else {
+                locations.push({
+                    personId: personId,
+                    isValid: false
+                });
+            }
+        });
         
-        // NEW: Check for LocationInputEnhancers (homepage)
-        if (window.locationInputEnhancers) {
-            const locations = [];
+        console.log('LocationManager data:', locations);
+        return locations;
+    }
+    
+    // Method 2: LocationInputEnhancers (homepage)
+    if (window.locationInputEnhancers) {
+        window.locationInputEnhancers.forEach((enhancer, inputId) => {
+            const personId = enhancer.personId;
             
-            window.locationInputEnhancers.forEach((enhancer, inputId) => {
-                const personId = enhancer.personId;
-                
-                if (enhancer.state.isValid && enhancer.state.position) {
-                    locations.push({
-                        personId: personId,
-                        lat: enhancer.state.position.lat(),
-                        lng: enhancer.state.position.lng(),
-                        name: enhancer.state.address,
-                        transportMode: enhancer.state.transportMode,
-                        isValid: true
-                    });
-                } else {
-                    locations.push({
-                        personId: personId,
-                        isValid: false
-                    });
-                }
-            });
-            
-            return locations;
-        }
+            if (enhancer.state.isValid && enhancer.state.position) {
+                locations.push({
+                    personId: personId,
+                    lat: enhancer.state.position.lat(),
+                    lng: enhancer.state.position.lng(),
+                    name: enhancer.state.address,
+                    transportMode: enhancer.state.transportMode,
+                    isValid: true
+                });
+            } else {
+                locations.push({
+                    personId: personId,
+                    isValid: false
+                });
+            }
+        });
         
-        // Legacy fallback
-        const locations = [];
-        if (!window.locationData) return locations;
-        
+        console.log('LocationInputEnhancers data:', locations);
+        return locations;
+    }
+    
+    // Method 3: Legacy locationData support  
+    if (window.locationData) {
         window.locationData.forEach((data, locationId) => {
             if (data.lat && data.lng) {
                 const personId = locationId.replace('location-', '');
@@ -528,7 +533,7 @@ class MidpointCalculator {
                     personId: personId,
                     lat: data.lat,
                     lng: data.lng,
-                    name: data.address,
+                    name: data.address || 'Unknown location',
                     transportMode: window.userTransportModes?.get(locationId) || 'TRANSIT',
                     isValid: true
                 });
@@ -541,8 +546,30 @@ class MidpointCalculator {
             }
         });
         
+        console.log('Legacy locationData:', locations);
         return locations;
     }
+    
+    // Method 4: Check DOM for location inputs as final fallback
+    const locationInputs = document.querySelectorAll('.location-input');
+    locationInputs.forEach((input, index) => {
+        const value = input.value.trim();
+        if (value) {
+            // This would need geocoding, so mark as potentially valid
+            locations.push({
+                personId: index + 1,
+                lat: null, // Would need geocoding
+                lng: null,
+                name: value,
+                transportMode: 'TRANSIT',
+                isValid: false // Can't validate without geocoding
+            });
+        }
+    });
+    
+    console.log('Final location data:', locations);
+    return locations;
+}
     
     /**
      * Calculate the geometric midpoint of multiple locations

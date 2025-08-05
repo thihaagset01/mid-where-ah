@@ -1,6 +1,7 @@
 /**
  * Homepage Integration - Enhances existing static location inputs
  * This script bridges the gap between the template's static HTML and our enhanced LocationInput behavior
+ * FIXED: Proper autofill integration and state management
  */
 
 // Enhanced location input behavior for existing DOM elements
@@ -47,7 +48,100 @@ class LocationInputEnhancer {
         // Set up transport icon
         this.setupTransportIcon();
         
+        // CRITICAL FIX: Listen for autofill events
+        this.setupAutofillListener();
+        
+        // Check if input already has data from autofill
+        this.checkExistingData();
+        
         console.log(`Enhanced location input: ${this.inputId}`);
+    }
+    
+    // CRITICAL FIX: Handle autofill data
+    setupAutofillListener() {
+        // Listen for location-updated event from autofill
+        document.addEventListener('location-updated', (event) => {
+            if (event.detail.inputId === this.inputId) {
+                console.log(`📍 Autofill updated ${this.inputId}:`, event.detail.place);
+                this.handleAutofillSelection(event.detail.place);
+            }
+        });
+        
+        // Also listen for direct input changes that might have coordinates
+        this.input.addEventListener('input', () => {
+            this.checkForCoordinatesInDataset();
+        });
+    }
+    
+    // CRITICAL FIX: Check if input already has coordinates from autofill
+    checkExistingData() {
+        if (this.input.dataset.lat && this.input.dataset.lng) {
+            console.log(`📍 Found existing coordinates for ${this.inputId}`);
+            this.updateStateFromDataset();
+        }
+    }
+    
+    // CRITICAL FIX: Check for coordinates in dataset after input changes
+    checkForCoordinatesInDataset() {
+        setTimeout(() => {
+            if (this.input.dataset.lat && this.input.dataset.lng && !this.state.isValid) {
+                console.log(`📍 Detected new coordinates in dataset for ${this.inputId}`);
+                this.updateStateFromDataset();
+            }
+        }, 100);
+    }
+    
+    // CRITICAL FIX: Update state from dataset
+    updateStateFromDataset() {
+        const lat = parseFloat(this.input.dataset.lat);
+        const lng = parseFloat(this.input.dataset.lng);
+        
+        if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+            const position = new google.maps.LatLng(lat, lng);
+            
+            this.state = {
+                ...this.state,
+                address: this.input.value,
+                position: position,
+                isValid: true,
+                isProcessing: false,
+                error: null
+            };
+            
+            this.updateValidationUI();
+            this.addMarker();
+            this.notifyChange();
+            
+            console.log(`✅ ${this.inputId} validated from dataset:`, { lat, lng });
+        }
+    }
+    
+    // CRITICAL FIX: Handle autofill place selection
+    handleAutofillSelection(place) {
+        if (!place || !place.geometry) {
+            console.warn(`Invalid place for ${this.inputId}`);
+            return;
+        }
+        
+        const position = place.geometry.location;
+        
+        this.state = {
+            ...this.state,
+            address: this.input.value,
+            position: position,
+            isValid: true,
+            isProcessing: false,
+            error: null
+        };
+        
+        this.updateValidationUI();
+        this.addMarker();
+        this.notifyChange();
+        
+        console.log(`✅ ${this.inputId} validated from autofill:`, {
+            lat: position.lat(),
+            lng: position.lng()
+        });
     }
     
     addValidationStyles() {
@@ -58,25 +152,22 @@ class LocationInputEnhancer {
                 .location-input.is-processing {
                     background: linear-gradient(90deg, #f8f9fa 25%, #e9ecef 50%, #f8f9fa 75%);
                     background-size: 200% 100%;
-                    animation: loading-shimmer 1.5s infinite;
-                    border-color: #8B5DB8;
+                    animation: loading 1.5s infinite;
                 }
                 
                 .location-input.is-valid {
-                    border-color: #28a745 !important;
-                    background-color: #f8fff9 !important;
-                    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25) !important;
+                    border-color: #28a745;
+                    background-color: #f8fff9;
                 }
                 
                 .location-input.is-invalid {
-                    border-color: #dc3545 !important;
-                    background-color: #fff8f8 !important;
-                    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+                    border-color: #dc3545;
+                    background-color: #fff8f8;
                 }
                 
-                @keyframes loading-shimmer {
-                    0% { background-position: -200% 0; }
-                    100% { background-position: 200% 0; }
+                @keyframes loading {
+                    0% { background-position: 200% 0; }
+                    100% { background-position: -200% 0; }
                 }
             `;
             document.head.appendChild(style);
@@ -84,109 +175,121 @@ class LocationInputEnhancer {
     }
     
     setupInputHandling() {
-        // Clear on focus
-        this.input.addEventListener('focus', (e) => {
-            e.preventDefault();
+        // Clear validation on focus
+        this.input.addEventListener('focus', () => {
             this.clearValidationUI();
         });
         
-        // Prevent default behavior for input events
-        this.input.addEventListener('input', (e) => {
-            // Just update the state without geocoding
-            this.updateState({ address: e.target.value });
+        // Handle manual typing (basic validation only)
+        this.input.addEventListener('input', () => {
+            const value = this.input.value.trim();
             
-            // Show validation state based on input length
-            if (e.target.value.trim().length >= 3) {
-                this.updateState({ isValid: true, error: null });
-                this.updateValidationUI();
-            } else {
-                this.updateState({ isValid: false, error: 'Enter at least 3 characters' });
+            if (!value) {
+                this.clearLocation();
+            } else if (value.length >= 3) {
+                // Don't auto-geocode, just mark as potentially valid
+                this.state.address = value;
+                this.state.isValid = false; // Will be set to true by autofill
                 this.updateValidationUI();
             }
         });
     }
     
-    setupAutocomplete() {
-        // Keep this method but don't initialize Google Places Autocomplete here
-        // as we're using our custom autofill modal
-        console.log(`Skipping autocomplete setup for ${this.inputId} - using custom autofill`);
-    }
-    
     setupTransportIcon() {
-        if (this.transportIcon) {
-            this.transportIcon.addEventListener('click', () => {
-                this.cycleTransportMode();
-            });
+        if (!this.transportIcon) return;
+        
+        // Set initial icon
+        this.updateTransportIcon('TRANSIT');
+        
+        // Handle clicks
+        this.transportIcon.addEventListener('click', () => {
+            this.cycleTransportMode();
+        });
+    }
+    
+    cycleTransportMode() {
+        const modes = ['TRANSIT', 'DRIVING', 'WALKING'];
+        const currentIndex = modes.indexOf(this.state.transportMode);
+        const nextIndex = (currentIndex + 1) % modes.length;
+        const newMode = modes[nextIndex];
+        
+        this.updateTransportMode(newMode);
+    }
+    
+    updateTransportMode(mode) {
+        this.state.transportMode = mode;
+        this.updateTransportIcon(mode);
+        this.notifyChange();
+        console.log(`Transport mode for ${this.inputId} updated to ${mode}`);
+    }
+    
+    updateTransportIcon(mode) {
+        if (!this.transportIcon) return;
+        
+        this.transportIcon.setAttribute('data-current-mode', mode);
+        
+        const iconElement = this.transportIcon.querySelector('i');
+        if (iconElement) {
+            switch (mode) {
+                case 'DRIVING':
+                    iconElement.className = 'fas fa-car';
+                    this.transportIcon.setAttribute('data-tooltip', 'Driving');
+                    break;
+                case 'WALKING':
+                    iconElement.className = 'fas fa-walking';
+                    this.transportIcon.setAttribute('data-tooltip', 'Walking');
+                    break;
+                case 'TRANSIT':
+                default:
+                    iconElement.className = 'fas fa-subway';
+                    this.transportIcon.setAttribute('data-tooltip', 'Public Transport');
+                    break;
+            }
         }
     }
     
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-    
-    clearTimeout() {
-        if (this.geocodeTimeout) {
-            clearTimeout(this.geocodeTimeout);
-            this.geocodeTimeout = null;
-        }
-    }
-    
-    handlePlaceSelected() {
-        this.isSelectingFromAutocomplete = true;
+    addMarker() {
+        if (!this.state.position || !window.map) return;
         
-        if (!this.autocomplete) {
-            console.warn('Autocomplete not initialized');
-            return;
-        }
+        // Remove existing marker
+        this.removeMarker();
         
-        const place = this.autocomplete.getPlace();
-        
-        if (!place || !place.geometry) {
-            console.warn('No place selected or place has no geometry');
-            return;
-        }
-        
-        // Update the input with the formatted address
-        this.input.value = place.formatted_address;
-        
-        // Update state
-        this.updateState({
-            address: place.formatted_address,
-            position: {
-                lat: place.geometry.location.lat(),
-                lng: place.geometry.location.lng()
+        // Add new marker
+        this.marker = new google.maps.Marker({
+            position: this.state.position,
+            map: window.map,
+            title: `Person ${this.personId}`,
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                fillColor: this.color,
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 3,
+                scale: 12
             },
-            isValid: true,
-            isProcessing: false,
-            error: null
+            label: {
+                text: this.personId.toString(),
+                color: '#ffffff',
+                fontWeight: 'bold',
+                fontSize: '12px'
+            }
         });
         
-        this.updateValidationUI();
-        
-        // Trigger any map updates or other actions
-        if (window.mapManager) {
-            window.mapManager.updateLocationMarker(
-                this.personId,
-                this.state.position,
-                this.color,
-                place.formatted_address
-            );
-        }
+        console.log(`📍 Added marker for ${this.inputId} at:`, {
+            lat: this.state.position.lat(),
+            lng: this.state.position.lng()
+        });
     }
     
-    updateState(newState) {
-        Object.assign(this.state, newState);
+    removeMarker() {
+        if (this.marker) {
+            this.marker.setMap(null);
+            this.marker = null;
+        }
     }
     
     updateValidationUI() {
+        // Remove all validation classes first
         this.input.classList.remove('is-valid', 'is-invalid', 'is-processing');
         
         if (this.state.isProcessing) {
@@ -202,43 +305,19 @@ class LocationInputEnhancer {
         this.input.classList.remove('is-valid', 'is-invalid', 'is-processing');
     }
     
-    cycleTransportMode() {
-        const modes = ['TRANSIT', 'DRIVING', 'WALKING'];
-        const currentIndex = modes.indexOf(this.state.transportMode);
-        const nextIndex = (currentIndex + 1) % modes.length;
+    clearLocation() {
+        this.state = {
+            address: '',
+            position: null,
+            transportMode: this.state.transportMode, // Keep transport mode
+            isValid: false,
+            isProcessing: false,
+            error: null
+        };
         
-        this.updateTransportMode(modes[nextIndex]);
-    }
-    
-    updateTransportMode(mode) {
-        this.state.transportMode = mode;
-        
-        if (this.transportIcon) {
-            this.transportIcon.setAttribute('data-current-mode', mode);
-            this.transportIcon.className = `transport-icon ${mode.toLowerCase()}`;
-            
-            const iconElement = this.transportIcon.querySelector('i');
-            if (iconElement) {
-                switch (mode) {
-                    case 'DRIVING':
-                        iconElement.className = 'fas fa-car';
-                        this.transportIcon.setAttribute('data-tooltip', 'Driving');
-                        break;
-                    case 'WALKING':
-                        iconElement.className = 'fas fa-walking';
-                        this.transportIcon.setAttribute('data-tooltip', 'Walking');
-                        break;
-                    case 'TRANSIT':
-                    default:
-                        iconElement.className = 'fas fa-subway';
-                        this.transportIcon.setAttribute('data-tooltip', 'Public Transport');
-                        break;
-                }
-            }
-        }
-        
+        this.removeMarker();
+        this.clearValidationUI();
         this.notifyChange();
-        console.log(`Transport mode for ${this.inputId} updated to ${mode}`);
     }
     
     notifyChange() {
@@ -255,8 +334,8 @@ class LocationInputEnhancer {
         
         if (this.state.isValid && this.state.position) {
             window.locationData.set(this.inputId, {
-                lat: this.state.position.lat,
-                lng: this.state.position.lng,
+                lat: this.state.position.lat(),
+                lng: this.state.position.lng(),
                 address: this.state.address,
                 transportMode: this.state.transportMode
             });
@@ -265,6 +344,14 @@ class LocationInputEnhancer {
             window.locationData.delete(this.inputId);
             window.userTransportModes.delete(this.inputId);
         }
+        
+        // Dispatch custom event
+        document.dispatchEvent(new CustomEvent('locationinput:change', {
+            detail: {
+                inputId: this.inputId,
+                state: this.state
+            }
+        }));
     }
     
     getColor() {
@@ -272,7 +359,7 @@ class LocationInputEnhancer {
         return colors[(this.personId - 1) % colors.length];
     }
     
-    // Get data for midpoint calculation
+    // Get data for midpoint calculation - CRITICAL FIX
     getData() {
         return {
             personId: this.personId,
@@ -281,8 +368,8 @@ class LocationInputEnhancer {
             transportMode: this.state.transportMode,
             address: this.state.address,
             isValid: this.state.isValid,
-            lat: this.state.position ? this.state.position.lat : null,
-            lng: this.state.position ? this.state.position.lng : null
+            lat: this.state.position ? this.state.position.lat() : null,
+            lng: this.state.position ? this.state.position.lng() : null
         };
     }
 }
