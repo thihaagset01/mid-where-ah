@@ -402,6 +402,7 @@ def join_group_api():
 @app.route('/api/friends/search', methods=['GET'])
 @login_required
 def search_users():
+    print('called')
     """Search for users to add as friends"""
     try:
         query = request.args.get('q', '').lower().strip()
