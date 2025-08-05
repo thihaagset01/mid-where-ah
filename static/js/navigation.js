@@ -6,6 +6,7 @@ class NavigationManager {
         this._boundHandleNewEventClick = null;
         this._boundClosePopup = this.closePopup.bind(this); // bound close
         this.friends = []; // Store friends list
+        this.groupCreationManager = null;
         this.setupSearchFunctionality();
         
 
@@ -15,26 +16,44 @@ class NavigationManager {
         window.navigationManager = this;
     }
 
-    init() {
+    async init() {
         if (this.initialized) return;
 
         this.setupNavigation();
 
+        // Initialize group creation manager
+        try {
+            // Dynamically import the GroupCreationManager
+            const { GroupCreationManager } = await import('./group-creation.js');
+            this.groupCreationManager = new GroupCreationManager();
+            console.log('GroupCreationManager initialized successfully in Navigation');
+        } catch (error) {
+            console.error('Failed to initialize GroupCreationManager:', error);
+        }
+
+        // Set up event listeners
         const close = document.getElementById('close');
         if (close) {
-            console.log('close avail')
             close.addEventListener('click', () => this.closePopup('close'));
         }
         const close2 = document.getElementById('close2');
         if (close2) {
-            console.log('close 2 avail')
             close2.addEventListener('click', () => this.closePopup('close2'));
         }
         const close3 = document.getElementById('close3');
         if (close3) {
-            console.log('close 3 avail')
             close3.addEventListener('click', () => this.closePopup('close3'));
         }
+
+        // Set up new group button
+        const newGroupBtn = document.getElementById('new_group');
+        if (newGroupBtn) {
+            newGroupBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showCreateGroupModal();
+            });
+        }
+
         this.initialized = true;
     }
 
@@ -82,27 +101,30 @@ class NavigationManager {
     }
 
     handleCreateClick() {
-    const dropdown = document.getElementById('dropdown-menu');
-    if (!dropdown) {
-        console.warn('#dropdown-menu not found in DOM.');
-        return;
-    }
+        const dropdown = document.getElementById('dropdown-menu');
+        if (!dropdown) {
+            console.warn('#dropdown-menu not found in DOM.');
+            return;
+        }
 
-    dropdown.classList.toggle('hidden');
+        dropdown.classList.toggle('hidden');
 
-    const new_event = document.getElementById('new_event');
-    const add_friend = document.getElementById('add_friend');
-    const new_group = document.getElementById('new_group');
+        const new_event = document.getElementById('new_event');
+        const add_friend = document.getElementById('add_friend');
+        const new_group = document.getElementById('new_group');
 
-    // Remove previously bound event listener if it exists
-    if (this._boundHandleNewEventClick) {
-        new_event.removeEventListener('click', this._boundHandleNewEventClick);
-        add_friend.removeEventListener('click', this._boundHandleNewEventClick);
-        new_group.removeEventListener('click', this._boundHandleNewEventClick);
-    }
+        // Remove previously bound event listener if it exists
+        if (this._boundHandleNewEventClick) {
+            new_event.removeEventListener('click', this._boundHandleNewEventClick);
+            add_friend.removeEventListener('click', this._boundHandleNewEventClick);
+            new_group.removeEventListener('click', this._boundHandleNewEventClick);
+        }
 
-    // Bind the method once and store it so it can be removed later
-    this._boundHandleNewEventClick = this.handle_newevent_click.bind(this);
+        // Bind the method once and store it so it can be removed later
+        this._boundHandleNewEventClick = this.handle_newevent_click.bind(this);
+        new_event.addEventListener('click', this._boundHandleNewEventClick);
+        add_friend.addEventListener('click', this._boundHandleNewEventClick);
+        new_group.addEventListener('click', this._boundHandleNewEventClick);
     new_event.addEventListener('click', this._boundHandleNewEventClick);
     add_friend.addEventListener('click', this._boundHandleNewEventClick);
     new_group.addEventListener('click', this._boundHandleNewEventClick);
@@ -155,12 +177,37 @@ class NavigationManager {
         case 'new_group':
             popup.classList.add('hidden');
             searchfriend.classList.add('hidden');
-            newgroup.classList.toggle('hidden');
-            banner3?.insertAdjacentHTML("beforeend", `
-                <p style="margin: 0; font-size: 16px; position: absolute; left: 50%; transform: translateX(-50%);" id="title">
-                    Enter group details
-                </p>
-            `);
+            newgroup.classList.remove('hidden');
+            
+            // Clear previous content and add new content
+            newgroup.innerHTML = `
+                <div id="header-container3" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%;">
+                    <h5 style="margin: 0 auto;">Create New Group</h5>
+                    <i class="fa-regular fa-rectangle-xmark" id="close3" style="font-size: 20px; cursor: pointer; margin-left: 10px;"></i>
+                </div>
+                <div class="modal-body" style="padding: 15px;">
+                    <div id="createGroupModalContainer"></div>
+                </div>
+            `;
+            
+            // Add close event listener
+            const closeBtn = document.getElementById('close3');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    newgroup.classList.add('hidden');
+                });
+            }
+            
+            // Initialize group creation modal if available
+            if (typeof showCreateGroupModal === 'function') {
+                // Small delay to ensure DOM is updated
+                setTimeout(() => showCreateGroupModal(), 100);
+            } else {
+                console.error('Group creation functionality not available');
+            }
+            
+            dropdown?.classList.toggle('hidden');
             break
     }
 }
