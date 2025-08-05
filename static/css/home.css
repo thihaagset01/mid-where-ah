@@ -254,33 +254,9 @@ body {
 
 /* Auto-complete dropdown styling */
 .pac-container {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  border: none;
-  margin-top: 4px;
-  z-index: 1002 !important;
+  display: none;
 }
 
-.pac-item {
-  padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.pac-item:hover {
-  background-color: #f8f9fa;
-}
-
-.pac-item:last-child {
-  border-bottom: none;
-}
-
-.pac-item-selected {
-  background-color: #8B5DB8 !important;
-  color: white;
-}
 
 /* 
 */

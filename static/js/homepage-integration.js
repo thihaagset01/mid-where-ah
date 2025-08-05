@@ -24,6 +24,9 @@ class LocationInputEnhancer {
             error: null
         };
         
+        // Track if a place is being selected from autocomplete
+        this.isSelectingFromAutocomplete = false;
+        
         // Debounce timeout
         this.geocodeTimeout = null;
         this.marker = null;
@@ -38,11 +41,8 @@ class LocationInputEnhancer {
         // Add validation styles
         this.addValidationStyles();
         
-        // Set up manual typing with debounce
-        this.setupManualTyping();
-        
-        // Set up autocomplete (if available)
-        this.setupAutocomplete();
+        // Set up input handling (without geocoding)
+        this.setupInputHandling();
         
         // Set up transport icon
         this.setupTransportIcon();
@@ -83,57 +83,33 @@ class LocationInputEnhancer {
         }
     }
     
-    setupManualTyping() {
+    setupInputHandling() {
         // Clear on focus
-        this.input.addEventListener('focus', () => {
+        this.input.addEventListener('focus', (e) => {
+            e.preventDefault();
             this.clearValidationUI();
         });
         
-        // Manual typing with debounce
-        this.input.addEventListener('input', this.debounce((e) => {
-            this.handleInputChange(e);
-        }, 800));
-        
-        // Enter key for immediate geocoding
-        this.input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const value = this.input.value.trim();
-                if (value && value.length >= 3) {
-                    this.clearTimeout();
-                    this.geocodeLocation(value);
-                }
+        // Prevent default behavior for input events
+        this.input.addEventListener('input', (e) => {
+            // Just update the state without geocoding
+            this.updateState({ address: e.target.value });
+            
+            // Show validation state based on input length
+            if (e.target.value.trim().length >= 3) {
+                this.updateState({ isValid: true, error: null });
+                this.updateValidationUI();
+            } else {
+                this.updateState({ isValid: false, error: 'Enter at least 3 characters' });
+                this.updateValidationUI();
             }
         });
     }
     
     setupAutocomplete() {
-        // Wait for Google Maps
-        if (!window.google?.maps?.places?.Autocomplete) {
-            setTimeout(() => this.setupAutocomplete(), 1000);
-            return;
-        }
-        
-        // Skip if already initialized
-        if (this.input.getAttribute('data-autocomplete-initialized') === 'true') {
-            return;
-        }
-        
-        try {
-            this.autocomplete = new google.maps.places.Autocomplete(this.input, {
-                componentRestrictions: { country: "sg" },
-                fields: ["geometry", "formatted_address", "name"]
-            });
-            
-            this.autocomplete.addListener('place_changed', () => {
-                this.handlePlaceSelected();
-            });
-            
-            this.input.setAttribute('data-autocomplete-initialized', 'true');
-            console.log(`Autocomplete set up for ${this.inputId}`);
-        } catch (error) {
-            console.error(`Failed to set up autocomplete for ${this.inputId}:`, error);
-        }
+        // Keep this method but don't initialize Google Places Autocomplete here
+        // as we're using our custom autofill modal
+        console.log(`Skipping autocomplete setup for ${this.inputId} - using custom autofill`);
     }
     
     setupTransportIcon() {
@@ -163,163 +139,46 @@ class LocationInputEnhancer {
         }
     }
     
-    handleInputChange(e) {
-        const value = e.target.value.trim();
-        
-        this.clearTimeout();
-        this.updateState({ address: value });
-        
-        // Clear everything if empty
-        if (!value) {
-            this.clearLocation();
-            return;
-        }
-        
-        // Too short
-        if (value.length < 3) {
-            this.updateState({ isValid: false, error: 'Enter at least 3 characters' });
-            this.updateValidationUI();
-            return;
-        }
-        
-        // Start processing
-        this.updateState({ isProcessing: true, error: null });
-        this.updateValidationUI();
-        
-        // Geocode after delay
-        this.geocodeTimeout = setTimeout(() => {
-            if (!this.state.isValid) { // Only if autocomplete didn't handle it
-                this.geocodeLocation(value);
-            }
-        }, 1000);
-    }
-    
     handlePlaceSelected() {
+        this.isSelectingFromAutocomplete = true;
+        
+        if (!this.autocomplete) {
+            console.warn('Autocomplete not initialized');
+            return;
+        }
+        
         const place = this.autocomplete.getPlace();
         
         if (!place || !place.geometry) {
-            console.warn(`Invalid place selected for ${this.inputId}`);
+            console.warn('No place selected or place has no geometry');
             return;
         }
         
-        this.clearTimeout();
+        // Update the input with the formatted address
+        this.input.value = place.formatted_address;
         
+        // Update state
         this.updateState({
-            address: place.formatted_address || place.name,
-            position: place.geometry.location,
+            address: place.formatted_address,
+            position: {
+                lat: place.geometry.location.lat(),
+                lng: place.geometry.location.lng()
+            },
             isValid: true,
             isProcessing: false,
             error: null
         });
         
-        this.addMarker();
         this.updateValidationUI();
-        this.notifyChange();
         
-        console.log(`Place selected for ${this.inputId}:`, place.formatted_address);
-    }
-    
-    geocodeLocation(address) {
-        console.log(`🔍 Geocoding: ${address}`);
-        
-        if (!window.google?.maps?.Geocoder) {
-            this.handleGeocodingFailure('Google Maps not available');
-            return;
-        }
-        
-        const geocoder = new google.maps.Geocoder();
-        
-        geocoder.geocode({
-            address: `${address}, Singapore`,
-            componentRestrictions: { country: 'SG' }
-        }, (results, status) => {
-            if (status === 'OK' && results && results.length > 0) {
-                const result = results[0];
-                
-                this.updateState({
-                    isProcessing: false,
-                    isValid: true,
-                    position: result.geometry.location,
-                    address: result.formatted_address,
-                    error: null
-                });
-                
-                this.addMarker();
-                this.updateValidationUI();
-                this.notifyChange();
-                
-                console.log(`✅ Geocoded ${address}`);
-            } else {
-                this.handleGeocodingFailure(`Could not find: ${address}`);
-            }
-        });
-    }
-    
-    handleGeocodingFailure(message) {
-        this.updateState({
-            isProcessing: false,
-            isValid: false,
-            position: null,
-            error: message
-        });
-        
-        this.removeMarker();
-        this.updateValidationUI();
-        this.notifyChange();
-        
-        console.warn(`❌ Geocoding failed: ${message}`);
-    }
-    
-    clearLocation() {
-        this.updateState({
-            address: '',
-            position: null,
-            isValid: false,
-            isProcessing: false,
-            error: null
-        });
-        
-        this.removeMarker();
-        this.clearValidationUI();
-        this.notifyChange();
-    }
-    
-    addMarker() {
-        if (!this.state.position) return;
-        
-        const map = window.mapManager?.getMap() || window.map;
-        if (!map) {
-            console.error(`No map available for ${this.inputId}`);
-            return;
-        }
-        
-        this.removeMarker();
-        
-        this.marker = new google.maps.Marker({
-            position: this.state.position,
-            map: map,
-            title: this.state.address || `Person ${this.personId}`,
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                fillColor: this.color,
-                fillOpacity: 0.9,
-                strokeColor: '#ffffff',
-                strokeWeight: 3,
-                scale: 10
-            },
-            animation: google.maps.Animation.DROP
-        });
-        
-        // Pan to marker
-        map.panTo(this.state.position);
-        
-        console.log(`Marker added for ${this.inputId}`);
-    }
-    
-    removeMarker() {
-        if (this.marker) {
-            this.marker.setMap(null);
-            this.marker = null;
+        // Trigger any map updates or other actions
+        if (window.mapManager) {
+            window.mapManager.updateLocationMarker(
+                this.personId,
+                this.state.position,
+                this.color,
+                place.formatted_address
+            );
         }
     }
     
@@ -396,8 +255,8 @@ class LocationInputEnhancer {
         
         if (this.state.isValid && this.state.position) {
             window.locationData.set(this.inputId, {
-                lat: this.state.position.lat(),
-                lng: this.state.position.lng(),
+                lat: this.state.position.lat,
+                lng: this.state.position.lng,
                 address: this.state.address,
                 transportMode: this.state.transportMode
             });
@@ -422,8 +281,8 @@ class LocationInputEnhancer {
             transportMode: this.state.transportMode,
             address: this.state.address,
             isValid: this.state.isValid,
-            lat: this.state.position ? this.state.position.lat() : null,
-            lng: this.state.position ? this.state.position.lng() : null
+            lat: this.state.position ? this.state.position.lat : null,
+            lng: this.state.position ? this.state.position.lng : null
         };
     }
 }

@@ -5,6 +5,53 @@
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+<style>
+    /* Style for the location input to make it look like a button */
+    .location-input {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 12px 15px;
+        font-size: 1rem;
+        width: 100%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        cursor: pointer;
+        text-align: left;
+    }
+    
+    .location-input::placeholder {
+        color: #999;
+    }
+    
+    .location-input:focus {
+        outline: none;
+        border-color: #8B5DB8;
+        box-shadow: 0 0 0 2px rgba(139, 93, 184, 0.2);
+    }
+    
+    /* Prevent the input from being focused on page load */
+    .location-input:not(:focus) {
+        background: #f8f9fa;
+    }
+    
+    .location-container {
+        position: relative;
+        margin-bottom: 15px;
+    }
+    
+    .transport-icon {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #8B5DB8;
+        z-index: 2;
+    }
+    
+    .location-input {
+        padding-left: 40px;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -24,8 +71,9 @@
       <input type="text" 
              id="location-1" 
              class="location-input" 
-             placeholder="Address 1" 
-             autocomplete="off">
+             placeholder="Enter first location" 
+             autocomplete="off"
+             readonly>
   </div>
     
   <!-- Location 2 -->
@@ -39,8 +87,9 @@
       <input type="text" 
              id="location-2" 
              class="location-input" 
-             placeholder="Address 2" 
-             autocomplete="off">
+             placeholder="Enter second location" 
+             autocomplete="off"
+             readonly>
   </div>
 
   <div style="display: flex; align-items: center; justify-content: space-between;" id="parent-container">
@@ -62,6 +111,7 @@
 <!-- Services -->
 <script src="{{ url_for('static', filename='js/homepage-integration.js') }}"></script>
 <script src="{{ url_for('static', filename='js/homepage-collapsible.js') }}"></script>
+<script src="{{ url_for('static', filename='js/autofill.js') }}"></script>
 
 <!-- SINGLE Google Maps API Load -->
 <script>
@@ -104,6 +154,14 @@
   // Load when DOM is ready
   document.addEventListener('DOMContentLoaded', function() {
     loadGoogleMapsAPI();
+    
+    // Initialize the autofill after a short delay to ensure DOM is ready
+    setTimeout(() => {
+      if (window.stylizedAutofill) {
+        // Re-initialize the autofill to ensure it picks up the new inputs
+        window.stylizedAutofill = new StylizedAutofill();
+      }
+    }, 500);
   });
 </script>
 {% endblock %}
