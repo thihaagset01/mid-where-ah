@@ -177,16 +177,122 @@ class NavigationManager {
         case 'new_group':
             popup.classList.add('hidden');
             searchfriend.classList.add('hidden');
-            newgroup.classList.remove('hidden');
+            newgroup.classList.toggle('hidden');
             
-            // Clear previous content and add new content
+            // Clear previous content and add new content with group creation styling
             newgroup.innerHTML = `
-                <div id="header-container3" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%;">
-                    <h5 style="margin: 0 auto;">Create New Group</h5>
-                    <i class="fa-regular fa-rectangle-xmark" id="close3" style="font-size: 20px; cursor: pointer; margin-left: 10px;"></i>
-                </div>
-                <div class="modal-body" style="padding: 15px;">
-                    <div id="createGroupModalContainer"></div>
+                    <div class="create-group-modal" style="background: white; border-radius: 20px; width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto; animation: modalSlideUp 0.3s ease; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);">
+                        <div id="createGroupModalContainer" style="width: 100%;">
+                            <style>
+                                @keyframes modalSlideUp {
+                                    from { transform: translateY(50px); opacity: 0; }
+                                    to { transform: translateY(0); opacity: 1; }
+                                }
+                                .modal-header {
+                                    padding: 20px 20px 10px;
+                                    display: flex;
+                                    justify-content: space-between;
+                                    align-items: center;
+                                    border-bottom: 1px solid #eee;
+                                }
+                                .modal-header h2 {
+                                    margin: 0;
+                                    font-size: 20px;
+                                    font-weight: 600;
+                                    color: #333;
+                                }
+                                .close-btn {
+                                    background: none;
+                                    border: none;
+                                    font-size: 20px;
+                                    color: #666;
+                                    cursor: pointer;
+                                    padding: 5px;
+                                    border-radius: 50%;
+                                    transition: background-color 0.2s;
+                                }
+                                .close-btn:hover {
+                                    background-color: #f5f5f5;
+                                }
+                                .modal-body {
+                                    padding: 20px;
+                                }
+                                .form-group {
+                                    margin-bottom: 20px;
+                                }
+                                .form-group label {
+                                    display: block;
+                                    margin-bottom: 8px;
+                                    font-weight: 500;
+                                    color: #333;
+                                    font-size: 14px;
+                                }
+                                .form-group input,
+                                .form-group textarea,
+                                .form-group select {
+                                    width: 100%;
+                                    padding: 12px 15px;
+                                    border: 1px solid #ddd;
+                                    border-radius: 10px;
+                                    font-size: 16px;
+                                    transition: border-color 0.2s, box-shadow 0.2s;
+                                    box-sizing: border-box;
+                                }
+                                .form-group input:focus,
+                                .form-group textarea:focus,
+                                .form-group select:focus {
+                                    outline: none;
+                                    border-color: #8b5db8;
+                                    box-shadow: 0 0 0 3px rgba(139, 93, 184, 0.1);
+                                }
+                                .form-group textarea {
+                                    resize: vertical;
+                                    min-height: 80px;
+                                }
+                                .modal-footer {
+                                    padding: 10px 20px 20px;
+                                    display: flex;
+                                    gap: 10px;
+                                }
+                                .cancel-btn {
+                                    flex: 1;
+                                    padding: 12px 20px;
+                                    border: none;
+                                    border-radius: 10px;
+                                    font-size: 16px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                    transition: all 0.2s;
+                                    background: #f5f5f5;
+                                    color: #666;
+                                }
+                                .cancel-btn:hover {
+                                    background: #e8e8e8;
+                                }
+                                .create-btn {
+                                    flex: 1;
+                                    padding: 12px 20px;
+                                    border: none;
+                                    border-radius: 10px;
+                                    font-size: 16px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                    transition: all 0.2s;
+                                    background: linear-gradient(135deg, #8b5db8, #6a4a9c);
+                                    color: white;
+                                }
+                                .create-btn:hover {
+                                    transform: translateY(-1px);
+                                    box-shadow: 0 4px 12px rgba(139, 93, 184, 0.3);
+                                }
+                                .create-btn:disabled {
+                                    opacity: 0.6;
+                                    cursor: not-allowed;
+                                    transform: none;
+                                }
+                            </style>
+                        </div>
+                    </div>
                 </div>
             `;
             

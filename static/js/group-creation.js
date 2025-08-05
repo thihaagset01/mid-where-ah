@@ -164,7 +164,7 @@ function showCreateGroupModal(event) {
             <div class="create-group-modal">
                 <div class="modal-header">
                     <h2>Create New Group</h2>
-                    <button class="close-btn" onclick="closeCreateGroupModal()">
+                    <button class="close-btn" onclick="closeCreateGroupModal()" id="close3">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
