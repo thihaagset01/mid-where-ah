@@ -1,6 +1,12 @@
 /**
- * MeetingPointOptimizer.js - Shared optimization engine
- * Works for both home page manual inputs AND group database locations
+ * MeetingPointOptimizer.js - UNBIASED Multi-Center Optimization Engine
+ * REWRITTEN to eliminate centroid bias and handle cluster-outlier scenarios
+ * 
+ * Key Improvements:
+ * - Multiple strategic centers (geometric, weighted, median, cluster)
+ * - Unbiased transit hub selection (distance to ANY user)
+ * - User location candidates (sometimes best meeting point IS someone's location)
+ * - Cluster-aware candidate generation
  */
 
 class MeetingPointOptimizer {
@@ -14,6 +20,7 @@ class MeetingPointOptimizer {
             max_range: 20,          // minutes  
             coarse_spacing: 500,    // meters
             fine_spacing: 100,      // meters
+            cluster_threshold: 5,   // km - users within this distance form a cluster
             region_config: {
                 mode_factors: {
                     'DRIVING': 1.3,    // Singapore traffic penalty
@@ -25,7 +32,10 @@ class MeetingPointOptimizer {
                     { lat: 1.2966, lng: 103.8526, name: "Marina Bay MRT" },
                     { lat: 1.3038, lng: 103.8303, name: "City Hall MRT" },
                     { lat: 1.2834, lng: 103.8611, name: "Marina South Pier MRT" },
-                    { lat: 1.3062, lng: 103.8395, name: "Esplanade MRT" }
+                    { lat: 1.3062, lng: 103.8395, name: "Esplanade MRT" },
+                    { lat: 1.2868, lng: 103.8545, name: "Bayfront MRT" },
+                    { lat: 1.3016, lng: 103.8381, name: "Clarke Quay MRT" },
+                    { lat: 1.3033, lng: 103.8367, name: "Fort Canning MRT" }
                 ],
                 venue_types: ['restaurant', 'cafe', 'shopping_mall']
             },
@@ -34,13 +44,11 @@ class MeetingPointOptimizer {
     }
 
     /**
-     * MAIN OPTIMIZATION METHOD - Works for both home page and groups
-     * @param {Array} users - Array of {lat, lng, mode, weight?, name?}
-     * @returns {Promise<Object>} - {point, times, venues, score, fairness, metadata}
+     * MAIN OPTIMIZATION METHOD - Multi-Center Unbiased Approach
      */
     async findOptimalMeetingPoint(users) {
         const startTime = performance.now();
-        console.log('🚀 Starting optimization for', users.length, 'users');
+        console.log('🚀 Starting UNBIASED optimization for', users.length, 'users');
         
         if (users.length < 2) {
             throw new Error('Need at least 2 users for optimization');
@@ -56,25 +64,25 @@ class MeetingPointOptimizer {
         let fallbackUsed = false;
 
         try {
-            // Phase 1: Generate candidate points
-            const centroid = this.calculateCentroid(validUsers);
-            const candidates = this.generateCandidates(validUsers, centroid);
+            // PHASE 1: Multi-Center Candidate Generation (UNBIASED)
+            const candidateData = this.generateUnbiasedCandidates(validUsers);
             
-            console.log('📍 Generated', candidates.length, 'candidate points');
+            console.log('📍 Generated', candidateData.candidates.length, 'candidates from', candidateData.sources.length, 'strategic centers');
+            console.log('📊 Strategic centers:', candidateData.centers);
 
-            // Phase 2: Coarse evaluation with real travel times
-            const topCandidates = await this.coarseSearch(candidates, validUsers);
+            // PHASE 2: Coarse evaluation with real travel times
+            const topCandidates = await this.coarseSearch(candidateData.candidates, validUsers);
             
             if (topCandidates.length === 0) {
                 console.warn('⚠️ No candidates passed time constraints, using fallback');
-                result = await this.fallbackToGeometricMidpoint(validUsers);
+                result = await this.fallbackToWeightedMidpoint(validUsers);
                 fallbackUsed = true;
             } else {
-                // Phase 3: Fine search with venue validation
+                // PHASE 3: Fine search with venue validation
                 result = await this.fineSearch(topCandidates.slice(0, 3), validUsers);
                 
                 if (!result) {
-                    // Phase 4: Fallback without venue requirement
+                    // PHASE 4: Fallback without venue requirement
                     console.warn('⚠️ Fine search failed, trying fallback strategies');
                     result = await this.fallbackSearch(topCandidates, validUsers);
                     fallbackUsed = true;
@@ -83,27 +91,397 @@ class MeetingPointOptimizer {
 
         } catch (error) {
             console.error('❌ Optimization failed:', error);
-            result = await this.fallbackToGeometricMidpoint(validUsers);
+            result = await this.fallbackToWeightedMidpoint(validUsers);
             fallbackUsed = true;
         }
 
-        // Add metadata
+        // Add comprehensive metadata
         if (result) {
             result.metadata = {
                 userCount: validUsers.length,
                 fallbackUsed: fallbackUsed,
                 duration: performance.now() - startTime,
-                algorithmVersion: '2.0',
-                generatedAt: new Date().toISOString()
+                algorithmVersion: '3.0-unbiased',
+                generatedAt: new Date().toISOString(),
+                strategicCenters: candidateData?.sources || [],
+                clusters: candidateData?.clusters || []
             };
         }
 
-        console.log(`🎯 Optimization completed in ${(performance.now() - startTime).toFixed(0)}ms`);
+        console.log(`🎯 UNBIASED optimization completed in ${(performance.now() - startTime).toFixed(0)}ms`);
         return result;
     }
 
     /**
-     * Calculate geographic centroid
+     * CORE INNOVATION: Generate candidates from multiple strategic centers
+     * This eliminates the bias of only using geometric centroid
+     */
+    generateUnbiasedCandidates(users) {
+        const candidates = [];
+        const centers = [];
+        const clusters = this.identifyUserClusters(users);
+        
+        // STRATEGY 1: Multiple Center Points
+        const strategicCenters = this.generateStrategicCenters(users, clusters);
+        
+        strategicCenters.forEach(centerData => {
+            centers.push(centerData.source);
+            
+            // Add the center itself as a candidate
+            candidates.push({ 
+                ...centerData.point, 
+                source: centerData.source,
+                priority: centerData.priority 
+            });
+            
+            // Generate grid around each center with priority weighting
+            const gridPoints = this.generatePriorityGrid(centerData.point, centerData.priority, centerData.source);
+            candidates.push(...gridPoints);
+        });
+
+        // STRATEGY 2: User Locations as Candidates
+        users.forEach((user, index) => {
+            candidates.push({
+                lat: user.lat,
+                lng: user.lng,
+                source: `user_location_${user.name || index}`,
+                priority: 1.0
+            });
+        });
+
+        // STRATEGY 3: Unbiased Transit Hub Selection
+        const relevantHubs = this.selectRelevantTransitHubs(users);
+        relevantHubs.forEach(hub => {
+            candidates.push({
+                lat: hub.lat,
+                lng: hub.lng,
+                source: `transit_hub_${hub.name}`,
+                priority: 0.9
+            });
+        });
+
+        // STRATEGY 4: Cluster-Outlier Line Points
+        if (clusters.main && clusters.outliers.length > 0) {
+            clusters.outliers.forEach((outlier, index) => {
+                const linePoints = this.generateLinePoints(clusters.main.center, outlier, 3);
+                linePoints.forEach((point, pointIndex) => {
+                    candidates.push({
+                        ...point,
+                        source: `cluster_outlier_line_${index}_${pointIndex}`,
+                        priority: 0.8
+                    });
+                });
+            });
+        }
+
+        console.log('📊 Unbiased candidate breakdown:', this.analyzeCandidateSources(candidates));
+        
+        return {
+            candidates: candidates,
+            centers: centers,
+            sources: strategicCenters.map(c => c.source),
+            clusters: clusters
+        };
+    }
+
+    /**
+     * Generate multiple strategic centers instead of just geometric centroid
+     */
+    generateStrategicCenters(users, clusters) {
+        const centers = [];
+        
+        // 1. Geometric centroid (for comparison)
+        const geoCentroid = this.calculateCentroid(users);
+        centers.push({ 
+            point: geoCentroid, 
+            source: 'geometric_centroid',
+            priority: 0.8  // Lower priority due to bias potential
+        });
+        
+        // 2. Weighted centroid (considers user weights if available)
+        const weightedCentroid = this.calculateWeightedCentroid(users);
+        if (this.haversineDistance(geoCentroid, weightedCentroid) > 0.1) { // Only if significantly different
+            centers.push({ 
+                point: weightedCentroid, 
+                source: 'weighted_centroid',
+                priority: 1.0 
+            });
+        }
+        
+        // 3. Median center (more robust to outliers)
+        const medianCenter = this.calculateMedianCenter(users);
+        centers.push({ 
+            point: medianCenter, 
+            source: 'median_center',
+            priority: 1.2  // Higher priority - better for outliers
+        });
+        
+        // 4. Cluster centers (if clusters exist)
+        if (clusters.main) {
+            centers.push({
+                point: clusters.main.center,
+                source: `cluster_center_main_${clusters.main.users.length}users`,
+                priority: 1.5  // High priority for main cluster
+            });
+        }
+        
+        clusters.secondary.forEach((cluster, index) => {
+            centers.push({
+                point: cluster.center,
+                source: `cluster_center_secondary${index}_${cluster.users.length}users`,
+                priority: 1.1
+            });
+        });
+        
+        // 5. Balanced point (minimizes maximum distance)
+        const balancedCenter = this.calculateBalancedCenter(users);
+        centers.push({
+            point: balancedCenter,
+            source: 'balanced_center',
+            priority: 1.3
+        });
+
+        return centers;
+    }
+
+    /**
+     * Identify user clusters using improved clustering
+     */
+    identifyUserClusters(users) {
+        if (users.length < 2) return { main: null, secondary: [], outliers: [] };
+        
+        const clusters = [];
+        const visited = new Set();
+        
+        // Find clusters using distance-based grouping
+        users.forEach((user, index) => {
+            if (visited.has(index)) return;
+            
+            const cluster = { users: [user], indices: [index] };
+            visited.add(index);
+            
+            // Find nearby users
+            users.forEach((otherUser, otherIndex) => {
+                if (otherIndex !== index && !visited.has(otherIndex)) {
+                    const distance = this.haversineDistance(user, otherUser);
+                    if (distance <= this.config.cluster_threshold) {
+                        cluster.users.push(otherUser);
+                        cluster.indices.push(otherIndex);
+                        visited.add(otherIndex);
+                    }
+                }
+            });
+            
+            // Calculate cluster center
+            cluster.center = this.calculateCentroid(cluster.users);
+            cluster.size = cluster.users.length;
+            
+            clusters.push(cluster);
+        });
+        
+        // Sort clusters by size (largest first)
+        clusters.sort((a, b) => b.size - a.size);
+        
+        // Identify main cluster, secondary clusters, and outliers
+        const result = {
+            main: clusters.length > 0 && clusters[0].size > 1 ? clusters[0] : null,
+            secondary: clusters.slice(1).filter(c => c.size > 1),
+            outliers: clusters.filter(c => c.size === 1).map(c => c.users[0])
+        };
+        
+        console.log(`🎯 Cluster analysis: main(${result.main?.size || 0}), secondary(${result.secondary.length}), outliers(${result.outliers.length})`);
+        
+        return result;
+    }
+
+    /**
+     * Calculate weighted centroid (considers user weights)
+     */
+    calculateWeightedCentroid(users) {
+        let totalWeight = 0;
+        let weightedLat = 0;
+        let weightedLng = 0;
+        
+        users.forEach(user => {
+            const weight = user.weight || 1.0;
+            totalWeight += weight;
+            weightedLat += user.lat * weight;
+            weightedLng += user.lng * weight;
+        });
+        
+        return {
+            lat: weightedLat / totalWeight,
+            lng: weightedLng / totalWeight
+        };
+    }
+
+    /**
+     * Calculate median center (more robust to outliers than mean)
+     */
+    calculateMedianCenter(users) {
+        const lats = users.map(u => u.lat).sort((a, b) => a - b);
+        const lngs = users.map(u => u.lng).sort((a, b) => a - b);
+        
+        const medianLat = this.getMedian(lats);
+        const medianLng = this.getMedian(lngs);
+        
+        return { lat: medianLat, lng: medianLng };
+    }
+
+    /**
+     * Calculate balanced center (minimizes maximum distance to any user)
+     */
+    calculateBalancedCenter(users) {
+        // Start with geometric centroid and iteratively improve
+        let bestCenter = this.calculateCentroid(users);
+        let bestMaxDistance = this.calculateMaxDistance(bestCenter, users);
+        
+        // Try small adjustments to minimize max distance
+        const adjustments = [
+            { lat: 0.001, lng: 0 }, { lat: -0.001, lng: 0 },
+            { lat: 0, lng: 0.001 }, { lat: 0, lng: -0.001 },
+            { lat: 0.001, lng: 0.001 }, { lat: -0.001, lng: -0.001 },
+            { lat: 0.001, lng: -0.001 }, { lat: -0.001, lng: 0.001 }
+        ];
+        
+        for (let iteration = 0; iteration < 5; iteration++) {
+            let improved = false;
+            
+            adjustments.forEach(adj => {
+                const testCenter = {
+                    lat: bestCenter.lat + adj.lat,
+                    lng: bestCenter.lng + adj.lng
+                };
+                
+                const maxDistance = this.calculateMaxDistance(testCenter, users);
+                if (maxDistance < bestMaxDistance) {
+                    bestCenter = testCenter;
+                    bestMaxDistance = maxDistance;
+                    improved = true;
+                }
+            });
+            
+            if (!improved) break;
+        }
+        
+        return bestCenter;
+    }
+
+    /**
+     * Calculate maximum distance from center to any user
+     */
+    calculateMaxDistance(center, users) {
+        return Math.max(...users.map(user => this.haversineDistance(center, user)));
+    }
+
+    /**
+     * Get median value from sorted array
+     */
+    getMedian(sortedArray) {
+        const mid = Math.floor(sortedArray.length / 2);
+        return sortedArray.length % 2 === 0 
+            ? (sortedArray[mid - 1] + sortedArray[mid]) / 2
+            : sortedArray[mid];
+    }
+
+    /**
+     * Select relevant transit hubs based on distance to ANY user (not just centroid)
+     */
+    selectRelevantTransitHubs(users) {
+        return this.config.region_config.transit_hubs.filter(hub => {
+            // Hub is relevant if it's within 15km of ANY user
+            const minDistanceToUsers = Math.min(...users.map(user => this.haversineDistance(user, hub)));
+            return minDistanceToUsers <= 15;
+        });
+    }
+
+    /**
+     * Generate priority-weighted grid around a center point
+     */
+    generatePriorityGrid(center, priority, source) {
+        const candidates = [];
+        const baseRadius = 2000 * Math.min(priority, 1.5); // Max 3km radius
+        const numRings = Math.ceil(2 * priority);
+        const pointsPerRing = Math.ceil(6 * priority);
+        
+        for (let ring = 1; ring <= numRings; ring++) {
+            const ringRadius = (baseRadius * ring) / numRings;
+            
+            for (let i = 0; i < pointsPerRing; i++) {
+                const angle = (2 * Math.PI * i) / pointsPerRing;
+                const latOffset = (ringRadius * Math.cos(angle)) / 111000;
+                const lngOffset = (ringRadius * Math.sin(angle)) / (111000 * Math.cos(center.lat * Math.PI / 180));
+                
+                candidates.push({
+                    lat: center.lat + latOffset,
+                    lng: center.lng + lngOffset,
+                    source: `grid_${source}_ring${ring}_point${i}`,
+                    priority: priority * 0.8 // Grid points slightly lower priority than centers
+                });
+            }
+        }
+        
+        return candidates;
+    }
+
+    /**
+     * Analyze candidate sources for debugging
+     */
+    analyzeCandidateSources(candidates) {
+        return candidates.reduce((acc, candidate) => {
+            const sourceType = candidate.source.split('_')[0];
+            acc[sourceType] = (acc[sourceType] || 0) + 1;
+            return acc;
+        }, {});
+    }
+
+    /**
+     * Enhanced fallback to weighted midpoint instead of geometric
+     */
+    async fallbackToWeightedMidpoint(users) {
+        console.log('🆘 Using weighted midpoint fallback');
+        
+        const weightedCenter = this.calculateWeightedCentroid(users);
+        
+        // Try to get travel times
+        let times = [];
+        try {
+            times = await this.distanceService.getTravelTimes(users, weightedCenter);
+        } catch (error) {
+            console.warn('Could not get travel times for weighted center:', error);
+            times = users.map(user => {
+                const distance = this.haversineDistance(user, weightedCenter);
+                const speed = user.mode === 'WALKING' ? 4 : user.mode === 'DRIVING' ? 25 : 20;
+                return (distance / speed) * 60;
+            });
+        }
+        
+        // Try to find venues
+        let venues = [];
+        try {
+            venues = await this.findVenues(weightedCenter, 1000) || [];
+        } catch (error) {
+            console.warn('Could not find venues for weighted center:', error);
+        }
+        
+        return {
+            point: weightedCenter,
+            times: times,
+            venues: venues,
+            score: this.calculateEquityScore(times),
+            fairness: this.calculateJFI(times),
+            avgTime: times.reduce((a, b) => a + b, 0) / times.length,
+            timeRange: Math.max(...times) - Math.min(...times),
+            source: 'weighted_fallback'
+        };
+    }
+
+    // ========================================================================
+    // EXISTING METHODS (unchanged but improved)
+    // ========================================================================
+
+    /**
+     * Calculate geographic centroid (kept for compatibility)
      */
     calculateCentroid(users) {
         const totalLat = users.reduce((sum, user) => sum + user.lat, 0);
@@ -113,70 +491,6 @@ class MeetingPointOptimizer {
             lat: totalLat / users.length,
             lng: totalLng / users.length
         };
-    }
-
-    /**
-     * Generate candidate meeting points
-     */
-    generateCandidates(users, centroid) {
-        const candidates = [];
-        
-        // Start with centroid
-        candidates.push({ ...centroid, source: 'centroid' });
-        
-        // Add transit hubs within reasonable distance
-        this.config.region_config.transit_hubs.forEach(hub => {
-            const distance = this.haversineDistance(centroid, hub);
-            if (distance <= 10) { // Within 10km
-                candidates.push({ 
-                    lat: hub.lat, 
-                    lng: hub.lng, 
-                    source: `transit_hub_${hub.name}` 
-                });
-            }
-        });
-        
-        // Add grid points around centroid
-        const gridRadius = 2000; // 2km radius
-        const numRings = 2;
-        const pointsPerRing = 6;
-        
-        for (let ring = 1; ring <= numRings; ring++) {
-            const ringRadius = (gridRadius * ring) / numRings;
-            
-            for (let i = 0; i < pointsPerRing; i++) {
-                const angle = (2 * Math.PI * i) / pointsPerRing;
-                const latOffset = (ringRadius * Math.cos(angle)) / 111000; // Convert to degrees
-                const lngOffset = (ringRadius * Math.sin(angle)) / (111000 * Math.cos(centroid.lat * Math.PI / 180));
-                
-                candidates.push({
-                    lat: centroid.lat + latOffset,
-                    lng: centroid.lng + lngOffset,
-                    source: `grid_ring${ring}_point${i}`
-                });
-            }
-        }
-        
-        // Add outlier handling - points between centroid and distant users
-        const outlier = this.detectOutlier(users);
-        if (outlier) {
-            const linePoints = this.generateLinePoints(centroid, outlier, 3);
-            linePoints.forEach((point, index) => {
-                candidates.push({ 
-                    ...point, 
-                    source: `outlier_line_point${index}` 
-                });
-            });
-        }
-        
-        console.log('📊 Candidate sources:', 
-            candidates.reduce((acc, c) => {
-                acc[c.source.split('_')[0]] = (acc[c.source.split('_')[0]] || 0) + 1;
-                return acc;
-            }, {})
-        );
-        
-        return candidates;
     }
 
     /**
@@ -208,14 +522,19 @@ class MeetingPointOptimizer {
                 const equityScore = this.calculateEquityScore(travelTimes);
                 const avgTime = travelTimes.reduce((a, b) => a + b, 0) / travelTimes.length;
                 
+                // Apply priority weighting to equity score
+                const priorityWeight = candidate.priority || 1.0;
+                const weightedScore = equityScore / priorityWeight;
+                
                 results.push({
                     point: candidate,
                     travelTimes: travelTimes,
                     jfi: jfi,
-                    equityScore: equityScore,
+                    equityScore: weightedScore,
                     avgTime: avgTime,
                     timeRange: timeRange,
-                    source: candidate.source
+                    source: candidate.source,
+                    priority: priorityWeight
                 });
                 
             } catch (error) {
@@ -223,17 +542,17 @@ class MeetingPointOptimizer {
                 continue;
             }
             
-            // Show progress every 10 candidates
-            if (i % 10 === 0 && i > 0) {
+            // Show progress every 20 candidates
+            if (i % 20 === 0 && i > 0) {
                 console.log(`⏳ Evaluated ${i}/${candidates.length} candidates...`);
             }
         }
         
-        // Sort by equity score (lower is better)
+        // Sort by weighted equity score (lower is better)
         results.sort((a, b) => a.equityScore - b.equityScore);
         
         console.log(`✅ Coarse search complete: ${results.length}/${candidates.length} candidates passed constraints`);
-        return results.slice(0, 5); // Return top 5
+        return results.slice(0, 8); // Return top 8 for more options
     }
 
     /**
@@ -248,7 +567,7 @@ class MeetingPointOptimizer {
                 const venues = await this.findVenues(candidate.point, 500);
                 
                 if (venues && venues.length > 0) {
-                    console.log(`🎯 Found optimal point with ${venues.length} venues`);
+                    console.log(`🎯 Found optimal point with ${venues.length} venues (source: ${candidate.source})`);
                     
                     return {
                         point: candidate.point,
@@ -258,7 +577,8 @@ class MeetingPointOptimizer {
                         fairness: candidate.jfi,
                         avgTime: candidate.avgTime,
                         timeRange: candidate.timeRange,
-                        source: candidate.source
+                        source: candidate.source,
+                        priority: candidate.priority
                     };
                 }
                 
@@ -322,49 +642,7 @@ class MeetingPointOptimizer {
     }
 
     /**
-     * Final fallback to geometric midpoint
-     */
-    async fallbackToGeometricMidpoint(users) {
-        console.log('🆘 Using geometric midpoint fallback');
-        
-        const centroid = this.calculateCentroid(users);
-        
-        // Try to get travel times for centroid
-        let times = [];
-        try {
-            times = await this.distanceService.getTravelTimes(users, centroid);
-        } catch (error) {
-            console.warn('Could not get travel times for centroid:', error);
-            // Estimate times using distance and speed
-            times = users.map(user => {
-                const distance = this.haversineDistance(user, centroid);
-                const speed = user.mode === 'WALKING' ? 4 : user.mode === 'DRIVING' ? 25 : 20; // km/h
-                return (distance / speed) * 60; // minutes
-            });
-        }
-        
-        // Try to find venues
-        let venues = [];
-        try {
-            venues = await this.findVenues(centroid, 1000) || [];
-        } catch (error) {
-            console.warn('Could not find venues for centroid:', error);
-        }
-        
-        return {
-            point: centroid,
-            times: times,
-            venues: venues,
-            score: this.calculateEquityScore(times),
-            fairness: this.calculateJFI(times),
-            avgTime: times.reduce((a, b) => a + b, 0) / times.length,
-            timeRange: Math.max(...times) - Math.min(...times),
-            source: 'geometric_fallback'
-        };
-    }
-
-    /**
-     * Find venues using Google Places API (new version)
+     * Find venues using Google Places API
      */
     async findVenues(point, radius = 500) {
         if (!window.google || !window.google.maps || !window.google.maps.places) {
@@ -380,7 +658,6 @@ class MeetingPointOptimizer {
                 types: this.config.region_config.venue_types
             };
     
-            console.log('Legacy API request:', request);
             return new Promise((resolve) => {
                 service.nearbySearch(request, (results, status) => {
                     if (status === google.maps.places.PlacesServiceStatus.OK && results) {
@@ -391,35 +668,36 @@ class MeetingPointOptimizer {
                                 place.user_ratings_total >= 10
                             )
                             .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-                            .slice(0, 10)
-                            // In findVenues method, around line 390
+                            .slice(0, 15) // Increased from 10
                             .map(place => ({
                                 name: place.name,
                                 rating: place.rating,
-                                place_id: place.place_id,  // Changed from placeId to place_id for consistency
+                                place_id: place.place_id,
                                 vicinity: place.vicinity,
-                                formatted_address: place.vicinity,  // Add formatted_address
-                                price_level: place.price_level,     // Add price_level
-                                geometry: {                         // Add geometry with location
+                                formatted_address: place.vicinity,
+                                price_level: place.price_level,
+                                geometry: {
                                     location: place.geometry.location.toJSON()
                                 },
                                 photos: place.photos ? [{
                                     photo_reference: place.photos[0].photo_reference
                                 }] : []
-                            }))
-                        console.log(`📍 Found ${filteredVenues.length} quality venues within ${radius}m (legacy)`);
+                            }));
+                        
+                        console.log(`📍 Found ${filteredVenues.length} quality venues within ${radius}m`);
                         resolve(filteredVenues);
                     } else {
-                        console.warn('Legacy Places search returned no results:', status);
+                        console.warn('Places search returned no results:', status);
                         resolve([]);
                     }
                 });
             });
         } catch (error) {
-            console.error('Error in findVenues (legacy):', error);
+            console.error('Error in findVenues:', error);
             return [];
         }
     }
+
     /**
      * Calculate Jain's Fairness Index (higher is better, max 1.0)
      */
@@ -429,14 +707,13 @@ class MeetingPointOptimizer {
         const sum = times.reduce((a, b) => a + b, 0);
         const sumSquares = times.reduce((a, b) => a + b * b, 0);
         
-        if (sumSquares === 0) return 1.0; // Perfect fairness if all times are 0
+        if (sumSquares === 0) return 1.0;
         
         return (sum * sum) / (times.length * sumSquares);
     }
 
     /**
      * Calculate equity score (lower is better)
-     * Combines fairness, range penalty, and average time penalty
      */
     calculateEquityScore(times) {
         if (times.length === 0) return Infinity;
@@ -447,40 +724,6 @@ class MeetingPointOptimizer {
         
         // Weighted formula: 70% fairness, 20% range penalty, 10% avg time penalty
         return 0.7 * (1 - jfi) + 0.2 * (range / 60) + 0.1 * (avg / 60);
-    }
-
-    /**
-     * Detect geographic outlier using IQR method
-     */
-    detectOutlier(users) {
-        if (users.length < 4) return null; // Need at least 4 points for meaningful outlier detection
-        
-        const centroid = this.calculateCentroid(users);
-        const distances = users.map(user => ({
-            user: user,
-            distance: this.haversineDistance(user, centroid)
-        }));
-        
-        // Sort by distance
-        distances.sort((a, b) => a.distance - b.distance);
-        
-        // Calculate IQR
-        const q1Index = Math.floor(0.25 * distances.length);
-        const q3Index = Math.floor(0.75 * distances.length);
-        const q1 = distances[q1Index].distance;
-        const q3 = distances[q3Index].distance;
-        const iqr = q3 - q1;
-        const threshold = q3 + 1.5 * iqr;
-        
-        // Find outliers
-        const outliers = distances.filter(d => d.distance > threshold);
-        
-        if (outliers.length > 0) {
-            console.log(`🎯 Detected ${outliers.length} outlier(s), furthest at ${outliers[0].distance.toFixed(2)}km`);
-            return outliers[0].user; // Return the furthest outlier
-        }
-        
-        return null;
     }
 
     /**
@@ -528,7 +771,7 @@ class MeetingPointOptimizer {
     }
 
     /**
-     * Clear cache (useful for testing)
+     * Clear cache
      */
     clearCache() {
         this.cache.clear();
