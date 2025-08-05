@@ -158,8 +158,8 @@ class FriendsTabManager {
     }
     
     setupSearchFunctionality() {
-        const searchInput = document.getElementById('user-search-input1');
-        const searchResults = document.getElementById('search-results1');
+        const searchInput = document.getElementById('user-search-input');
+        const searchResults = document.getElementById('search-results');
         
         if (!searchInput || !searchResults) {
             console.warn('Search input or search results container not found in DOM');

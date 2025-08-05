@@ -98,7 +98,7 @@
           <div class="search-section">
             <h5><i class="fas fa-search"></i> Find New Friends</h5>
             <div class="input-group">
-              <input type="text" id="user-search-input1" class="form-control" placeholder="Search by name or email..." aria-label="Search users">
+              <input type="text" id="nav-user-search-input" class="form-control" placeholder="Search by name or email..." aria-label="Search users">
               <span class="input-group-text">
                 <i class="fas fa-search"></i>
               </span>
@@ -107,7 +107,7 @@
           </div>
         </div>
         <div class="search-results-container">
-          <div id="search-results1">
+          <div id="nav-search-results">
             <div class="empty-state">
               <i class="fas fa-user-search"></i>
               <p>Search for friends by name or email address</p>
@@ -161,6 +161,7 @@
     <script src="{{ url_for('static', filename='js/services/DistanceMatrixService.js') }}"></script>
     <script src="{{ url_for('static', filename='js/services/MeetingPointOptimizer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/services/AlgorithmVisualizer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/friends-api-adapter.js') }}"></script>
     {% endblock %}
     
     <!-- Load preload system after utilities -->

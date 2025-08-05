@@ -402,7 +402,7 @@ class HomepageCollapsibleManager {
         locationInput.type = 'text';
         locationInput.className = 'location-input';
         locationInput.id = `location-${nextId}`;
-        locationInput.placeholder = `Person ${nextId}'s location`;
+        locationInput.placeholder = `Enter Location`;
         locationInput.autocomplete = 'off';
         
         // Create remove button
