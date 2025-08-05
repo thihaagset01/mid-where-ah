@@ -19,9 +19,14 @@ class NavigationManager {
 
         const close = document.getElementById('close');
         if (close) {
-            close.addEventListener('click', this._boundClosePopup);
+            console.log('close avail')
+            close.addEventListener('click', () => this.closePopup('close'));
         }
-
+        const close2 = document.getElementById('close2');
+        if (close2) {
+            console.log('close 2 avail')
+            close2.addEventListener('click', () => this.closePopup('close2'));
+        }
         this.initialized = true;
     }
 
@@ -70,56 +75,94 @@ class NavigationManager {
 
     handleCreateClick() {
     const dropdown = document.getElementById('dropdown-menu');
-    if (dropdown) {
-        dropdown.classList.toggle('hidden');
+    if (!dropdown) {
+        console.warn('#dropdown-menu not found in DOM.');
+        return;
+    }
 
-        const new_event = document.getElementById('new_event');
+    dropdown.classList.toggle('hidden');
 
-        // Remove previously bound event listener if it exists
-        if (this._boundHandleNewEventClick) {
-            new_event.removeEventListener('click', this._boundHandleNewEventClick);
-        }
+    const new_event = document.getElementById('new_event');
+    const add_friend = document.getElementById('add_friend');
 
-        // Bind the method once and store it so it can be removed later
-        this._boundHandleNewEventClick = this.handle_newevent_click.bind(this);
-        new_event.addEventListener('click', this._boundHandleNewEventClick);
+    if (!new_event || !add_friend) {
+        console.warn('One or both buttons (#new_event, #add_friend) not found in DOM.');
+        return;
+    }
 
-        // Create the HTML string
-        const innerHTML = `
-            <p style="margin: 0; font-size: 16px; position: absolute; left: 50%; transform: translateX(-50%);" id = "title">
-                Select a group
-            </p>
-        `;
+    // Remove previously bound event listener if it exists
+    if (this._boundHandleNewEventClick) {
+        new_event.removeEventListener('click', this._boundHandleNewEventClick);
+        add_friend.removeEventListener('click', this._boundHandleNewEventClick);
+    }
 
-        // Fix: get the correct banner element
-        const banner = document.getElementById('header-container'); // Use dash not space
+    // Bind the method once and store it so it can be removed later
+    this._boundHandleNewEventClick = this.handle_newevent_click.bind(this);
+    new_event.addEventListener('click', this._boundHandleNewEventClick);
+    add_friend.addEventListener('click', this._boundHandleNewEventClick);
+}
 
-        // Fix: insert the innerHTML, not the element itself
-        if (banner) {
-            banner.insertAdjacentHTML("beforeend", innerHTML);
-        }
+   async handle_newevent_click(event) {
+    const clickedId = event.target.id;
+    const popup = document.getElementById('groupslist');
+    const dropdown = document.getElementById('dropdown-menu');
+    const banner = document.getElementById('header-container');
+
+    const searchfriend = document.getElementById('searchfriend');
+    const banner2 = document.getElementById('header-container2');
+
+    switch (clickedId) {
+        case 'new_event':
+            console.log('clicked');
+            searchfriend.classList.add('hidden');
+            popup.classList.toggle('hidden');
+
+            // Insert new title
+            banner?.insertAdjacentHTML("beforeend", `
+                <p style="margin: 0; font-size: 16px; position: absolute; left: 50%; transform: translateX(-50%);" id="title">
+                    Select a group
+                </p>
+            `);
+
+            dropdown?.classList.toggle('hidden');
+            await this.loadUserGroups();
+            break;
+
+        case 'add_friend':
+            popup.classList.add('hidden');
+            searchfriend.classList.toggle('hidden');  // Ensure it's shown
+
+            // Insert new title
+            banner2?.insertAdjacentHTML("beforeend", `
+                <p style="margin: 0; font-size: 16px; position: absolute; left: 50%; transform: translateX(-50%);" id="title">
+                    Search friend
+                </p>
+            `);
+
+            dropdown?.classList.toggle('hidden');
+            break;
     }
 }
 
-    async handle_newevent_click() {
-        const popup = document.getElementById('groupslist');
-        if (popup) {
-            popup.classList.toggle('hidden');
-
-            const dropdown = document.getElementById('dropdown-menu');
-            dropdown?.classList.toggle('hidden');
-
-            await this.loadUserGroups();
-        }
+closePopup(action) {
+    console.log(action);
+    switch (action) {
+        case 'close':
+            const popup = document.getElementById('groupslist');
+            if (popup && !popup.classList.contains('hidden')) {
+                popup.classList.add('hidden');
+            }
+            break;
+        case 'close2':
+            const popup2 = document.getElementById('searchfriend');
+            if (popup2 && !popup2.classList.contains('hidden')) {
+                popup2.classList.add('hidden');
+            }
+            break;
+        default:
+            console.warn('Unknown action:', action);
     }
-
-    closePopup() {
-        const popup = document.getElementById('groupslist');
-        if (popup && !popup.classList.contains('hidden')) {
-            popup.classList.add('hidden');
-        }
-    }
-
+}
     async loadUserGroups() {
         const currentUser = firebase.auth().currentUser;
         if (!currentUser) {
