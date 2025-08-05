@@ -30,6 +30,11 @@ class NavigationManager {
             console.log('close 2 avail')
             close2.addEventListener('click', () => this.closePopup('close2'));
         }
+        const close3 = document.getElementById('close3');
+        if (close3) {
+            console.log('close 3 avail')
+            close3.addEventListener('click', () => this.closePopup('close3'));
+        }
         this.initialized = true;
     }
 
@@ -87,22 +92,20 @@ class NavigationManager {
 
     const new_event = document.getElementById('new_event');
     const add_friend = document.getElementById('add_friend');
-
-    if (!new_event || !add_friend) {
-        console.warn('One or both buttons (#new_event, #add_friend) not found in DOM.');
-        return;
-    }
+    const new_group = document.getElementById('new_group');
 
     // Remove previously bound event listener if it exists
     if (this._boundHandleNewEventClick) {
         new_event.removeEventListener('click', this._boundHandleNewEventClick);
         add_friend.removeEventListener('click', this._boundHandleNewEventClick);
+        new_group.removeEventListener('click', this._boundHandleNewEventClick);
     }
 
     // Bind the method once and store it so it can be removed later
     this._boundHandleNewEventClick = this.handle_newevent_click.bind(this);
     new_event.addEventListener('click', this._boundHandleNewEventClick);
     add_friend.addEventListener('click', this._boundHandleNewEventClick);
+    new_group.addEventListener('click', this._boundHandleNewEventClick);
 }
 
    async handle_newevent_click(event) {
@@ -114,10 +117,14 @@ class NavigationManager {
     const searchfriend = document.getElementById('searchfriend');
     const banner2 = document.getElementById('header-container2');
 
+    const newgroup = document.getElementById('newgroup');
+    const banner3 = document.getElementById('header-container3');
+
     switch (clickedId) {
         case 'new_event':
             console.log('clicked');
             searchfriend.classList.add('hidden');
+            newgroup.classList.add('hidden');
             popup.classList.toggle('hidden');
 
             // Insert new title
@@ -133,6 +140,7 @@ class NavigationManager {
 
         case 'add_friend':
             popup.classList.add('hidden');
+            newgroup.classList.add('hidden');
             searchfriend.classList.toggle('hidden');  // Ensure it's shown
 
             // Insert new title
@@ -144,6 +152,16 @@ class NavigationManager {
 
             dropdown?.classList.toggle('hidden');
             break;
+        case 'new_group':
+            popup.classList.add('hidden');
+            searchfriend.classList.add('hidden');
+            newgroup.classList.toggle('hidden');
+            banner3?.insertAdjacentHTML("beforeend", `
+                <p style="margin: 0; font-size: 16px; position: absolute; left: 50%; transform: translateX(-50%);" id="title">
+                    Enter group details
+                </p>
+            `);
+            break
     }
 }
 
@@ -160,6 +178,12 @@ closePopup(action) {
             const popup2 = document.getElementById('searchfriend');
             if (popup2 && !popup2.classList.contains('hidden')) {
                 popup2.classList.add('hidden');
+            }
+            break;
+        case 'close3':
+            const popup3 = document.getElementById('newgroup');
+            if (popup3 && !popup3.classList.contains('hidden')) {
+                popup3.classList.add('hidden');
             }
             break;
         default:
