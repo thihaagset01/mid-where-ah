@@ -1,6 +1,7 @@
 /**
  * MidWhereAh - Enhanced Stylized Autofill
  * Provides a beautiful, custom-styled autofill dropdown for location inputs
+ * Now with full-screen mobile support
  * 
  * IMPORTANT: This script must be loaded AFTER location/MapManager.js to avoid conflicts
  */
@@ -9,135 +10,184 @@ class StylizedAutofill {
     constructor() {
         this.activeInput = null;
         this.autofillContainer = null;
+        this.fullscreenContainer = null;
+        this.searchInput = null;
+        this.closeButton = null;
         this.recentSearches = this.loadRecentSearches();
+        this.currentRequest = null;
+        this.isProcessing = false;
         
-        // Wait for DOM and MapManager to be fully loaded
+        // Initialize when DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.init());
         } else {
-            // Give MapManager a chance to initialize
             setTimeout(() => this.init(), 100);
         }
     }
 
     init() {
-        // Create autofill container once
+        this.createFullscreenContainer();
         this.createAutofillContainer();
-        
-        // Set up event listeners
         this.setupEventListeners();
-        
         console.log('✨ Stylized autofill initialized');
     }
 
-    createAutofillContainer() {
-        // Create the dropdown container if it doesn't exist
-        if (!this.autofillContainer) {
-            this.autofillContainer = document.createElement('div');
-            this.autofillContainer.className = 'location-autofill';
-            this.autofillContainer.style.display = 'none';
-            document.body.appendChild(this.autofillContainer);
-        }
+    // UI Creation Methods
+    createFullscreenContainer() {
+        if (this.fullscreenContainer) return;
+        
+        this.fullscreenContainer = document.createElement('div');
+        this.fullscreenContainer.className = 'fullscreen-autofill';
+        this.fullscreenContainer.style.display = 'none';
+        
+        // Close button
+        this.closeButton = document.createElement('button');
+        this.closeButton.className = 'close-autofill';
+        this.closeButton.innerHTML = '&times;';
+        this.closeButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.hideAutofill();
+        });
+        
+        // Search container
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'search-container';
+        
+        this.searchInput = document.createElement('input');
+        this.searchInput.type = 'text';
+        this.searchInput.placeholder = 'Search for a location...';
+        this.searchInput.className = 'search-input';
+        
+        searchContainer.appendChild(this.searchInput);
+        this.fullscreenContainer.appendChild(this.closeButton);
+        this.fullscreenContainer.appendChild(searchContainer);
+        document.body.appendChild(this.fullscreenContainer);
+        
+        // Input event with debounce
+        let timeout;
+        this.searchInput.addEventListener('input', (e) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                this.handleSearchInput(e.target.value);
+            }, 300);
+        });
     }
 
+    createAutofillContainer() {
+        if (this.autofillContainer) return;
+        
+        this.autofillContainer = document.createElement('div');
+        this.autofillContainer.className = 'location-autofill';
+        this.fullscreenContainer.appendChild(this.autofillContainer);
+    }
+
+    // Event Handlers
     setupEventListeners() {
-        // Listen for focus on location inputs
-        document.addEventListener('focusin', (e) => {
-            if (e.target.classList.contains('location-input')) {
-                this.handleInputFocus(e.target);
-            }
-        });
-
-        // Listen for input on location inputs
-        document.addEventListener('input', (e) => {
-            if (e.target.classList.contains('location-input')) {
-                this.handleInputChange(e.target);
-            }
-        });
-
-        // Hide dropdown when clicking outside
+        // Handle input focus
         document.addEventListener('click', (e) => {
-            if (!e.target.classList.contains('location-input') && 
-                !e.target.closest('.location-autofill')) {
+            if (e.target.classList.contains('location-input')) {
+                e.preventDefault();
+                this.showFullscreenAutofill(e.target);
+            }
+        });
+
+        // Close on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.fullscreenContainer.style.display === 'block') {
                 this.hideAutofill();
             }
         });
     }
 
-    handleInputFocus(input) {
+    // Core Methods
+    showFullscreenAutofill(input) {
+        if (this.isProcessing) return;
+        
         this.activeInput = input;
+        this.fullscreenContainer.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        // Add class to body to hide header/nav
+        document.body.classList.add('fullscreen-autofill-active');
         
-        // Position the dropdown below the input
-        this.positionAutofillDropdown(input);
+        // Clear previous content
+        if (this.autofillContainer) {
+            this.autofillContainer.innerHTML = '';
+        }
         
-        // Show recent searches if available
-        if (this.recentSearches.length > 0) {
+        // Focus and show recent searches
+        setTimeout(() => {
+            if (this.searchInput) {
+                this.searchInput.value = input.value || '';
+                this.searchInput.focus();
+                this.showRecentSearches();
+            }
+        }, 10);
+    }
+    
+    hideAutofill() {
+        if (this.isProcessing) return;
+        
+        this.fullscreenContainer.style.display = 'none';
+        document.body.style.overflow = '';
+        // Remove class from body to show header/nav again
+        document.body.classList.remove('fullscreen-autofill-active');
+        this.autofillContainer.innerHTML = '';
+        this.searchInput.value = '';
+        this.activeInput = null;
+    }
+    
+    hideAutofillUIOnly() {
+        this.fullscreenContainer.style.display = 'none';
+        document.body.style.overflow = '';
+        // Remove class from body to show header/nav again
+        document.body.classList.remove('fullscreen-autofill-active');
+    }
+
+    async handleSearchInput(query) {
+        if (this.currentRequest) {
+            clearTimeout(this.currentRequest);
+        }
+
+        if (query.length >= 2) {
+            this.currentRequest = setTimeout(() => {
+                this.getPlaceSuggestions(query);
+                this.currentRequest = null;
+            }, 300);
+        } else if (query.length === 0) {
             this.showRecentSearches();
         }
     }
 
-    handleInputChange(input) {
-        this.activeInput = input;
-        const query = input.value.trim();
-        
-        if (query.length >= 2) {
-            // Position and show the dropdown
-            this.positionAutofillDropdown(input);
-            
-            // Get suggestions from Google Places API
-            this.getPlaceSuggestions(query);
-        } else if (query.length === 0) {
-            // Show recent searches if available
-            if (this.recentSearches.length > 0) {
-                this.showRecentSearches();
-            } else {
-                this.hideAutofill();
-            }
-        } else {
-            this.hideAutofill();
-        }
-    }
-
-    positionAutofillDropdown(input) {
-        const inputRect = input.getBoundingClientRect();
-        const inputWithIcon = input.closest('.input-with-icon');
-        const rect = inputWithIcon ? inputWithIcon.getBoundingClientRect() : inputRect;
-        
-        this.autofillContainer.style.top = `${rect.bottom + window.scrollY}px`;
-        this.autofillContainer.style.left = `${rect.left + window.scrollX}px`;
-        this.autofillContainer.style.width = `${rect.width}px`;
-    }
-
     getPlaceSuggestions(query) {
-        // Use Google Places API for suggestions
-        if (window.google && window.google.maps && window.google.maps.places) {
-            const service = new google.maps.places.AutocompleteService();
-            
-            service.getPlacePredictions({
-                input: query,
-                componentRestrictions: { country: 'sg' },
-                types: ['address']
-            }, (predictions, status) => {
-                if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
-                    this.renderSuggestions(predictions);
-                } else {
-                    console.log('No predictions found or error:', status);
-                    this.hideAutofill();
-                }
-            });
-        } else {
-            console.error('Google Places API not available');
+        if (!window.google?.maps?.places) {
+            console.error('Google Maps API not loaded');
+            return;
         }
+
+        const service = new google.maps.places.AutocompleteService();
+        service.getPlacePredictions({
+            input: query,
+            componentRestrictions: { country: 'sg' },
+            types: ['address']
+        }, (predictions, status) => {
+            if (status === google.maps.places.PlacesServiceStatus.OK && predictions?.length) {
+                this.renderSuggestions(predictions);
+            } else {
+                this.showRecentSearches();
+            }
+        });
     }
 
     renderSuggestions(predictions) {
+        if (!this.autofillContainer) return;
+        
         this.autofillContainer.innerHTML = '';
+        this.autofillContainer.style.display = 'block';
         
         predictions.forEach(prediction => {
             const item = document.createElement('div');
             item.className = 'autofill-item';
             
-            // Split the description into main and secondary parts
             const parts = this.splitPredictionText(prediction.description);
             
             item.innerHTML = `
@@ -148,18 +198,16 @@ class StylizedAutofill {
                 </div>
             `;
             
-            item.addEventListener('click', () => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
                 this.selectSuggestion(prediction);
             });
             
             this.autofillContainer.appendChild(item);
         });
-        
-        this.showAutofill();
     }
 
     splitPredictionText(text) {
-        // Split the text at the first comma or after the first 20 characters
         const commaIndex = text.indexOf(',');
         
         if (commaIndex > 0 && commaIndex < 30) {
@@ -168,7 +216,6 @@ class StylizedAutofill {
                 secondary: text.substring(commaIndex + 1).trim()
             };
         } else {
-            // If no comma or comma is too far, split at a reasonable length
             const cutPoint = Math.min(30, text.length);
             return {
                 main: text.substring(0, cutPoint),
@@ -178,9 +225,13 @@ class StylizedAutofill {
     }
 
     showRecentSearches() {
-        this.autofillContainer.innerHTML = '';
+        if (!this.autofillContainer || this.recentSearches.length === 0) {
+            return;
+        }
         
-        // Add a header for recent searches
+        this.autofillContainer.innerHTML = '';
+        this.autofillContainer.style.display = 'block';
+        
         const header = document.createElement('div');
         header.className = 'autofill-header';
         header.textContent = 'Recent Searches';
@@ -194,138 +245,271 @@ class StylizedAutofill {
                 <i class="fas fa-history"></i>
                 <div class="autofill-content">
                     <div class="autofill-main">${search.main}</div>
-                    <div class="autofill-secondary">${search.secondary}</div>
+                    <div class="autofill-secondary">${search.secondary || ''}</div>
                 </div>
             `;
             
-            item.addEventListener('click', () => {
-                if (this.activeInput) {
-                    this.activeInput.value = search.main + (search.secondary ? ', ' + search.secondary : '');
-                    this.triggerPlaceSelection(search.placeId);
-                }
-                this.hideAutofill();
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!this.activeInput) return;
+                
+                const inputToUpdate = this.activeInput;
+                const inputId = inputToUpdate.id;
+                const placeId = search.placeId;
+                
+                // Update UI immediately
+                inputToUpdate.value = search.main + (search.secondary ? ', ' + search.secondary : '');
+                this.hideAutofillUIOnly();
+                
+                // Process place selection
+                this.processPlaceSelection(placeId, inputId, inputToUpdate);
             });
             
             this.autofillContainer.appendChild(item);
         });
-        
-        this.showAutofill();
     }
 
-    selectSuggestion(prediction) {
-        if (this.activeInput) {
-            this.activeInput.value = prediction.description;
-            
-            // Save to recent searches
-            this.addToRecentSearches({
-                main: this.splitPredictionText(prediction.description).main,
-                secondary: this.splitPredictionText(prediction.description).secondary,
-                placeId: prediction.place_id
-            });
-            
-            // Trigger place selection in Google Maps
-            this.triggerPlaceSelection(prediction.place_id);
-        }
+    async selectSuggestion(prediction) {
+        if (!this.activeInput || this.isProcessing) return;
+        this.isProcessing = true;
         
-        this.hideAutofill();
+        const inputToUpdate = this.activeInput;
+        const inputId = inputToUpdate.id;
+        const placeId = prediction.place_id;
+        
+        // Update UI immediately
+        inputToUpdate.value = prediction.description;
+        this.hideAutofillUIOnly();
+        
+        // Add to recent searches
+        this.addToRecentSearches({
+            main: prediction.structured_formatting?.main_text || prediction.description.split(',')[0],
+            secondary: prediction.structured_formatting?.secondary_text || prediction.description.split(',').slice(1).join(',').trim(),
+            placeId: placeId
+        });
+        
+        // Process place selection
+        await this.processPlaceSelection(placeId, inputId, inputToUpdate);
+        this.isProcessing = false;
     }
 
-    triggerPlaceSelection(placeId) {
-        if (!window.google || !window.google.maps || !window.google.maps.places) {
-            console.error('Google Places API not available');
-            return;
-        }
-        
-        const placesService = new google.maps.places.PlacesService(document.createElement('div'));
-        
-        placesService.getDetails({
-            placeId: placeId,
-            fields: ['geometry', 'formatted_address', 'name']
-        }, (place, status) => {
-            if (status === google.maps.places.PlacesServiceStatus.OK && place) {
-                // Store location data
-                if (this.activeInput && this.activeInput.id) {
-                    window.locationData.set(this.activeInput.id, {
-                        place: place,
-                        position: place.geometry.location,
-                        transportMode: window.userTransportModes.get(this.activeInput.id) || 'TRANSIT',
-                        address: place.formatted_address || place.name
-                    });
-                    
-                    // Get person color for marker
-                    const container = this.activeInput.closest('.location-container');
-                    const personId = container?.getAttribute('data-person-id');
-                    const personColor = personId ? this.getColorForPerson(personId) : '#8B5DB8';
-                    
-                    // Add marker to map
-                    addLocationMarker(place.geometry.location, this.activeInput.id, personColor);
-                    
-                    // Check if we should show the find central button
-                    if (window.hybridLocationManager) {
-                        window.hybridLocationManager.debouncedLocationCheck();
-                    }
-                }
-            } else {
-                console.error('Error getting place details:', status);
+    async processPlaceSelection(placeId, inputId, inputElement) {
+        try {
+            if (placeId) {
+                await this.triggerPlaceSelection(placeId, inputId);
             }
+            
+            // Dispatch events
+            setTimeout(() => {
+                const element = document.getElementById(inputId) || inputElement;
+                if (!element) return;
+                
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+                element.focus();
+            }, 50);
+        } catch (error) {
+            console.error('Error processing place selection:', error);
+        } finally {
+            this.hideAutofill();
+        }
+    }
+
+    async triggerPlaceSelection(placeId, inputId) {
+        return new Promise((resolve, reject) => {
+            if (!placeId || !window.google?.maps?.places) {
+                console.warn('Invalid place ID or Google Maps not loaded');
+                resolve();
+                return;
+            }
+
+            const service = new google.maps.places.PlacesService(document.createElement('div'));
+            service.getDetails({ placeId }, (place, status) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK && place) {
+                    const input = document.getElementById(inputId);
+                    if (input) {
+                        // Store place data in the input element
+                        input.dataset.placeId = place.place_id;
+                        input.dataset.lat = place.geometry.location.lat();
+                        input.dataset.lng = place.geometry.location.lng();
+                        
+                        // Trigger map update
+                        const event = new CustomEvent('location-updated', {
+                            detail: {
+                                inputId: inputId,
+                                place: place
+                            }
+                        });
+                        document.dispatchEvent(event);
+                    }
+                    resolve();
+                } else {
+                    console.error('Place details request failed:', status);
+                    reject(new Error('Failed to get place details'));
+                }
+            });
         });
     }
 
-    getColorForPerson(personId) {
-        const colors = [
-            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-            '#FF9F68', '#83D0CB', '#2A9D8F'
-        ];
-        
-        return colors[(parseInt(personId) - 1) % colors.length];
-    }
-
+    // Recent Searches Management
     addToRecentSearches(search) {
-        // Remove if already exists
-        this.recentSearches = this.recentSearches.filter(item => 
-            item.placeId !== search.placeId
+        // Remove duplicates
+        this.recentSearches = this.recentSearches.filter(
+            s => s.placeId !== search.placeId
         );
         
         // Add to beginning
         this.recentSearches.unshift(search);
         
-        // Keep only last 5
+        // Keep only the last 5 searches
         if (this.recentSearches.length > 5) {
             this.recentSearches.pop();
         }
         
-        // Save to localStorage
         this.saveRecentSearches();
     }
 
     loadRecentSearches() {
         try {
-            const saved = localStorage.getItem('midWhereAh_recentSearches');
+            const saved = localStorage.getItem('recentLocationSearches');
             return saved ? JSON.parse(saved) : [];
         } catch (e) {
-            console.error('Error loading recent searches:', e);
+            console.error('Failed to load recent searches:', e);
             return [];
         }
     }
 
     saveRecentSearches() {
         try {
-            localStorage.setItem('midWhereAh_recentSearches', JSON.stringify(this.recentSearches));
+            localStorage.setItem('recentLocationSearches', JSON.stringify(this.recentSearches));
         } catch (e) {
-            console.error('Error saving recent searches:', e);
+            console.error('Failed to save recent searches:', e);
         }
     }
 
+    // Utility Methods
     showAutofill() {
-        this.autofillContainer.style.display = 'block';
+        if (this.autofillContainer) {
+            this.autofillContainer.style.display = 'block';
+        }
     }
 
-    hideAutofill() {
-        this.autofillContainer.style.display = 'none';
+    getColorForPerson(personId) {
+        // Simple hash function to generate consistent colors
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD'];
+        const hash = personId.split('').reduce((acc, char) => {
+            return char.charCodeAt(0) + ((acc << 5) - acc);
+        }, 0);
+        return colors[Math.abs(hash) % colors.length];
     }
 }
 
-// Initialize the stylized autofill when the page loads
+// Initialize the autofill
 document.addEventListener('DOMContentLoaded', () => {
-    window.stylizedAutofill = new StylizedAutofill();
+    window.locationAutofill = new StylizedAutofill();
 });
+
+// Add styles if they don't exist
+if (!document.getElementById('stylized-autofill-styles')) {
+    const style = document.createElement('style');
+    style.id = 'stylized-autofill-styles';
+    style.textContent = `
+        .fullscreen-autofill {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            z-index: 9999;
+            padding: 15px;
+            padding-top: 15px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Hide header and nav when modal is active */
+        body.fullscreen-autofill-active .group-header-container,
+        body.fullscreen-autofill-active .bottom-navigation,
+        body.fullscreen-autofill-active .nav-create-popup {
+            display: none !important;
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 15px;
+            margin-top: 10px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        .close-autofill {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .location-autofill {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .autofill-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f5f5f5;
+            cursor: pointer;
+        }
+        
+        .autofill-item:hover {
+            background-color: #f9f9f9;
+        }
+        
+        .autofill-item i {
+            margin-right: 12px;
+            color: #666;
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+        
+        .autofill-content {
+            flex: 1;
+        }
+        
+        .autofill-main {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .autofill-secondary {
+            font-size: 13px;
+            color: #888;
+            margin-top: 2px;
+        }
+        
+        .autofill-header {
+            padding: 10px 15px;
+            font-size: 14px;
+            color: #666;
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #eee;
+        }
+    `;
+    document.head.appendChild(style);
+}

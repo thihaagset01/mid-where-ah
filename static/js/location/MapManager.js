@@ -415,7 +415,8 @@ class MapManager {
     }
     
     /**
-     * Get current map instance
+     * Get the current map instance
+     * @returns {google.maps.Map} The Google Maps instance
      */
     getMap() {
         return this.map;

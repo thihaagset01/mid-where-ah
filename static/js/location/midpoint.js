@@ -9,6 +9,7 @@ class MidpointCalculator {
         // Store directionsRenderers for cleanup
         this.directionsRenderers = [];
         this.midpointMarker = null;
+        this.routeMarkers = [];
         
         console.log('MidpointCalculator initialized');
     }
@@ -112,6 +113,9 @@ class MidpointCalculator {
                         
                         // Show success message
                         this.showSuccessToast(`Found ${result.venues?.length || 0} venues • ${(result.fairness * 100).toFixed(1)}% fairness`);
+                        
+                        // Show minimal marker on map (no popup)
+                        this.showMinimalMarker(result);
                         
                         // Show post-optimization actions
                         this.showPostOptimizationActions(result);
@@ -610,6 +614,12 @@ class MidpointCalculator {
                 renderer.setMap(null);
             });
             this.directionsRenderers = [];
+            
+            // Also clear any existing markers
+            if (this.routeMarkers) {
+                this.routeMarkers.forEach(marker => marker.setMap(null));
+                this.routeMarkers = [];
+            }
         }
     }
 
@@ -744,14 +754,14 @@ class MidpointCalculator {
         venuesBtn.className = 'floating-action-btn venues-btn';
         venuesBtn.onclick = () => this.goToVenuesInterface(result);
         
-        // Directions Button
+        // Directions Button - Now shows all routes directly
         const directionsBtn = document.createElement('button');
         directionsBtn.innerHTML = `
-            <i class="fas fa-directions"></i>
-            <span>Get Directions</span>
+            <i class="fas fa-route"></i>
+            <span>Show Routes</span>
         `;
         directionsBtn.className = 'floating-action-btn directions-btn';
-        directionsBtn.onclick = () => this.showDirectionsOptions(result);
+        directionsBtn.onclick = () => this.showAllRoutesToMeetingPoint(result.point);
         
         // Share Button
         const shareBtn = document.createElement('button');
@@ -772,6 +782,207 @@ class MidpointCalculator {
             actionsContainer.classList.add('show');
         }, 500);
     }
+
+    /**
+     * Show routes from all user locations to the meeting point
+     */
+    showAllRoutesToMeetingPoint(destination) {
+        // Clear any existing directions
+        this.clearDirections();
+        
+        // Get all user locations
+        const locations = this.getAllLocationData();
+        if (!locations || locations.length === 0) {
+            this.showErrorMessage('No user locations found');
+            return;
+        }
+        
+        // Show loading state
+        this.showInfoMessage('Calculating routes...');
+        
+        // Create a DirectionsService instance
+        const directionsService = new google.maps.DirectionsService();
+        let routesDrawn = 0;
+        const totalRoutes = locations.filter(loc => loc.lat && loc.lng).length;
+        
+        // Calculate and display route for each user
+        locations.forEach((location, index) => {
+            // Skip if location doesn't have coordinates
+            if (!location.lat || !location.lng) return;
+            
+            // Get transport mode for this user (default to DRIVING if not set)
+            const transportMode = window.userTransportModes?.get(`person-${index+1}`) || 'DRIVING';
+            
+            const request = {
+                origin: { lat: parseFloat(location.lat), lng: parseFloat(location.lng) },
+                destination: { lat: destination.lat, lng: destination.lng },
+                travelMode: google.maps.TravelMode[transportMode],
+                provideRouteAlternatives: false
+            };
+            
+            // Calculate and display route
+            directionsService.route(request, (response, status) => {
+                if (status === 'OK') {
+                    // Create a new renderer for this route
+                    const routeRenderer = new google.maps.DirectionsRenderer({
+                        suppressMarkers: true,
+                        polylineOptions: {
+                            strokeColor: this.getRouteColor(index),
+                            strokeOpacity: 0.7,
+                            strokeWeight: 4
+                        },
+                        preserveViewport: true
+                    });
+                    
+                    routeRenderer.setMap(window.map);
+                    routeRenderer.setDirections(response);
+                    this.directionsRenderers.push(routeRenderer);
+                    
+                    // Add custom markers for origin and destination
+                    this.addRouteMarkers(
+                        response.routes[0].legs[0].start_location,
+                        response.routes[0].legs[0].end_location,
+                        index,
+                        response.routes[0].legs[0].duration.text
+                    );
+                    
+                    // Check if all routes are drawn
+                    routesDrawn++;
+                    if (routesDrawn === totalRoutes) {
+                        this.showSuccessMessage('All routes displayed');
+                        
+                        // Fit map to show all routes
+                        this.fitMapToRoutes();
+                    }
+                }
+            });
+        });
+    }
+    
+    /**
+     * Fit map to show all routes
+     */
+    fitMapToRoutes() {
+        if (!this.directionsRenderers || this.directionsRenderers.length === 0) return;
+        
+        const bounds = new google.maps.LatLngBounds();
+        
+        // Extend bounds for each route
+        this.directionsRenderers.forEach(renderer => {
+            const route = renderer.getDirections();
+            if (route && route.routes && route.routes[0]) {
+                route.routes[0].legs.forEach(leg => {
+                    if (leg.start_location) bounds.extend(leg.start_location);
+                    if (leg.end_location) bounds.extend(leg.end_location);
+                });
+            }
+        });
+        
+        // Only fit bounds if we have valid bounds
+        if (!bounds.isEmpty()) {
+            window.map.fitBounds(bounds);
+            
+            // Add some padding and set max zoom level
+            const padding = 100; // pixels
+            window.map.panToBounds(bounds, {
+                top: padding,
+                bottom: padding,
+                left: padding,
+                right: padding
+            });
+            
+            // Set a maximum zoom level to prevent over-zooming
+            const listener = google.maps.event.addListener(window.map, 'bounds_changed', function() {
+                if (this.getZoom() > 12) {
+                    this.setZoom(12);
+                }
+                google.maps.event.removeListener(listener);
+            });
+        }
+    }
+
+    /**
+     * Get a color for the route based on index
+     */
+    getRouteColor(index) {
+        const colors = [
+            '#8B5DB8', // Purple
+            '#4285F4', // Blue
+            '#34A853', // Green
+            '#EA4335', // Red
+            '#FBBC05', // Yellow
+            '#FF6D01', // Orange
+            '#46BDC6'  // Teal
+        ];
+        return colors[index % colors.length];
+    }
+    
+    /**
+     * Add custom markers for route start and end points
+     */
+    addRouteMarkers(start, end, index, duration) {
+        // Add start marker (user location)
+        new google.maps.Marker({
+            position: start,
+            map: window.map,
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: this.getRouteColor(index),
+                fillOpacity: 1,
+                strokeWeight: 2,
+                strokeColor: 'white'
+            },
+            label: {
+                text: (index + 1).toString(),
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: '10px'
+            },
+            title: `Person ${index + 1} (${duration} to destination)`
+        });
+        
+        // Add end marker (meeting point) - only once
+        if (index === 0) {
+            const marker = new google.maps.Marker({
+                position: end,
+                map: window.map,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: '#8B5DB8',
+                    fillOpacity: 1,
+                    strokeWeight: 2,
+                    strokeColor: 'white'
+                },
+                label: {
+                    text: '★',
+                    color: 'white',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                },
+                title: 'Meeting Point'
+            });
+            
+            // Add info window for meeting point
+            const infoWindow = new google.maps.InfoWindow({
+                content: `
+                    <div style="font-weight: 500; margin-bottom: 8px;">Meeting Point</div>
+                    <div style="color: #666; font-size: 13px;">
+                        ${end.lat().toFixed(6)}, ${end.lng().toFixed(6)}
+                    </div>
+                `
+            });
+            
+            // Show info window when clicking on the marker
+            marker.addListener('click', () => {
+                infoWindow.open({
+                    anchor: marker,
+                    map: window.map
+                });
+            });
+        }
+    }
     
     /**
      * Go to venues swipe interface
@@ -783,82 +994,8 @@ class MidpointCalculator {
         sessionStorage.setItem('optimizationResult', JSON.stringify(result));
         sessionStorage.setItem('venueSearchPoint', JSON.stringify(result.point));
         
-        // Navigate to swipe interface
-        window.location.href = '/swipe?point=' + encodeURIComponent(JSON.stringify(result.point));
-    }
-    
-    /**
-     * Show directions options
-     */
-    showDirectionsOptions(result) {
-        // Create modal for directions choice
-        const modal = document.createElement('div');
-        modal.className = 'directions-modal';
-        modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-        `;
-        
-        modal.innerHTML = `
-            <div class="modal-content" style="
-                background: white;
-                border-radius: 16px;
-                padding: 24px;
-                max-width: 320px;
-                width: 90%;
-                text-align: center;
-            ">
-                <h3 style="margin: 0 0 20px 0; color: #333;">Get Directions</h3>
-                
-                <button class="direction-option-btn" onclick="window.openMapsDirections('${result.point.lat}', '${result.point.lng}', 'Meeting Point')">
-                    <i class="fas fa-map-marker-alt"></i>
-                    <div>
-                        <div class="option-title">To Meeting Point</div>
-                        <div class="option-subtitle">Navigate to optimal location</div>
-                    </div>
-                </button>
-                
-                <button class="direction-option-btn" onclick="window.showVenueDirections()">
-                    <i class="fas fa-utensils"></i>
-                    <div>
-                        <div class="option-title">To Selected Venue</div>
-                        <div class="option-subtitle">Pick a venue first</div>
-                    </div>
-                </button>
-                
-                <button class="direction-option-btn" onclick="window.showTransitOptions('${result.point.lat}', '${result.point.lng}')">
-                    <i class="fas fa-subway"></i>
-                    <div>
-                        <div class="option-title">Public Transport</div>
-                        <div class="option-subtitle">Best MRT/Bus routes</div>
-                    </div>
-                </button>
-                
-                <button style="
-                    margin-top: 20px;
-                    background: #f0f0f0;
-                    border: none;
-                    padding: 12px 24px;
-                    border-radius: 8px;
-                    width: 100%;
-                " onclick="this.parentElement.parentElement.remove()">
-                    Cancel
-                </button>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        // Add styles for direction options
-        this.addDirectionModalStyles();
+        // Navigate to temp venues page for homepage users
+        window.location.href = '/mobile/venues/temp';
     }
     
     /**
@@ -925,53 +1062,26 @@ class MidpointCalculator {
             #post-optimization-actions.show .floating-action-btn:nth-child(3) {
                 transition-delay: 0.3s;
             }
-            
-            .direction-option-btn {
-                width: 100%;
-                padding: 16px;
-                margin: 8px 0;
-                background: #f8f9fa;
-                border: 2px solid #e9ecef;
-                border-radius: 12px;
-                display: flex;
-                align-items: center;
-                gap: 16px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-            }
-            
-            .direction-option-btn:hover {
-                background: #e9ecef;
-                border-color: #8B5DB8;
-            }
-            
-            .direction-option-btn i {
-                font-size: 24px;
-                color: #8B5DB8;
-                width: 32px;
-                text-align: center;
-            }
-            
-            .option-title {
-                font-weight: 600;
-                color: #333;
-                margin-bottom: 4px;
-            }
-            
-            .option-subtitle {
-                font-size: 12px;
-                color: #666;
-            }
         `;
         
         document.head.appendChild(styles);
     }
     
     /**
-     * Add direction modal styles
+     * Show success message
      */
-    addDirectionModalStyles() {
-        // Styles already added in addActionButtonStyles
+    showSuccessMessage(message) {
+        console.log('🎉', message);
+        
+        // Try to use existing notification system
+        if (window.uiManager && window.uiManager.showSuccessNotification) {
+            window.uiManager.showSuccessNotification(message);
+        } else if (typeof showNotification === 'function') {
+            showNotification(message, 'success');
+        } else {
+            // Fallback to console
+            console.log(message);
+        }
     }
     
     // Global functions for directions
