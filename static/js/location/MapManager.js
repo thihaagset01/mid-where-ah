@@ -97,6 +97,36 @@ class MapManager {
         if (!window.geocoder) {
             window.geocoder = new google.maps.Geocoder();
         }
+
+        // Listen for location updates from the autofill modal
+        document.addEventListener('location-updated', (event) => {
+            const { inputId, place } = event.detail;
+            if (place && place.geometry) {
+                console.log('Location updated event received for', inputId, place);
+                
+                // Get the color index from the input ID (e.g., 'location-1' -> 0, 'location-2' -> 1)
+                const colorIndex = parseInt(inputId.replace('location-', '')) - 1;
+                const colors = ['#8B5DB8', '#FF5722', '#2196F3', '#4CAF50', '#FFC107', '#9C27B0', '#00BCD4'];
+                const color = colors[colorIndex % colors.length];
+                
+                const location = {
+                    lat: place.geometry.location.lat(),
+                    lng: place.geometry.location.lng()
+                };
+                
+                // Use addLocationMarker which handles marker creation and updates
+                this.addLocationMarker(location, inputId, color);
+                
+                // Store the location data for legacy compatibility
+                this.storeLocationData(inputId, location, place.formatted_address || place.name);
+                
+                // Update UI state to reflect the change
+                this.updateUIState();
+                
+                // Fit the map to show all markers
+                this.fitToMarkers();
+            }
+        });
     }
     
     /**
@@ -513,6 +543,20 @@ class MapManager {
         });
         
         console.log('Map fitted to', locations.length, 'locations');
+    }
+    
+    /**
+     * Update a marker's position
+     */
+    updateMarker(personId, position, address) {
+        const inputId = `location-${personId}`;
+        const marker = this.locationMarkers[inputId];
+        
+        if (marker) {
+            marker.setPosition(position);
+            this.storeLocationData(inputId, position, address);
+            this.updateUIState();
+        }
     }
 }
 
