@@ -113,10 +113,8 @@ class MidpointCalculator {
                         // Show success message
                         this.showSuccessToast(`Found ${result.venues?.length || 0} venues • ${(result.fairness * 100).toFixed(1)}% fairness`);
                         
-                        // Go to venues after brief delay
-                        setTimeout(() => {
-                            this.goDirectlyToVenues(result);
-                        }, 2000);
+                        // Show post-optimization actions
+                        this.showPostOptimizationActions(result);
                         
                         console.log(`🎯 Optimization: ${(result.fairness * 100).toFixed(1)}% fair, ${result.venues?.length || 0} venues`);
                     } else {
@@ -146,10 +144,8 @@ class MidpointCalculator {
                     // Show minimal marker on map (no popup)
                     this.showMinimalMarker(result);
                     
-                    // Go directly to venues instead of showing popup
-                    setTimeout(() => {
-                        this.goDirectlyToVenues(result);
-                    }, 1500);
+                    // Show post-optimization actions
+                    this.showPostOptimizationActions(result);
                     
                     console.log(`🎯 Optimization: ${(result.fairness * 100).toFixed(1)}% fair, ${result.venues.length} venues, ${result.metadata.duration}ms`);
                 } else {
@@ -713,6 +709,301 @@ class MidpointCalculator {
         // Just redirect to venues directly now
         this.goDirectlyToVenues(this.lastOptimalResult);
     }
+
+    /**
+     * Show post-optimization actions
+     */
+    showPostOptimizationActions(result) {
+        // Create floating action buttons container
+        let actionsContainer = document.getElementById('post-optimization-actions');
+        
+        if (!actionsContainer) {
+            actionsContainer = document.createElement('div');
+            actionsContainer.id = 'post-optimization-actions';
+            actionsContainer.style.cssText = `
+                position: fixed;
+                bottom: 80px;
+                right: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+                z-index: 1000;
+            `;
+            document.body.appendChild(actionsContainer);
+        }
+        
+        // Clear existing buttons
+        actionsContainer.innerHTML = '';
+        
+        // Venues Button
+        const venuesBtn = document.createElement('button');
+        venuesBtn.innerHTML = `
+            <i class="fas fa-utensils"></i>
+            <span>Find Venues</span>
+        `;
+        venuesBtn.className = 'floating-action-btn venues-btn';
+        venuesBtn.onclick = () => this.goToVenuesInterface(result);
+        
+        // Directions Button
+        const directionsBtn = document.createElement('button');
+        directionsBtn.innerHTML = `
+            <i class="fas fa-directions"></i>
+            <span>Get Directions</span>
+        `;
+        directionsBtn.className = 'floating-action-btn directions-btn';
+        directionsBtn.onclick = () => this.showDirectionsOptions(result);
+        
+        // Share Button
+        const shareBtn = document.createElement('button');
+        shareBtn.innerHTML = `<i class="fas fa-share-alt"></i>`;
+        shareBtn.className = 'floating-action-btn share-btn';
+        shareBtn.title = 'Share Location';
+        shareBtn.onclick = () => this.shareLocation();
+        
+        actionsContainer.appendChild(venuesBtn);
+        actionsContainer.appendChild(directionsBtn);
+        actionsContainer.appendChild(shareBtn);
+        
+        // Add CSS for buttons
+        this.addActionButtonStyles();
+        
+        // Animate buttons in
+        setTimeout(() => {
+            actionsContainer.classList.add('show');
+        }, 500);
+    }
+    
+    /**
+     * Go to venues swipe interface
+     */
+    goToVenuesInterface(result) {
+        console.log('🏪 Going to venues interface');
+        
+        // Store result for venue interface
+        sessionStorage.setItem('optimizationResult', JSON.stringify(result));
+        sessionStorage.setItem('venueSearchPoint', JSON.stringify(result.point));
+        
+        // Navigate to swipe interface
+        window.location.href = '/swipe?point=' + encodeURIComponent(JSON.stringify(result.point));
+    }
+    
+    /**
+     * Show directions options
+     */
+    showDirectionsOptions(result) {
+        // Create modal for directions choice
+        const modal = document.createElement('div');
+        modal.className = 'directions-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        `;
+        
+        modal.innerHTML = `
+            <div class="modal-content" style="
+                background: white;
+                border-radius: 16px;
+                padding: 24px;
+                max-width: 320px;
+                width: 90%;
+                text-align: center;
+            ">
+                <h3 style="margin: 0 0 20px 0; color: #333;">Get Directions</h3>
+                
+                <button class="direction-option-btn" onclick="window.openMapsDirections('${result.point.lat}', '${result.point.lng}', 'Meeting Point')">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <div>
+                        <div class="option-title">To Meeting Point</div>
+                        <div class="option-subtitle">Navigate to optimal location</div>
+                    </div>
+                </button>
+                
+                <button class="direction-option-btn" onclick="window.showVenueDirections()">
+                    <i class="fas fa-utensils"></i>
+                    <div>
+                        <div class="option-title">To Selected Venue</div>
+                        <div class="option-subtitle">Pick a venue first</div>
+                    </div>
+                </button>
+                
+                <button class="direction-option-btn" onclick="window.showTransitOptions('${result.point.lat}', '${result.point.lng}')">
+                    <i class="fas fa-subway"></i>
+                    <div>
+                        <div class="option-title">Public Transport</div>
+                        <div class="option-subtitle">Best MRT/Bus routes</div>
+                    </div>
+                </button>
+                
+                <button style="
+                    margin-top: 20px;
+                    background: #f0f0f0;
+                    border: none;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    width: 100%;
+                " onclick="this.parentElement.parentElement.remove()">
+                    Cancel
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Add styles for direction options
+        this.addDirectionModalStyles();
+    }
+    
+    /**
+     * Add CSS styles for action buttons
+     */
+    addActionButtonStyles() {
+        if (document.getElementById('post-optimization-styles')) return;
+        
+        const styles = document.createElement('style');
+        styles.id = 'post-optimization-styles';
+        styles.textContent = `
+            .floating-action-btn {
+                background: #8B5DB8;
+                color: white;
+                border: none;
+                padding: 12px 16px;
+                border-radius: 25px;
+                font-size: 14px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                box-shadow: 0 4px 12px rgba(139, 93, 184, 0.3);
+                transition: all 0.3s ease;
+                cursor: pointer;
+                min-width: 120px;
+                opacity: 0;
+                transform: translateX(100px);
+            }
+            
+            .floating-action-btn:hover {
+                transform: scale(1.05) translateX(0);
+                box-shadow: 0 6px 20px rgba(139, 93, 184, 0.4);
+            }
+            
+            .floating-action-btn.venues-btn {
+                background: #4CAF50;
+            }
+            
+            .floating-action-btn.directions-btn {
+                background: #2196F3;
+            }
+            
+            .floating-action-btn.share-btn {
+                background: #FF9800;
+                min-width: 48px;
+                border-radius: 50%;
+                padding: 12px;
+            }
+            
+            #post-optimization-actions.show .floating-action-btn {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            
+            #post-optimization-actions.show .floating-action-btn:nth-child(1) {
+                transition-delay: 0.1s;
+            }
+            
+            #post-optimization-actions.show .floating-action-btn:nth-child(2) {
+                transition-delay: 0.2s;
+            }
+            
+            #post-optimization-actions.show .floating-action-btn:nth-child(3) {
+                transition-delay: 0.3s;
+            }
+            
+            .direction-option-btn {
+                width: 100%;
+                padding: 16px;
+                margin: 8px 0;
+                background: #f8f9fa;
+                border: 2px solid #e9ecef;
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .direction-option-btn:hover {
+                background: #e9ecef;
+                border-color: #8B5DB8;
+            }
+            
+            .direction-option-btn i {
+                font-size: 24px;
+                color: #8B5DB8;
+                width: 32px;
+                text-align: center;
+            }
+            
+            .option-title {
+                font-weight: 600;
+                color: #333;
+                margin-bottom: 4px;
+            }
+            
+            .option-subtitle {
+                font-size: 12px;
+                color: #666;
+            }
+        `;
+        
+        document.head.appendChild(styles);
+    }
+    
+    /**
+     * Add direction modal styles
+     */
+    addDirectionModalStyles() {
+        // Styles already added in addActionButtonStyles
+    }
+    
+    // Global functions for directions
+    static setupGlobalFunctions() {
+        window.openMapsDirections = function(lat, lng, name) {
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${name}`;
+            window.open(url, '_blank');
+            
+            // Close modal
+            document.querySelector('.directions-modal')?.remove();
+        };
+
+        window.showVenueDirections = function() {
+            const selectedVenue = sessionStorage.getItem('selectedVenue');
+            if (selectedVenue) {
+                const venue = JSON.parse(selectedVenue);
+                window.openMapsDirections(venue.lat, venue.lng, venue.name);
+            } else {
+                alert('Please select a venue first from the venues page!');
+                // Redirect to venues
+                window.location.href = '/swipe';
+            }
+        };
+
+        window.showTransitOptions = function(lat, lng) {
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=transit`;
+            window.open(url, '_blank');
+            
+            // Close modal
+            document.querySelector('.directions-modal')?.remove();
+        };
+    }
 }
 
 // Create global instance
@@ -722,4 +1013,7 @@ window.midpointCalculator = new MidpointCalculator();
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize midpoint calculator
     window.midpointCalculator.init();
+    
+    // Setup global functions for directions
+    MidpointCalculator.setupGlobalFunctions();
 });
