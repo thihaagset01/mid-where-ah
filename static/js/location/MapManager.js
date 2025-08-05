@@ -2,7 +2,7 @@
  * MapManager.js - Core Map functionality for MidWhereAh
  * Handles Google Maps integration, markers, and location display
  * 
- * FIXED VERSION - Resolves initMap conflicts and timing issues
+ * FIXED VERSION - Proper marker management and global reference handling
  */
 
 class MapManager {
@@ -31,7 +31,7 @@ class MapManager {
         try {
             console.log('MapManager.init() called');
             this.createMap();
-            this.setupAutocompleteForExistingInputs();
+            this.setupLegacySupport();
             this.isInitialized = true;
             
             // Notify other components that map is ready
@@ -68,14 +68,35 @@ class MapManager {
             zoomControl: true,
             zoomControlOptions: {
                 position: google.maps.ControlPosition.RIGHT_TOP
-            }
+            },
+            styles: [
+                {
+                    featureType: 'poi',
+                    elementType: 'labels',
+                    stylers: [{ visibility: 'off' }]
+                }
+            ]
         });
         
-        // Make map globally accessible
+        // Make map globally accessible with multiple references for compatibility
         window.map = this.map;
+        window.midwhereahMap = this.map;
         
         console.log('✅ Google Map created successfully');
         return this.map;
+    }
+    
+    /**
+     * Set up legacy support for existing code
+     */
+    setupLegacySupport() {
+        // Legacy autocomplete setup (but LocationInput handles its own now)
+        this.setupAutocompleteForExistingInputs();
+        
+        // Set up global geocoder for compatibility
+        if (!window.geocoder) {
+            window.geocoder = new google.maps.Geocoder();
+        }
     }
     
     /**
@@ -99,36 +120,46 @@ class MapManager {
         if (window.venueMapFeatures && typeof window.venueMapFeatures.onMapReady === 'function') {
             window.venueMapFeatures.onMapReady(this.map);
         }
+        
+        console.log('Map ready event dispatched');
     }
     
     /**
-     * Set up autocomplete for existing location inputs
+     * Set up autocomplete for existing location inputs (legacy support)
+     * NEW LocationInput instances handle their own autocomplete
      */
     setupAutocompleteForExistingInputs() {
         const locationInputs = document.querySelectorAll('.location-input');
         
-        console.log(`Found ${locationInputs.length} location inputs for autocomplete`);
+        console.log(`Found ${locationInputs.length} location inputs for legacy autocomplete setup`);
         
         locationInputs.forEach((input, index) => {
-            const personId = input.id.replace('location-', '');
+            // Skip if this input already has autocomplete or is managed by LocationInput class
+            if (input.getAttribute('data-autocomplete-initialized') === 'true') {
+                console.log('Skipping', input.id, '- already has autocomplete');
+                return;
+            }
+            
+            // Check if this input is managed by LocationInput class
+            const inputId = input.id;
+            if (window.locationInputs && window.locationInputs.has(inputId)) {
+                console.log('Skipping', input.id, '- managed by LocationInput class');
+                return;
+            }
+            
+            // Set up legacy autocomplete
             this.setupSingleInputAutocomplete(input, index);
         });
     }
     
     /**
-     * Set up autocomplete for a single location input
+     * Set up autocomplete for a single location input (legacy)
      */
     setupSingleInputAutocomplete(input, colorIndex) {
-        // Skip if already initialized
-        if (input.getAttribute('data-autocomplete-initialized') === 'true') {
-            console.log('Autocomplete already initialized for', input.id);
-            return;
-        }
-        
-        // Mark as initialized
+        // Mark as initialized to prevent double setup
         input.setAttribute('data-autocomplete-initialized', 'true');
         
-        console.log('Setting up autocomplete for', input.id);
+        console.log('Setting up legacy autocomplete for', input.id);
         
         // Define colors for markers
         const colors = ['#8B5DB8', '#FF5722', '#2196F3', '#4CAF50', '#FFC107', '#9C27B0', '#00BCD4'];
@@ -155,31 +186,34 @@ class MapManager {
                     lng: place.geometry.location.lng()
                 };
                 
-                // Add marker to map
+                // Add marker to map using legacy method
                 this.addLocationMarker(location, input.id, color);
                 
-                // Store location data
+                // Store location data for legacy compatibility
                 this.storeLocationData(input.id, location, place.formatted_address || input.value);
                 
                 // Update UI state
                 this.updateUIState();
             });
             
-            console.log('✅ Autocomplete set up for', input.id);
+            console.log('✅ Legacy autocomplete set up for', input.id);
             
         } catch (error) {
-            console.error('Error setting up autocomplete for', input.id, ':', error);
+            console.error('Error setting up legacy autocomplete for', input.id, ':', error);
         }
     }
     
     /**
-     * Geocode address manually if Google Places API fails
+     * Geocode address manually if Google Places API fails (legacy)
      */
     geocodeManually(address, inputId, color) {
-        console.log('Manual geocoding for:', address);
+        console.log('Legacy manual geocoding for:', address);
         
         const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({ address: address + ', Singapore' }, (results, status) => {
+        geocoder.geocode({ 
+            address: address + ', Singapore',
+            componentRestrictions: { country: 'SG' }
+        }, (results, status) => {
             if (status === 'OK' && results[0]) {
                 const location = {
                     lat: results[0].geometry.location.lat(),
@@ -190,21 +224,23 @@ class MapManager {
                 this.storeLocationData(inputId, location, results[0].formatted_address);
                 this.updateUIState();
             } else {
-                console.error('Geocoding failed for:', address, 'Status:', status);
+                console.error('Legacy geocoding failed for:', address, 'Status:', status);
                 this.showError('Could not find that location. Please try again.');
             }
         });
     }
     
     /**
-     * Add location marker to the map
+     * Add location marker to the map (legacy method)
+     * NOTE: New LocationInput instances manage their own markers
      */
     addLocationMarker(location, inputId, color = '#8B5DB8') {
-        console.log('Adding marker for', inputId, 'at', location);
+        console.log('Adding legacy marker for', inputId, 'at', location);
         
         // Remove existing marker if any
         if (this.locationMarkers[inputId]) {
             this.locationMarkers[inputId].setMap(null);
+            delete this.locationMarkers[inputId];
         }
         
         // Create marker
@@ -215,8 +251,8 @@ class MapManager {
             icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 fillColor: color,
-                fillOpacity: 1,
-                strokeWeight: 2,
+                fillOpacity: 0.9,
+                strokeWeight: 3,
                 strokeColor: '#FFFFFF',
                 scale: 10
             },
@@ -242,7 +278,18 @@ class MapManager {
     }
     
     /**
-     * Store location data in global storage
+     * Remove a specific marker (for cleanup)
+     */
+    removeLocationMarker(inputId) {
+        if (this.locationMarkers[inputId]) {
+            this.locationMarkers[inputId].setMap(null);
+            delete this.locationMarkers[inputId];
+            console.log('Removed legacy marker for', inputId);
+        }
+    }
+    
+    /**
+     * Store location data in global storage (legacy compatibility)
      */
     storeLocationData(inputId, location, address) {
         if (!window.locationData) window.locationData = new Map();
@@ -254,11 +301,11 @@ class MapManager {
             transportMode: window.userTransportModes?.get(inputId) || 'TRANSIT'
         });
         
-        console.log('Stored location data for', inputId);
+        console.log('Stored legacy location data for', inputId);
     }
     
     /**
-     * Update UI state after location changes
+     * Update UI state after location changes (legacy compatibility)
      */
     updateUIState() {
         // Update midpoint calculator if available
@@ -270,6 +317,11 @@ class MapManager {
         if (typeof checkAllLocationsAndUpdateButton === 'function') {
             checkAllLocationsAndUpdateButton();
         }
+        
+        // New LocationManager support
+        if (window.locationManager && typeof window.locationManager.updateFindButtonState === 'function') {
+            window.locationManager.updateFindButtonState();
+        }
     }
     
     /**
@@ -280,19 +332,75 @@ class MapManager {
             window.uiManager.showErrorNotification(message);
         } else {
             console.error('MapManager Error:', message);
-            alert(message); // Fallback
+            // Create a simple toast notification
+            this.showToast(message, 'error');
         }
+    }
+    
+    /**
+     * Show toast notification
+     */
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast-notification toast-${type}`;
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'error' ? '#dc3545' : '#28a745'};
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 10000;
+            font-size: 14px;
+            max-width: 300px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        `;
+        toast.textContent = message;
+        
+        document.body.appendChild(toast);
+        
+        // Animate in
+        setTimeout(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(0)';
+        }, 100);
+        
+        // Remove after 4 seconds
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 4000);
     }
     
     /**
      * Clear all markers from the map
      */
     clearMarkers() {
+        // Clear legacy markers
         Object.values(this.locationMarkers).forEach(marker => {
             marker.setMap(null);
         });
-        
         this.locationMarkers = {};
+        
+        // Clear LocationInput markers
+        if (window.locationInputs) {
+            window.locationInputs.forEach(locationInput => {
+                if (locationInput.removeMarker) {
+                    locationInput.removeMarker();
+                }
+            });
+        }
+        
+        console.log('All markers cleared');
     }
     
     /**
@@ -302,8 +410,8 @@ class MapManager {
         this.directionsRenderers.forEach(renderer => {
             renderer.setMap(null);
         });
-        
         this.directionsRenderers = [];
+        console.log('All directions cleared');
     }
     
     /**
@@ -318,6 +426,92 @@ class MapManager {
      */
     isMapReady() {
         return this.isInitialized && this.map !== null;
+    }
+    
+    /**
+     * Add directions renderer
+     */
+    addDirectionsRenderer(directionsRenderer) {
+        if (directionsRenderer) {
+            this.directionsRenderers.push(directionsRenderer);
+        }
+    }
+    
+    /**
+     * Get all valid locations (compatibility method)
+     */
+    getAllLocations() {
+        const locations = [];
+        
+        // Get from LocationInput instances
+        if (window.locationInputs) {
+            window.locationInputs.forEach(locationInput => {
+                if (locationInput.state && locationInput.state.isValid) {
+                    locations.push({
+                        inputId: locationInput.inputId,
+                        position: locationInput.state.position,
+                        address: locationInput.state.address,
+                        transportMode: locationInput.state.transportMode
+                    });
+                }
+            });
+        }
+        
+        // Get from legacy storage
+        if (window.locationData) {
+            window.locationData.forEach((data, inputId) => {
+                // Only add if not already added from LocationInput
+                if (!locations.find(loc => loc.inputId === inputId)) {
+                    locations.push({
+                        inputId: inputId,
+                        position: { lat: data.lat, lng: data.lng },
+                        address: data.address,
+                        transportMode: data.transportMode
+                    });
+                }
+            });
+        }
+        
+        return locations;
+    }
+    
+    /**
+     * Pan and zoom to show all markers
+     */
+    fitToMarkers() {
+        const locations = this.getAllLocations();
+        
+        if (locations.length === 0) {
+            console.log('No locations to fit to');
+            return;
+        }
+        
+        if (locations.length === 1) {
+            // Single location - just pan to it
+            this.map.panTo(locations[0].position);
+            this.map.setZoom(15);
+            return;
+        }
+        
+        // Multiple locations - fit bounds
+        const bounds = new google.maps.LatLngBounds();
+        
+        locations.forEach(location => {
+            if (location.position) {
+                bounds.extend(location.position);
+            }
+        });
+        
+        this.map.fitBounds(bounds);
+        
+        // Ensure minimum zoom level
+        google.maps.event.addListenerOnce(this.map, 'bounds_changed', () => {
+            if (this.map.getZoom() > 16) {
+                this.map.setZoom(16);
+            }
+        });
+        
+        console.log('Map fitted to', locations.length, 'locations');
     }
 }
 

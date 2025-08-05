@@ -1,6 +1,7 @@
 /**
  * midpoint.js - Midpoint calculation functionality for MidWhereAh
  * Handles calculation of central meeting points based on multiple locations
+ * STREAMLINED VERSION - Goes directly to venues after calculation
  */
 
 class MidpointCalculator {
@@ -56,18 +57,17 @@ class MidpointCalculator {
     }
     
     /**
-     * Handle the find central location button click
+     * Handle the find central location button click - STREAMLINED VERSION
      */
-    // Update handleFindCentralLocation() method
     async handleFindCentralLocation() {
         const findCentralBtn = document.getElementById('find-central-btn');
         const originalContent = findCentralBtn ? findCentralBtn.innerHTML : null;
         
         if (findCentralBtn) {
-            findCentralBtn.innerHTML = '<i class="fas fa-cog fa-spin"></i> Optimizing...';
+            findCentralBtn.innerHTML = '<i class="fas fa-brain fa-pulse"></i> Analyzing...';
             findCentralBtn.style.pointerEvents = 'none';
         }
-
+    
         try {
             // Get locations from your LocationManager
             const locationData = this.getAllLocationData();
@@ -77,7 +77,7 @@ class MidpointCalculator {
                 this.showErrorMessage('Please add at least 2 valid locations');
                 return;
             }
-
+    
             // Convert to optimizer format
             const users = validLocations.map(loc => ({
                 lat: loc.lat,
@@ -86,27 +86,305 @@ class MidpointCalculator {
                 weight: 1.0,
                 name: `Person ${loc.personId}`
             }));
-
-            // Use the sophisticated optimizer instead of basic midpoint
-            const result = await window.meetingPointOptimizer.findOptimalMeetingPoint(users);
-            
-            if (result) {
-                this.displayOptimalPoint(result);
-                // Show success with algorithm details
-                console.log(`🎯 Optimization: ${(result.fairness * 100).toFixed(1)}% fair, ${result.venues.length} venues, ${result.metadata.duration}ms`);
+    
+            // Initialize visualizer if not exists
+            if (!window.algorithmVisualizer && window.map) {
+                window.algorithmVisualizer = new window.AlgorithmVisualizer(window.map);
             }
-
+    
+            // Check if user wants to see visualization (you can make this a setting)
+            const showVisualization = true; // Set to false to disable visualization
+            
+            if (showVisualization && window.algorithmVisualizer) {
+                console.log('🎬 Starting algorithm visualization');
+                
+                // Update button to show visualization is running
+                if (findCentralBtn) {
+                    findCentralBtn.innerHTML = '<i class="fas fa-eye fa-pulse"></i> Watch Algorithm...';
+                }
+                
+                // Run visualization (this will also compute the actual result)
+                window.algorithmVisualizer.visualizeOptimization(users, (result) => {
+                    // Visualization complete callback
+                    if (result) {
+                        // Store the result
+                        this.lastOptimalResult = result;
+                        
+                        // Show success message
+                        this.showSuccessToast(`Found ${result.venues?.length || 0} venues • ${(result.fairness * 100).toFixed(1)}% fairness`);
+                        
+                        // Go to venues after brief delay
+                        setTimeout(() => {
+                            this.goDirectlyToVenues(result);
+                        }, 2000);
+                        
+                        console.log(`🎯 Optimization: ${(result.fairness * 100).toFixed(1)}% fair, ${result.venues?.length || 0} venues`);
+                    } else {
+                        // Fallback if visualization fails
+                        this.fallbackToBasicMidpointWithVenues();
+                    }
+                    
+                    // Restore button
+                    if (findCentralBtn && originalContent) {
+                        setTimeout(() => {
+                            findCentralBtn.innerHTML = originalContent;
+                            findCentralBtn.style.pointerEvents = 'auto';
+                        }, 1000);
+                    }
+                });
+                
+            } else {
+                // Run optimization without visualization (original behavior)
+                console.log('🚀 Running optimization without visualization');
+                
+                const result = await window.meetingPointOptimizer.findOptimalMeetingPoint(users);
+                
+                if (result) {
+                    // Show brief success message
+                    this.showSuccessToast(`Found ${result.venues?.length || 0} venues • ${(result.fairness * 100).toFixed(1)}% fairness`);
+                    
+                    // Show minimal marker on map (no popup)
+                    this.showMinimalMarker(result);
+                    
+                    // Go directly to venues instead of showing popup
+                    setTimeout(() => {
+                        this.goDirectlyToVenues(result);
+                    }, 1500);
+                    
+                    console.log(`🎯 Optimization: ${(result.fairness * 100).toFixed(1)}% fair, ${result.venues.length} venues, ${result.metadata.duration}ms`);
+                } else {
+                    throw new Error('Optimization returned no result');
+                }
+            }
+    
         } catch (error) {
             console.error('❌ Optimization error:', error);
-            // Fallback to basic geometric midpoint
-            this.fallbackToBasicMidpoint();
-        } finally {
+            // Fallback to basic midpoint with venues
+            this.fallbackToBasicMidpointWithVenues();
+            
             // Restore button
             if (findCentralBtn && originalContent) {
                 findCentralBtn.innerHTML = originalContent;
                 findCentralBtn.style.pointerEvents = 'auto';
             }
         }
+    }
+    
+    /**
+     * Show minimal marker without popup
+     */
+    showMinimalMarker(result) {
+        // Clear existing midpoint marker
+        if (this.midpointMarker) {
+            this.midpointMarker.setMap(null);
+        }
+
+        if (!window.map) return;
+
+        const isOptimal = result.metadata && !result.metadata.fallbackUsed;
+        const color = isOptimal ? '#2E7D32' : '#FF9800';
+        
+        // Create minimal marker
+        this.midpointMarker = new google.maps.Marker({
+            position: result.point,
+            map: window.map,
+            title: `Meeting Point • ${result.venues?.length || 0} venues nearby`,
+            animation: google.maps.Animation.DROP,
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                fillColor: color,
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 3,
+                scale: 15
+            }
+        });
+
+        // Center map on optimal point
+        window.map.panTo(result.point);
+        window.map.setZoom(15);
+
+        // Store result for other methods
+        this.lastOptimalResult = result;
+    }
+
+    /**
+     * Go directly to venues page
+     */
+    goDirectlyToVenues(result) {
+        const point = result.point;
+        const venues = result.venues || [];
+
+        console.log('🚀 Going directly to venues...');
+
+        // Store venues data in sessionStorage for temp venues page
+        const tempSession = {
+            midpoint: point,
+            venues: venues.map(v => ({
+                ...v,
+                // Ensure we have the necessary properties for the venue card
+                name: v.name || 'Unnamed Venue',
+                vicinity: v.vicinity || v.formatted_address || 'No address available',
+                rating: v.rating || 0,
+                price_level: v.price_level || 0,
+                photos: v.photos || [],
+                geometry: v.geometry || { location: point }
+            })),
+            locationData: this.getAllLocationData().filter(loc => loc.isValid),
+            timestamp: Date.now(),
+            source: 'home_page_direct',
+            fairness: result.fairness,
+            avgTime: result.avgTime,
+            timeRange: result.timeRange,
+            // Add direct navigation flag
+            directNavigation: true
+        };
+
+        try {
+            // Store the data in sessionStorage
+            sessionStorage.setItem('tempVenues', JSON.stringify(tempSession));
+            
+            // Navigate to the temp venues page
+            window.location.href = '/mobile/venues/temp';
+        } catch (error) {
+            console.error('Error saving session data:', error);
+            this.showErrorMessage('Failed to load venues. Please try again.');
+        }
+    }
+
+    /**
+     * Fallback with venues
+     */
+    fallbackToBasicMidpointWithVenues() {
+        console.log('🔄 Using fallback to basic midpoint with venue search...');
+        
+        const locationData = this.getAllLocationData();
+        const validLocations = locationData.filter(loc => loc.isValid);
+        
+        if (validLocations.length === 0) {
+            this.showErrorMessage('No valid locations available');
+            return;
+        }
+
+        // Calculate basic geometric midpoint
+        const midpoint = this.calculateGeometricMidpoint(validLocations);
+        
+        if (!midpoint) {
+            this.showErrorMessage('Could not calculate meeting point');
+            return;
+        }
+
+        // Search for venues around the basic midpoint
+        this.searchVenuesAroundPoint(midpoint).then(venues => {
+            const basicResult = {
+                point: midpoint,
+                times: [],
+                venues: venues,
+                score: 0,
+                fairness: 0,
+                avgTime: 0,
+                timeRange: 0,
+                source: 'geometric_fallback',
+                metadata: {
+                    fallbackUsed: true,
+                    duration: 0
+                }
+            };
+
+            this.showSuccessToast(`Found ${venues.length} venues • Basic midpoint`);
+            
+            this.showMinimalMarker(basicResult);
+            
+            setTimeout(() => {
+                this.goDirectlyToVenues(basicResult);
+            }, 1500);
+            
+        }).catch(error => {
+            console.error('Venue search failed:', error);
+            this.showErrorMessage('Could not find venues nearby');
+        });
+    }
+
+    /**
+     * Search for venues around a point
+     */
+    searchVenuesAroundPoint(point) {
+        return new Promise((resolve, reject) => {
+            if (!window.google?.maps?.places?.PlacesService) {
+                reject(new Error('Places service not available'));
+                return;
+            }
+
+            const service = new google.maps.places.PlacesService(window.map);
+            
+            const request = {
+                location: point,
+                radius: 1000, // 1km radius
+                type: ['restaurant', 'cafe', 'food'],
+                keyword: 'restaurant cafe food'
+            };
+
+            service.nearbySearch(request, (results, status) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+                    // Sort by rating and limit to top venues
+                    const sortedVenues = results
+                        .filter(place => place.rating && place.rating > 3.0)
+                        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+                        .slice(0, 20);
+                    
+                    resolve(sortedVenues);
+                } else {
+                    resolve([]); // Return empty array if no venues found
+                }
+            });
+        });
+    }
+
+    /**
+     * Show success toast notification
+     */
+    showSuccessToast(message) {
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            box-shadow: 0 4px 20px rgba(40, 167, 69, 0.3);
+            z-index: 10000;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateX(-50%) translateY(-10px);
+            transition: all 0.3s ease;
+            max-width: 90vw;
+            text-align: center;
+        `;
+        
+        toast.innerHTML = `<i class="fas fa-check-circle" style="margin-right: 8px;"></i>${message}`;
+        document.body.appendChild(toast);
+        
+        // Animate in
+        setTimeout(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(-50%) translateY(0)';
+        }, 100);
+        
+        // Remove after delay
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(-10px)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
     }
     
     /**
@@ -212,6 +490,33 @@ class MidpointCalculator {
             return locations;
         }
         
+        // NEW: Check for LocationInputEnhancers (homepage)
+        if (window.locationInputEnhancers) {
+            const locations = [];
+            
+            window.locationInputEnhancers.forEach((enhancer, inputId) => {
+                const personId = enhancer.personId;
+                
+                if (enhancer.state.isValid && enhancer.state.position) {
+                    locations.push({
+                        personId: personId,
+                        lat: enhancer.state.position.lat(),
+                        lng: enhancer.state.position.lng(),
+                        name: enhancer.state.address,
+                        transportMode: enhancer.state.transportMode,
+                        isValid: true
+                    });
+                } else {
+                    locations.push({
+                        personId: personId,
+                        isValid: false
+                    });
+                }
+            });
+            
+            return locations;
+        }
+        
         // Legacy fallback
         const locations = [];
         if (!window.locationData) return locations;
@@ -224,7 +529,7 @@ class MidpointCalculator {
                     lat: data.lat,
                     lng: data.lng,
                     name: data.address,
-                    transportMode: window.userTransportModes.get(locationId) || 'TRANSIT',
+                    transportMode: window.userTransportModes?.get(locationId) || 'TRANSIT',
                     isValid: true
                 });
             } else {
@@ -310,182 +615,6 @@ class MidpointCalculator {
             });
             this.directionsRenderers = [];
         }
-    }/**
-     * Display optimal point (HOME PAGE VERSION)
-     */
-    displayOptimalPoint(result) {
-        // Clear existing midpoint marker
-        if (this.midpointMarker) {
-            this.midpointMarker.setMap(null);
-        }
-
-        // Check if we have a map
-        if (!window.map) {
-            console.error('No map available to display optimal point');
-            return;
-        }
-
-        // Determine if this is truly optimized or fallback
-        const isOptimal = result.metadata && !result.metadata.fallbackUsed;
-        const color = isOptimal ? '#2E7D32' : '#FF9800'; // Green for optimal, orange for fallback
-        
-        // Create enhanced marker
-        this.midpointMarker = new google.maps.Marker({
-            position: result.point,
-            map: window.map,
-            title: isOptimal ? 
-                `Optimized Meeting Point (${(result.fairness * 100).toFixed(1)}% fair)` : 
-                'Basic Meeting Point',
-            animation: google.maps.Animation.DROP,
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                fillColor: color,
-                fillOpacity: 1,
-                strokeColor: '#ffffff',
-                strokeWeight: 3,
-                scale: isOptimal ? 18 : 15
-            }
-        });
-
-        // Create detailed info window
-        const travelInfo = result.times ? result.times.map((time, i) => 
-            `<li>Person ${i + 1}: ${Math.round(time)} min</li>`
-        ).join('') : '<li>Travel times not calculated</li>';
-
-        const venueInfo = result.venues && result.venues.length > 0 ? 
-            result.venues.slice(0, 3).map(v => `
-                <div style="margin-bottom: 4px;">
-                    <strong>${v.name}</strong> ⭐ ${v.rating || 'N/A'}
-                </div>
-            `).join('') : '<div style="color: #666;">No venues found nearby</div>';
-
-        const infoContent = `
-            <div class="optimal-point-info" style="max-width: 320px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-                <h4 style="color: ${color}; margin: 0 0 12px 0; font-size: 16px;">
-                    ${isOptimal ? '🎯 Optimized' : '📍 Basic'} Meeting Point
-                </h4>
-                
-                ${isOptimal && result.fairness ? `
-                    <div class="optimization-stats" style="margin-bottom: 12px; font-size: 13px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <span><strong>Fairness Score:</strong></span>
-                            <span style="color: ${color}; font-weight: 500;">${(result.fairness * 100).toFixed(1)}%</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <span><strong>Time Range:</strong></span>
-                            <span>${Math.round(result.timeRange || 0)} min</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <span><strong>Avg Travel:</strong></span>
-                            <span>${Math.round(result.avgTime || 0)} min</span>
-                        </div>
-                        ${result.metadata?.duration ? `
-                        <div style="display: flex; justify-content: space-between;">
-                            <span><strong>Algorithm:</strong></span>
-                            <span style="font-size: 11px; color: #666;">${Math.round(result.metadata.duration)}ms</span>
-                        </div>
-                        ` : ''}
-                    </div>
-                ` : ''}
-                
-                <div class="travel-times" style="margin-bottom: 12px;">
-                    <h5 style="margin: 0 0 6px 0; font-size: 13px; color: #333;">🚶 Travel Times:</h5>
-                    <ul style="margin: 0; padding-left: 16px; font-size: 12px; color: #555;">
-                        ${travelInfo}
-                    </ul>
-                </div>
-                
-                ${result.venues && result.venues.length > 0 ? `
-                    <div class="venues-info" style="margin-bottom: 12px;">
-                        <h5 style="margin: 0 0 6px 0; font-size: 13px; color: #333;">📍 Nearby Venues:</h5>
-                        <div style="font-size: 12px;">
-                            ${venueInfo}
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <div style="margin-top: 15px; text-align: center;">
-                    <button onclick="window.midpointCalculator.shareLocation()" 
-                            style="background: ${color}; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 8px;">
-                        📤 Share Location
-                    </button>
-                    <button onclick="window.midpointCalculator.exploreArea()" 
-                            style="background: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                        🔍 Explore Area
-                    </button>
-                </div>
-            </div>
-        `;
-
-        const infoWindow = new google.maps.InfoWindow({ 
-            content: infoContent,
-            maxWidth: 350
-        });
-
-        this.midpointMarker.addListener('click', () => {
-            infoWindow.open(window.map, this.midpointMarker);
-        });
-
-        // Auto-open the info window to show results
-        setTimeout(() => {
-            infoWindow.open(window.map, this.midpointMarker);
-        }, 800);
-
-        // Center map on optimal point
-        window.map.panTo(result.point);
-        window.map.setZoom(15);
-
-        // Store result for other methods
-        this.lastOptimalResult = result;
-        
-        console.log('✅ Displayed optimal point:', {
-            fairness: result.fairness ? `${(result.fairness * 100).toFixed(1)}%` : 'N/A',
-            venues: result.venues?.length || 0,
-            source: result.source || 'unknown',
-            isOptimal: isOptimal
-        });
-    }
-
-    /**
-     * Fallback to basic geometric midpoint
-     */
-    fallbackToBasicMidpoint() {
-        console.log('🔄 Using fallback to basic midpoint...');
-        
-        const locationData = this.getAllLocationData();
-        const validLocations = locationData.filter(loc => loc.isValid);
-        
-        if (validLocations.length === 0) {
-            this.showErrorMessage('No valid locations available');
-            return;
-        }
-
-        // Calculate basic geometric midpoint
-        const midpoint = this.calculateGeometricMidpoint(validLocations);
-        
-        if (!midpoint) {
-            this.showErrorMessage('Could not calculate meeting point');
-            return;
-        }
-
-        // Create a basic result object
-        const basicResult = {
-            point: midpoint,
-            times: [], // Empty - no travel time calculation
-            venues: [],
-            score: 0,
-            fairness: 0,
-            avgTime: 0,
-            timeRange: 0,
-            source: 'geometric_fallback',
-            metadata: {
-                fallbackUsed: true,
-                duration: 0
-            }
-        };
-
-        this.displayOptimalPoint(basicResult);
-        this.showInfoMessage('⚠️ Using basic midpoint - optimization not available');
     }
 
     /**
@@ -573,7 +702,7 @@ class MidpointCalculator {
     }
 
     /**
-     * Explore area around the optimal point
+     * Explore area around the optimal point (LEGACY - kept for compatibility)
      */
     exploreArea() {
         if (!this.lastOptimalResult) {
@@ -581,42 +710,8 @@ class MidpointCalculator {
             return;
         }
     
-        const point = this.lastOptimalResult.point;
-        const venues = this.lastOptimalResult.venues || [];
-    
-        console.log('🔍 Exploring area from home page...');
-    
-        // Store venues data in sessionStorage for temp venues page
-        const tempSession = {
-            midpoint: point,
-            venues: venues.map(v => ({
-                ...v,
-                // Ensure we have the necessary properties for the venue card
-                name: v.name || 'Unnamed Venue',
-                vicinity: v.vicinity || v.formatted_address || 'No address available',
-                rating: v.rating || 0,
-                price_level: v.price_level || 0,
-                photos: v.photos || [],
-                geometry: v.geometry || { location: point }
-            })),
-            locationData: this.getAllLocationData().filter(loc => loc.isValid),
-            timestamp: Date.now(),
-            source: 'home_page',
-            fairness: this.lastOptimalResult.fairness,
-            avgTime: this.lastOptimalResult.avgTime,
-            timeRange: this.lastOptimalResult.timeRange
-        };
-
-        try {
-            // Store the data in sessionStorage
-            sessionStorage.setItem('tempVenues', JSON.stringify(tempSession));
-            
-            // Navigate to the temp venues page
-            window.location.href = '/mobile/venues/temp';
-        } catch (error) {
-            console.error('Error saving session data:', error);
-            this.showErrorMessage('Failed to load venues. Please try again.');
-        }
+        // Just redirect to venues directly now
+        this.goDirectlyToVenues(this.lastOptimalResult);
     }
 }
 

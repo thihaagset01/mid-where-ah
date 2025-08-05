@@ -1,4 +1,4 @@
-<!-- templates/venues_temp.html - Updated for correct design flow -->
+<!-- templates/venues_temp.html - FIXED VERSION -->
 {% extends "mobile_base.html" %}
 
 {% block title %}Top Picks - MidWhereAh{% endblock %}
@@ -211,17 +211,21 @@ function initializeFirebaseAuth() {
     });
 }
 
-// Load venue data and determine context
+// Load venue data and determine context - FIXED VERSION
 function loadTempVenues() {
     try {
         const tempData = sessionStorage.getItem('tempVenues');
+        console.log('Raw sessionStorage data:', tempData);
+        
         if (!tempData) {
             showEmptyState('No venue data found. Please go back and calculate a midpoint first.');
             return;
         }
 
         const venueData = JSON.parse(tempData);
-        console.log('Venue data from sessionStorage:', venueData);
+        console.log('Parsed venue data:', venueData);
+        console.log('Venues array:', venueData.venues);
+        console.log('Venues array length:', venueData.venues?.length);
 
         // Store group context
         groupId = venueData.groupId;
@@ -230,6 +234,19 @@ function loadTempVenues() {
         updateBackButton(venueData.source, venueData.groupId, venueData.eventId);
         updateToggleButton(venueData.groupId);
         updateMidpointInfo(venueData);
+        
+        // Check if venues exist
+        if (!venueData.venues || venueData.venues.length === 0) {
+            console.warn('No venues in data, searching around midpoint...');
+            
+            // Try to search for venues around the midpoint
+            if (venueData.midpoint) {
+                searchVenuesAroundMidpoint(venueData.midpoint, venueData);
+            } else {
+                showEmptyState('No venues found near the meeting point. Try adjusting your location inputs.');
+            }
+            return;
+        }
         
         // Load venues with vote data if group context
         if (venueData.groupId) {
@@ -242,6 +259,50 @@ function loadTempVenues() {
         console.error('Error loading venue data:', error);
         showEmptyState('Error loading venue data. Please try again.');
     }
+}
+
+// Search for venues around midpoint if none provided
+function searchVenuesAroundMidpoint(midpoint, venueData) {
+    if (!window.google?.maps?.places?.PlacesService) {
+        showEmptyState('Google Places service not available. Please try again later.');
+        return;
+    }
+
+    console.log('🔍 Searching for venues around midpoint:', midpoint);
+    
+    // Create a temporary map element for the PlacesService
+    const tempMapDiv = document.createElement('div');
+    const tempMap = new google.maps.Map(tempMapDiv, { center: midpoint, zoom: 15 });
+    const service = new google.maps.places.PlacesService(tempMap);
+    
+    const request = {
+        location: new google.maps.LatLng(midpoint.lat, midpoint.lng),
+        radius: 1000, // 1km radius
+        type: ['restaurant', 'cafe', 'food', 'meal_takeaway'],
+        keyword: 'restaurant cafe food dining'
+    };
+
+    service.nearbySearch(request, (results, status) => {
+        console.log('Places API response:', status, results);
+        
+        if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+            // Sort by rating and limit to top venues
+            const sortedVenues = results
+                .filter(place => place.rating && place.rating > 3.0)
+                .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+                .slice(0, 20);
+            
+            console.log(`✅ Found ${sortedVenues.length} venues via Places API`);
+            
+            // Update venue data and display
+            venueData.venues = sortedVenues;
+            displayReadOnlyVenues(sortedVenues);
+            updateMidpointInfo({ ...venueData, venues: sortedVenues });
+        } else {
+            console.error('Places API failed:', status);
+            showEmptyState('No restaurants or cafes found near the meeting point. Try a different location.');
+        }
+    });
 }
 
 // Load venues with voting data from Firestore
@@ -367,6 +428,20 @@ function createResultsVenueCard(venue, rank) {
     const totalVotes = venue.votes ? venue.votes.total : 0;
     const votePercentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
 
+    // Get coordinates for map link (handle both legacy and new Places API formats)
+    let lat = 0, lng = 0;
+    if (venue.geometry?.location) {
+        // Try function format first (new API)
+        if (typeof venue.geometry.location.lat === 'function') {
+            lat = venue.geometry.location.lat();
+            lng = venue.geometry.location.lng();
+        } else {
+            // Use direct property format (legacy API)
+            lat = venue.geometry.location.lat || 0;
+            lng = venue.geometry.location.lng || 0;
+        }
+    }
+
     return `
     <div class="card venue-card mb-3 position-relative">
         <div class="venue-rank">${rank}</div>
@@ -395,7 +470,7 @@ function createResultsVenueCard(venue, rank) {
                             ${totalVotes > 0 ? `<span class="text-muted">(${votePercentage}%)</span>` : ''}
                         </div>
                         <button class="btn btn-outline-primary btn-sm" 
-                                onclick="viewOnMap('${venue.placeId || venue.place_id}', ${venue.geometry?.location?.lat || 0}, ${venue.geometry?.location?.lng || 0})">
+                                onclick="viewOnMap('${venue.placeId || venue.place_id}', ${lat}, ${lng})">
                             <i class="fas fa-map-marker-alt me-1"></i> Map
                         </button>
                     </div>
@@ -490,6 +565,17 @@ function updateBackButton(source, groupId, eventId) {
     }
 }
 
+// Go back function
+function goBack() {
+    // Try to go back in browser history
+    if (window.history.length > 1) {
+        window.history.back();
+    } else {
+        // Fallback to home page
+        window.location.href = '/app';
+    }
+}
+
 // Update midpoint information
 function updateMidpointInfo(data) {
     const statsContainer = document.getElementById('midpoint-summary');
@@ -562,218 +648,6 @@ function viewOnMap(placeId, lat, lng) {
     } else {
         showToast('Location not available for this venue', 'error');
     }
-}
-
-// Add debugging script to venues_temp.html before the closing </script> tag
-
-// Enhanced debugging for authentication issues
-class AuthDebugger {
-    constructor() {
-        this.logs = [];
-        this.startTime = Date.now();
-    }
-
-    log(message, data = null) {
-        const timestamp = Date.now() - this.startTime;
-        const logEntry = { timestamp, message, data, time: new Date().toISOString() };
-        this.logs.push(logEntry);
-        console.log(`[AUTH DEBUG ${timestamp}ms]`, message, data || '');
-    }
-
-    async checkAuthState() {
-        this.log('=== AUTHENTICATION STATE CHECK ===');
-        
-        try {
-            const user = firebase.auth().currentUser;
-            this.log('Firebase currentUser:', user ? {
-                uid: user.uid, email: user.email, emailVerified: user.emailVerified
-            } : 'null');
-
-            if (user) {
-                const token = await user.getIdToken();
-                this.log('Firebase ID token length:', token.length);
-            }
-        } catch (error) {
-            this.log('Firebase auth error:', error.message);
-        }
-
-        const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-            const [name, value] = cookie.trim().split('=');
-            acc[name] = value;
-            return acc;
-        }, {});
-        
-        this.log('id_token cookie:', cookies.id_token ? `present (${cookies.id_token.length} chars)` : 'missing');
-
-        try {
-            const response = await fetch('/api/user', {
-                method: 'GET',
-                credentials: 'include'
-            });
-            
-            this.log('Flask /api/user response:', response.status);
-            
-            if (response.ok) {
-                const data = await response.json();
-                this.log('Flask user data:', data);
-            } else {
-                const text = await response.text();
-                this.log('Flask error:', text);
-            }
-        } catch (error) {
-            this.log('Flask API error:', error.message);
-        }
-
-        return this.logs;
-    }
-
-    exportLogs() {
-        const logText = this.logs.map(log => 
-            `[${log.timestamp}ms] ${log.message} ${log.data ? JSON.stringify(log.data) : ''}`
-        ).join('\n');
-        
-        console.log('=== FULL DEBUG LOG ===');
-        console.log(logText);
-        
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(logText);
-            console.log('✅ Debug log copied to clipboard');
-        }
-        
-        return logText;
-    }
-}
-
-// Initialize debugger
-window.authDebugger = new AuthDebugger();
-
-// Enhanced startSwipeVoting with comprehensive debugging
-async function startSwipeVotingDebug(groupId) {
-    const debugger = window.authDebugger;
-    
-    debugger.log('🚀 STARTING SWIPE VOTING', { groupId });
-    
-    // Check initial state
-    await debugger.checkAuthState();
-    
-    try {
-        if (!isFirebaseReady || !firebase.auth().currentUser) {
-            debugger.log('❌ No Firebase user');
-            showToast('Please sign in to start voting', 'error');
-            debugger.exportLogs();
-            return;
-        }
-
-        const user = firebase.auth().currentUser;
-        debugger.log('✅ User authenticated', user.email);
-
-        // Get fresh token
-        const idToken = await user.getIdToken(true);
-        debugger.log('✅ Fresh token obtained', idToken.length);
-        
-        // Set cookie
-        const isSecure = window.location.protocol === 'https:';
-        const cookieString = `id_token=${idToken}; path=/; max-age=3600; ${isSecure ? 'secure; ' : ''}samesite=lax`;
-        document.cookie = cookieString;
-        debugger.log('✅ Cookie set');
-        
-        // Sync attempts
-        let syncSuccess = false;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            debugger.log(`🔄 Sync attempt ${attempt}/3`);
-            
-            try {
-                const response = await fetch('/api/user', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${idToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include'
-                });
-                
-                debugger.log(`📡 Response ${attempt}:`, response.status);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    debugger.log(`✅ Sync ${attempt} success:`, data);
-                    syncSuccess = true;
-                    break;
-                } else {
-                    const errorText = await response.text();
-                    debugger.log(`❌ Sync ${attempt} failed:`, errorText);
-                }
-            } catch (syncError) {
-                debugger.log(`💥 Sync ${attempt} error:`, syncError.message);
-            }
-            
-            if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        if (!syncSuccess) {
-            debugger.log('💀 ALL SYNC ATTEMPTS FAILED');
-            debugger.exportLogs();
-            throw new Error('Session sync failed');
-        }
-        
-        // Final check
-        debugger.log('🔍 Final auth check...');
-        await debugger.checkAuthState();
-        
-        // Navigate
-        debugger.log('🚢 Navigating to swipe interface...');
-        debugger.exportLogs(); // Export before navigation
-        
-        sessionStorage.setItem('swipe_return_path', window.location.href);
-        window.location.href = `/mobile/swipe/${groupId}`;
-        
-    } catch (error) {
-        debugger.log('💀 CRITICAL ERROR:', error.message);
-        debugger.exportLogs();
-        showToast('Navigation failed. Check console for debug info.', 'error');
-    }
-}
-
-// Debug helper functions for manual testing
-window.debugAuth = () => window.authDebugger.checkAuthState();
-window.debugCookies = () => {
-    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-        const [name, value] = cookie.trim().split('=');
-        acc[name] = value ? `${value.length} chars` : 'empty';
-        return acc;
-    }, {});
-    console.table(cookies);
-    return cookies;
-};
-
-// Replace the original function with debug version
-const originalStartSwipeVoting = startSwipeVoting;
-startSwipeVoting = startSwipeVotingDebug;
-
-// Add debug panel to page (only in development)
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    document.addEventListener('DOMContentLoaded', () => {
-        const debugPanel = document.createElement('div');
-        debugPanel.style.cssText = `
-            position: fixed; 
-            top: 10px; 
-            left: 10px; 
-            background: rgba(0,0,0,0.8); 
-            color: white; 
-            padding: 10px; 
-            border-radius: 5px; 
-            font-size: 12px;
-            z-index: 10000;
-            max-width: 200px;
-        `;
-        debugPanel.innerHTML = `
-            <div><strong>🐛 DEBUG PANEL</strong></div>
-            <button onclick="debugAuth().then(console.table)" style="margin: 2px; padding: 2px 6px; font-size: 10px;">Check Auth</button>
-            <button onclick="debugCookies()" style="margin: 2px; padding: 2px 6px; font-size: 10px;">Check Cookies</button>
-            <button onclick="window.authDebugger.exportLogs()" style="margin: 2px; padding: 2px 6px; font-size: 10px;">Export Logs</button>
-        `;
-        document.body.appendChild(debugPanel);
-    });
 }
 </script>
 {% endblock %}
