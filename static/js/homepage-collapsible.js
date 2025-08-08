@@ -40,18 +40,46 @@ class HomepageCollapsibleManager {
                 backdrop-filter: blur(10px) !important;
                 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
                 z-index: 1000 !important;
-                transform: translateY(-80%) !important; /* Show some content by default */
+                transform: translateY(calc(-100% + 60px)) !important; /* Show only handle area when collapsed */
                 transition: transform 0.3s ease !important;
-                max-height: 70vh !important;
+                max-height: 90vh !important;
                 display: flex !important;
                 flex-direction: column !important;
                 width: 100vw !important;
                 cursor: pointer !important;
                 user-select: none !important;
+                overflow: hidden !important; /* Hide overflow when collapsed */
             }
             
             .locations-container.expanded {
-                transform: translateY(0) !important; /* Full expansion */
+                transform: translateY(0) !important; /* Fully visible when expanded */
+            }
+            
+            /* Container content wrapper */
+            .container-content {
+                padding: 16px !important;
+                overflow-y: auto !important;
+                max-height: calc(90vh - 60px) !important; /* Account for handle height */
+                order: 0 !important; /* Content first */
+                flex: 1 !important; /* Take remaining space */
+                opacity: 0; /* Start hidden */
+                transition: opacity 0.2s ease 0.1s; /* Fade in after slide */
+            }
+            
+            .locations-container.expanded .container-content {
+                opacity: 1; /* Show content when expanded */
+            }
+            
+            /* Handle area at bottom */
+            .handle-area {
+                padding: 12px 20px 8px !important;
+                text-align: center !important;
+                border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+                order: 1 !important; /* Handle at bottom */
+                cursor: pointer !important;
+                background: rgba(255, 255, 255, 0.9) !important;
+                border-radius: 0 0 20px 20px !important;
+                z-index: 1001 !important; /* Ensure handle stays above content */
             }
             
             /* Container content wrapper */
@@ -670,8 +698,12 @@ class HomepageCollapsibleManager {
         const header = document.querySelector('.group-header-container');
         
         if (container) {
+            // Add expanded class to trigger expansion
             container.classList.add('expanded');
             this.isExpanded = true;
+            
+            // Ensure transform is reset for full visibility
+            container.style.transform = 'translateY(0)';
             
             // Update header indicator
             if (header) {
@@ -687,8 +719,12 @@ class HomepageCollapsibleManager {
         const header = document.querySelector('.group-header-container');
         
         if (container) {
+            // Remove expanded class to trigger collapse
             container.classList.remove('expanded');
             this.isExpanded = false;
+            
+            // Ensure transform is applied for smooth transition
+            container.style.transform = 'translateY(calc(-100% + 60px))';
             
             // Remove header indicator
             if (header) {
