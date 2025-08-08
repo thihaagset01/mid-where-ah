@@ -1,277 +1,140 @@
 /**
- * MapManager.js - Core Map functionality for MidWhereAh
- * Handles Google Maps integration, markers, and location display
- * 
- * FIXED VERSION - Proper marker management and global reference handling
+ * MapManager.js - COMPLETE FIXED VERSION
+ * Enhanced Google Maps management with duplicate marker prevention
+ * Handles both legacy autocomplete and new LocationInputEnhancer systems
  */
 
 class MapManager {
-    constructor() {
-        // Initialize properties
+    constructor(mapElementId = 'map') {
+        this.mapElementId = mapElementId;
         this.map = null;
+        this.isMapReady = false;
+        
+        // Enhanced marker tracking
         this.locationMarkers = {};
-        this.directionsRenderers = [];
-        this.isInitialized = false;
+        this.markerRegistry = new Set(); // Track all marker instances
         
-        // Store global reference - but don't auto-initialize
-        window.mapManager = this;
+        // Autocomplete instances
+        this.autocompleteInstances = new Map();
         
-        console.log('MapManager initialized (waiting for Google Maps)');
+        // Singapore bounds for region restriction
+        this.singaporeBounds = new google.maps.LatLngBounds(
+            new google.maps.LatLng(1.1, 103.6),
+            new google.maps.LatLng(1.5, 104.1)
+        );
+        
+        console.log('MapManager initialized with enhanced marker tracking');
     }
     
     /**
-     * Initialize map manager - called ONLY by initMap callback
+     * Initialize the map with enhanced error handling
      */
-    init() {
-        if (this.isInitialized) {
-            console.log('MapManager already initialized');
-            return this.map;
-        }
-        
+    async initMap() {
         try {
-            console.log('MapManager.init() called');
-            this.createMap();
-            this.setupLegacySupport();
-            this.isInitialized = true;
+            const mapElement = document.getElementById(this.mapElementId);
+            if (!mapElement) {
+                throw new Error(`Map element #${this.mapElementId} not found`);
+            }
             
-            // Notify other components that map is ready
+            // Singapore center coordinates
+            const singaporeCenter = { lat: 1.3521, lng: 103.8198 };
+            
+            const mapOptions = {
+                center: singaporeCenter,
+                zoom: 12,
+                mapTypeId: google.maps.MapTypeId.ROADMAP,
+                restriction: {
+                    latLngBounds: this.singaporeBounds,
+                    strictBounds: false
+                },
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ],
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: true,
+                zoomControl: true,
+                gestureHandling: 'greedy'
+            };
+            
+            this.map = new google.maps.Map(mapElement, mapOptions);
+            this.isMapReady = true;
+            
+            // Make map globally accessible
+            window.map = this.map;
+            
+            // Setup enhanced autocomplete for existing inputs
+            this.setupAutocompleteForExistingInputs();
+            
+            // Notify that map is ready
             this.notifyMapReady();
             
+            console.log('✅ Map initialized successfully');
             return this.map;
+            
         } catch (error) {
-            console.error('Error in MapManager.init():', error);
+            console.error('❌ Map initialization failed:', error);
+            this.showError('Failed to initialize map. Please check your internet connection and try again.');
             throw error;
         }
     }
     
     /**
-     * Create the Google Map instance
+     * Check if map is ready
      */
-    createMap() {
-        console.log('Creating Google Map instance');
-        
-        const mapElement = document.getElementById('map');
-        if (!mapElement) {
-            throw new Error('Map container element not found');
-        }
-        
-        // Default center (Singapore)
-        const defaultCenter = { lat: 1.3521, lng: 103.8198 };
-        
-        // Create map instance
-        this.map = new google.maps.Map(mapElement, {
-            center: defaultCenter,
-            zoom: 12,
-            mapTypeControl: false,
-            fullscreenControl: false,
-            streetViewControl: false,
-            zoomControl: true,
-            zoomControlOptions: {
-                position: google.maps.ControlPosition.RIGHT_TOP
-            },
-            styles: [
-                {
-                    featureType: 'poi',
-                    elementType: 'labels',
-                    stylers: [{ visibility: 'off' }]
-                }
-            ]
-        });
-        
-        // Make map globally accessible with multiple references for compatibility
-        window.map = this.map;
-        window.midwhereahMap = this.map;
-        
-        console.log('✅ Google Map created successfully');
+    isMapReady() {
+        return this.isMapReady && this.map !== null;
+    }
+    
+    /**
+     * Get map instance
+     */
+    getMap() {
         return this.map;
     }
     
     /**
-     * Set up legacy support for existing code
+     * CRITICAL FIX: Remove existing marker before creating new one
      */
-    setupLegacySupport() {
-        // Legacy autocomplete setup (but LocationInput handles its own now)
-        this.setupAutocompleteForExistingInputs();
-        
-        // Set up global geocoder for compatibility
-        if (!window.geocoder) {
-            window.geocoder = new google.maps.Geocoder();
-        }
-
-        // Listen for location updates from the autofill modal
-        document.addEventListener('location-updated', (event) => {
-            const { inputId, place } = event.detail;
-            if (place && place.geometry) {
-                console.log('Location updated event received for', inputId, place);
-                
-                // Get the color index from the input ID (e.g., 'location-1' -> 0, 'location-2' -> 1)
-                const colorIndex = parseInt(inputId.replace('location-', '')) - 1;
-                const colors = ['#8B5DB8', '#FF5722', '#2196F3', '#4CAF50', '#FFC107', '#9C27B0', '#00BCD4'];
-                const color = colors[colorIndex % colors.length];
-                
-                const location = {
-                    lat: place.geometry.location.lat(),
-                    lng: place.geometry.location.lng()
-                };
-                
-                // Use addLocationMarker which handles marker creation and updates
-                this.addLocationMarker(location, inputId, color);
-                
-                // Store the location data for legacy compatibility
-                this.storeLocationData(inputId, location, place.formatted_address || place.name);
-                
-                // Update UI state to reflect the change
-                this.updateUIState();
-                
-                // Fit the map to show all markers
-                this.fitToMarkers();
-            }
-        });
-    }
-    
-    /**
-     * Notify other components that map is ready
-     */
-    notifyMapReady() {
-        // Trigger custom event
-        const event = new CustomEvent('mapReady', { 
-            detail: { 
-                map: this.map, 
-                mapManager: this 
-            } 
-        });
-        document.dispatchEvent(event);
-        
-        // Call specific component initializers if they exist
-        if (window.eventMapManager && typeof window.eventMapManager.onMapReady === 'function') {
-            window.eventMapManager.onMapReady(this.map);
-        }
-        
-        if (window.venueMapFeatures && typeof window.venueMapFeatures.onMapReady === 'function') {
-            window.venueMapFeatures.onMapReady(this.map);
-        }
-        
-        console.log('Map ready event dispatched');
-    }
-    
-    /**
-     * Set up autocomplete for existing location inputs (legacy support)
-     * NEW LocationInput instances handle their own autocomplete
-     */
-    setupAutocompleteForExistingInputs() {
-        const locationInputs = document.querySelectorAll('.location-input');
-        
-        console.log(`Found ${locationInputs.length} location inputs for legacy autocomplete setup`);
-        
-        locationInputs.forEach((input, index) => {
-            // Skip if this input already has autocomplete or is managed by LocationInput class
-            if (input.getAttribute('data-autocomplete-initialized') === 'true') {
-                console.log('Skipping', input.id, '- already has autocomplete');
-                return;
-            }
-            
-            // Check if this input is managed by LocationInput class
-            const inputId = input.id;
-            if (window.locationInputs && window.locationInputs.has(inputId)) {
-                console.log('Skipping', input.id, '- managed by LocationInput class');
-                return;
-            }
-            
-            // Set up legacy autocomplete
-            this.setupSingleInputAutocomplete(input, index);
-        });
-    }
-    
-    /**
-     * Set up autocomplete for a single location input (legacy)
-     */
-    setupSingleInputAutocomplete(input, colorIndex) {
-        // Mark as initialized to prevent double setup
-        input.setAttribute('data-autocomplete-initialized', 'true');
-        
-        console.log('Setting up legacy autocomplete for', input.id);
-        
-        // Define colors for markers
-        const colors = ['#8B5DB8', '#FF5722', '#2196F3', '#4CAF50', '#FFC107', '#9C27B0', '#00BCD4'];
-        const color = colors[colorIndex % colors.length];
-        
-        try {
-            // Create Google Places Autocomplete
-            const autocomplete = new google.maps.places.Autocomplete(input, {
-                componentRestrictions: { country: 'sg' },
-                fields: ['address_components', 'geometry', 'name', 'formatted_address']
-            });
-            
-            autocomplete.addListener('place_changed', () => {
-                const place = autocomplete.getPlace();
-                
-                if (!place.geometry) {
-                    console.warn('No geometry for place:', place);
-                    this.geocodeManually(input.value, input.id, color);
-                    return;
-                }
-                
-                const location = {
-                    lat: place.geometry.location.lat(),
-                    lng: place.geometry.location.lng()
-                };
-                
-                // Add marker to map using legacy method
-                this.addLocationMarker(location, input.id, color);
-                
-                // Store location data for legacy compatibility
-                this.storeLocationData(input.id, location, place.formatted_address || input.value);
-                
-                // Update UI state
-                this.updateUIState();
-            });
-            
-            console.log('✅ Legacy autocomplete set up for', input.id);
-            
-        } catch (error) {
-            console.error('Error setting up legacy autocomplete for', input.id, ':', error);
-        }
-    }
-    
-    /**
-     * Geocode address manually if Google Places API fails (legacy)
-     */
-    geocodeManually(address, inputId, color) {
-        console.log('Legacy manual geocoding for:', address);
-        
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({ 
-            address: address + ', Singapore',
-            componentRestrictions: { country: 'SG' }
-        }, (results, status) => {
-            if (status === 'OK' && results[0]) {
-                const location = {
-                    lat: results[0].geometry.location.lat(),
-                    lng: results[0].geometry.location.lng()
-                };
-                
-                this.addLocationMarker(location, inputId, color);
-                this.storeLocationData(inputId, location, results[0].formatted_address);
-                this.updateUIState();
-            } else {
-                console.error('Legacy geocoding failed for:', address, 'Status:', status);
-                this.showError('Could not find that location. Please try again.');
-            }
-        });
-    }
-    
-    /**
-     * Add location marker to the map (legacy method)
-     * NOTE: New LocationInput instances manage their own markers
-     */
-    addLocationMarker(location, inputId, color = '#8B5DB8') {
-        console.log('Adding legacy marker for', inputId, 'at', location);
-        
-        // Remove existing marker if any
+    removeExistingMarker(inputId) {
         if (this.locationMarkers[inputId]) {
             this.locationMarkers[inputId].setMap(null);
+            this.markerRegistry.delete(this.locationMarkers[inputId]);
             delete this.locationMarkers[inputId];
+            console.log(`🧹 Removed existing marker for ${inputId}`);
         }
+    }
+    
+    /**
+     * NEW: Check if marker is managed by LocationInputEnhancer
+     */
+    isMarkerManagedByLocationInput(inputId) {
+        // Check if LocationInputEnhancer exists and manages this input
+        if (window.locationInputEnhancers && window.locationInputEnhancers.has(inputId)) {
+            const enhancer = window.locationInputEnhancers.get(inputId);
+            return enhancer && enhancer.marker; // Has active marker
+        }
+        return false;
+    }
+    
+    /**
+     * FIXED: Enhanced addLocationMarker with deduplication
+     */
+    addLocationMarker(location, inputId, color = '#8B5DB8') {
+        // CRITICAL: Remove any existing marker first
+        this.removeExistingMarker(inputId);
+        
+        // Check if LocationInputEnhancer already created a marker
+        if (this.isMarkerManagedByLocationInput(inputId)) {
+            console.log(`⚠️ Skipping legacy marker creation - ${inputId} managed by LocationInputEnhancer`);
+            return null;
+        }
+        
+        console.log('Adding legacy marker for', inputId, 'at', location);
         
         // Create marker
         const marker = new google.maps.Marker({
@@ -286,11 +149,15 @@ class MapManager {
                 strokeColor: '#FFFFFF',
                 scale: 10
             },
-            animation: google.maps.Animation.DROP
+            animation: google.maps.Animation.DROP,
+            // Add identifier for tracking
+            markerId: inputId,
+            source: 'legacy-mapmanager'
         });
         
-        // Store marker
+        // Store marker with enhanced tracking
         this.locationMarkers[inputId] = marker;
+        this.markerRegistry.add(marker);
         
         // Pan to marker
         this.map.panTo(location);
@@ -304,6 +171,7 @@ class MapManager {
             infoWindow.open(this.map, marker);
         });
         
+        console.log(`✅ Created legacy marker for ${inputId}`);
         return marker;
     }
     
@@ -313,9 +181,166 @@ class MapManager {
     removeLocationMarker(inputId) {
         if (this.locationMarkers[inputId]) {
             this.locationMarkers[inputId].setMap(null);
+            this.markerRegistry.delete(this.locationMarkers[inputId]);
             delete this.locationMarkers[inputId];
             console.log('Removed legacy marker for', inputId);
         }
+    }
+    
+    /**
+     * ENHANCED: Clear all markers with registry cleanup
+     */
+    clearAllMarkers() {
+        console.log('🧹 Clearing all markers from map');
+        
+        // Clear legacy markers
+        Object.values(this.locationMarkers).forEach(marker => {
+            marker.setMap(null);
+            this.markerRegistry.delete(marker);
+        });
+        this.locationMarkers = {};
+        
+        // Clear LocationInputEnhancer markers
+        if (window.locationInputEnhancers) {
+            window.locationInputEnhancers.forEach(enhancer => {
+                if (enhancer.removeMarker) {
+                    enhancer.removeMarker();
+                }
+            });
+        }
+        
+        // Clear any orphaned markers from registry
+        this.markerRegistry.forEach(marker => {
+            marker.setMap(null);
+        });
+        this.markerRegistry.clear();
+        
+        console.log('✅ All markers cleared');
+    }
+    
+    /**
+     * ENHANCED: Setup autocomplete with marker deduplication
+     */
+    setupAutocompleteForExistingInputs() {
+        const locationInputs = document.querySelectorAll('.location-input');
+        
+        console.log(`Found ${locationInputs.length} location inputs for enhanced autocomplete setup`);
+        
+        locationInputs.forEach((input, index) => {
+            // Skip if input already has autocomplete or is managed by LocationInput class
+            if (input.getAttribute('data-autocomplete-initialized') === 'true') {
+                console.log('Skipping', input.id, '- already has autocomplete');
+                return;
+            }
+            
+            // Check if this input is managed by LocationInput class
+            const inputId = input.id;
+            if (window.locationInputs && window.locationInputs.has(inputId)) {
+                console.log('Skipping', input.id, '- managed by LocationInput class');
+                return;
+            }
+            
+            // Skip if already managed by LocationInputEnhancer
+            if (this.isMarkerManagedByLocationInput(inputId)) {
+                console.log(`⚠️ Skipping autocomplete setup - ${inputId} managed by LocationInputEnhancer`);
+                return;
+            }
+            
+            // Set up legacy autocomplete
+            this.setupSingleInputAutocomplete(input, index);
+        });
+    }
+    
+    /**
+     * ENHANCED: Set up autocomplete for a single location input
+     */
+    setupSingleInputAutocomplete(input, colorIndex) {
+        // Mark as initialized to prevent double setup
+        input.setAttribute('data-autocomplete-initialized', 'true');
+        
+        console.log('Setting up enhanced autocomplete for', input.id);
+        
+        // Define colors for markers
+        const colors = ['#8B5DB8', '#FF5722', '#2196F3', '#4CAF50', '#FFC107', '#9C27B0', '#00BCD4'];
+        const color = colors[colorIndex % colors.length];
+        
+        try {
+            // Create Google Places Autocomplete
+            const autocomplete = new google.maps.places.Autocomplete(input, {
+                componentRestrictions: { country: 'sg' },
+                fields: ['address_components', 'geometry', 'name', 'formatted_address'],
+                bounds: this.singaporeBounds,
+                strictBounds: false
+            });
+            
+            // Store autocomplete instance
+            this.autocompleteInstances.set(input.id, autocomplete);
+            
+            autocomplete.addListener('place_changed', () => {
+                const place = autocomplete.getPlace();
+                
+                if (!place.geometry) {
+                    console.warn('No geometry for place:', place);
+                    this.geocodeManually(input.value, input.id, color);
+                    return;
+                }
+                
+                // CRITICAL: Remove existing marker before creating new one
+                this.removeExistingMarker(input.id);
+                
+                const location = {
+                    lat: place.geometry.location.lat(),
+                    lng: place.geometry.location.lng()
+                };
+                
+                // Use enhanced addLocationMarker
+                this.addLocationMarker(location, input.id, color);
+                
+                // Store location data for legacy compatibility
+                this.storeLocationData(input.id, location, place.formatted_address || place.name);
+                
+                // Update UI state to reflect the change
+                this.updateUIState();
+                
+                // Fit the map to show all markers
+                this.fitToMarkers();
+            });
+            
+        } catch (error) {
+            console.error('Error setting up autocomplete for', input.id, error);
+            this.showError('Failed to set up location search. Please refresh the page.');
+        }
+    }
+    
+    /**
+     * Geocode manually when place has no geometry
+     */
+    geocodeManually(address, inputId, color) {
+        if (!address.trim()) return;
+        
+        const geocoder = new google.maps.Geocoder();
+        
+        geocoder.geocode({
+            address: address,
+            componentRestrictions: { country: 'SG' },
+            bounds: this.singaporeBounds
+        }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+                const location = {
+                    lat: results[0].geometry.location.lat(),
+                    lng: results[0].geometry.location.lng()
+                };
+                
+                this.removeExistingMarker(inputId);
+                this.addLocationMarker(location, inputId, color);
+                this.storeLocationData(inputId, location, results[0].formatted_address);
+                this.updateUIState();
+                this.fitToMarkers();
+            } else {
+                console.warn('Geocoding failed:', status);
+                this.showError('Could not find location. Please try entering a more specific address.');
+            }
+        });
     }
     
     /**
@@ -355,14 +380,106 @@ class MapManager {
     }
     
     /**
-     * Show error message
+     * ENHANCED: Fit map to show all markers (both systems)
+     */
+    fitToMarkers() {
+        const bounds = new google.maps.LatLngBounds();
+        let hasMarkers = false;
+        
+        // Include legacy markers
+        Object.values(this.locationMarkers).forEach(marker => {
+            bounds.extend(marker.getPosition());
+            hasMarkers = true;
+        });
+        
+        // Include LocationInputEnhancer markers
+        if (window.locationInputEnhancers) {
+            window.locationInputEnhancers.forEach(enhancer => {
+                if (enhancer.marker) {
+                    bounds.extend(enhancer.marker.getPosition());
+                    hasMarkers = true;
+                }
+            });
+        }
+        
+        if (hasMarkers) {
+            this.map.fitBounds(bounds);
+            
+            // Ensure minimum zoom level
+            const listener = google.maps.event.addListener(this.map, 'idle', () => {
+                if (this.map.getZoom() > 16) {
+                    this.map.setZoom(16);
+                }
+                google.maps.event.removeListener(listener);
+            });
+        }
+    }
+    
+    /**
+     * NEW: Get all active markers for debugging
+     */
+    getActiveMarkers() {
+        const activeMarkers = {
+            legacy: Object.keys(this.locationMarkers).length,
+            enhancer: 0,
+            total: this.markerRegistry.size
+        };
+        
+        if (window.locationInputEnhancers) {
+            window.locationInputEnhancers.forEach(enhancer => {
+                if (enhancer.marker) activeMarkers.enhancer++;
+            });
+        }
+        
+        return activeMarkers;
+    }
+    
+    /**
+     * Clear all directions from the map
+     */
+    clearDirections() {
+        // This will be called by other components to clear direction renderers
+        if (window.directionsRenderers) {
+            window.directionsRenderers.forEach(renderer => {
+                renderer.setMap(null);
+            });
+            window.directionsRenderers = [];
+        }
+    }
+    
+    /**
+     * Notify other components that map is ready
+     */
+    notifyMapReady() {
+        // Trigger custom event
+        const event = new CustomEvent('mapReady', { 
+            detail: { 
+                map: this.map, 
+                mapManager: this 
+            } 
+        });
+        document.dispatchEvent(event);
+        
+        // Call specific component initializers if they exist
+        if (window.eventMapManager && typeof window.eventMapManager.onMapReady === 'function') {
+            window.eventMapManager.onMapReady(this.map);
+        }
+        
+        if (window.venueMapFeatures && typeof window.venueMapFeatures.onMapReady === 'function') {
+            window.venueMapFeatures.onMapReady(this.map);
+        }
+        
+        console.log('Map ready event dispatched');
+    }
+    
+    /**
+     * Show error message with enhanced UI
      */
     showError(message) {
         if (window.uiManager && typeof window.uiManager.showErrorNotification === 'function') {
             window.uiManager.showErrorNotification(message);
         } else {
             console.error('MapManager Error:', message);
-            // Create a simple toast notification
             this.showToast(message, 'error');
         }
     }
@@ -412,192 +529,115 @@ class MapManager {
     }
     
     /**
-     * Clear all markers from the map
+     * Cleanup method for proper disposal
      */
-    clearMarkers() {
-        // Clear legacy markers
-        Object.values(this.locationMarkers).forEach(marker => {
-            marker.setMap(null);
+    destroy() {
+        // Clear all markers
+        this.clearAllMarkers();
+        
+        // Clear autocomplete instances
+        this.autocompleteInstances.forEach(autocomplete => {
+            google.maps.event.clearInstanceListeners(autocomplete);
         });
-        this.locationMarkers = {};
+        this.autocompleteInstances.clear();
         
-        // Clear LocationInput markers
-        if (window.locationInputs) {
-            window.locationInputs.forEach(locationInput => {
-                if (locationInput.removeMarker) {
-                    locationInput.removeMarker();
-                }
-            });
+        // Clear map
+        if (this.map) {
+            google.maps.event.clearInstanceListeners(this.map);
+            this.map = null;
         }
         
-        console.log('All markers cleared');
-    }
-    
-    /**
-     * Clear all directions from the map
-     */
-    clearDirections() {
-        this.directionsRenderers.forEach(renderer => {
-            renderer.setMap(null);
-        });
-        this.directionsRenderers = [];
-        console.log('All directions cleared');
-    }
-    
-    /**
-     * Get the current map instance
-     * @returns {google.maps.Map} The Google Maps instance
-     */
-    getMap() {
-        return this.map;
-    }
-    
-    /**
-     * Check if map is ready
-     */
-    isMapReady() {
-        return this.isInitialized && this.map !== null;
-    }
-    
-    /**
-     * Add directions renderer
-     */
-    addDirectionsRenderer(directionsRenderer) {
-        if (directionsRenderer) {
-            this.directionsRenderers.push(directionsRenderer);
-        }
-    }
-    
-    /**
-     * Get all valid locations (compatibility method)
-     */
-    getAllLocations() {
-        const locations = [];
+        this.isMapReady = false;
         
-        // Get from LocationInput instances
-        if (window.locationInputs) {
-            window.locationInputs.forEach(locationInput => {
-                if (locationInput.state && locationInput.state.isValid) {
-                    locations.push({
-                        inputId: locationInput.inputId,
-                        position: locationInput.state.position,
-                        address: locationInput.state.address,
-                        transportMode: locationInput.state.transportMode
-                    });
-                }
-            });
-        }
-        
-        // Get from legacy storage
-        if (window.locationData) {
-            window.locationData.forEach((data, inputId) => {
-                // Only add if not already added from LocationInput
-                if (!locations.find(loc => loc.inputId === inputId)) {
-                    locations.push({
-                        inputId: inputId,
-                        position: { lat: data.lat, lng: data.lng },
-                        address: data.address,
-                        transportMode: data.transportMode
-                    });
-                }
-            });
-        }
-        
-        return locations;
-    }
-    
-    /**
-     * Pan and zoom to show all markers
-     */
-    fitToMarkers() {
-        const locations = this.getAllLocations();
-        
-        if (locations.length === 0) {
-            console.log('No locations to fit to');
-            return;
-        }
-        
-        if (locations.length === 1) {
-            // Single location - just pan to it
-            this.map.panTo(locations[0].position);
-            this.map.setZoom(15);
-            return;
-        }
-        
-        // Multiple locations - fit bounds
-        const bounds = new google.maps.LatLngBounds();
-        
-        locations.forEach(location => {
-            if (location.position) {
-                bounds.extend(location.position);
-            }
-        });
-        
-        this.map.fitBounds(bounds);
-        
-        // Ensure minimum zoom level
-        google.maps.event.addListenerOnce(this.map, 'bounds_changed', () => {
-            if (this.map.getZoom() > 16) {
-                this.map.setZoom(16);
-            }
-        });
-        
-        console.log('Map fitted to', locations.length, 'locations');
-    }
-    
-    /**
-     * Update a marker's position
-     */
-    updateMarker(personId, position, address) {
-        const inputId = `location-${personId}`;
-        const marker = this.locationMarkers[inputId];
-        
-        if (marker) {
-            marker.setPosition(position);
-            this.storeLocationData(inputId, position, address);
-            this.updateUIState();
-        }
+        console.log('MapManager destroyed');
     }
 }
 
-// SINGLE GLOBAL INSTANCE - created immediately but not initialized
-window.mapManager = new MapManager();
+/**
+ * GLOBAL FUNCTIONS: Enhanced debugging and utilities
+ */
 
-// SINGLE GLOBAL INITMAP FUNCTION - this is the ONLY one that should exist
-window.initMap = function() {
-    console.log('🚀 initMap callback fired by Google Maps');
-    
-    try {
-        // Hide loading spinner
-        const loadingSpinner = document.getElementById('loading-spinner');
-        if (loadingSpinner) {
-            loadingSpinner.style.display = 'none';
+// Debug marker conflicts
+window.debugMarkers = function() {
+    if (window.mapManager) {
+        const markers = window.mapManager.getActiveMarkers();
+        console.log('🔍 Active Markers Debug:', markers);
+        
+        // List all markers by input ID
+        if (window.locationInputEnhancers) {
+            console.log('LocationInputEnhancer markers:');
+            window.locationInputEnhancers.forEach((enhancer, inputId) => {
+                console.log(`  ${inputId}: ${enhancer.marker ? '✅' : '❌'}`);
+            });
         }
         
-        // Initialize MapManager
-        const map = window.mapManager.init();
-        
-        console.log('✅ initMap completed successfully');
-        return map;
-        
-    } catch (error) {
-        console.error('❌ Error in initMap:', error);
-        
-        // Show error in map container
-        const mapElement = document.getElementById('map');
-        if (mapElement) {
-            mapElement.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #f5f5f5; color: #666; text-align: center; padding: 20px;">
-                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #dc3545; margin-bottom: 16px;"></i>
-                    <h3>Map Initialization Failed</h3>
-                    <p>There was an error loading the map. Please refresh the page.</p>
-                    <button onclick="location.reload()" style="background: #8B5DB8; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-top: 10px;">
-                        <i class="fas fa-redo"></i> Retry
-                    </button>
-                </div>
-            `;
-        }
-        
-        throw error;
+        console.log('Legacy markers:', Object.keys(window.mapManager.locationMarkers));
+        return markers;
+    }
+    return null;
+};
+
+// Clear all markers globally
+window.clearAllMapMarkers = function() {
+    if (window.mapManager) {
+        window.mapManager.clearAllMarkers();
+        console.log('🧹 All markers cleared globally');
     }
 };
+
+// Get map instance globally
+window.getMapInstance = function() {
+    return window.mapManager ? window.mapManager.getMap() : null;
+};
+
+// Initialize map globally
+window.initializeMap = async function(elementId = 'map') {
+    try {
+        if (!window.mapManager) {
+            window.mapManager = new MapManager(elementId);
+        }
+        return await window.mapManager.initMap();
+    } catch (error) {
+        console.error('Failed to initialize map:', error);
+        return null;
+    }
+};
+
+// Auto-initialize when Google Maps is loaded
+window.initMap = function() {
+    console.log('🗺️ Google Maps loaded, initializing MapManager...');
+    window.initializeMap().then(map => {
+        if (map) {
+            console.log('✅ Map initialization complete');
+        } else {
+            console.error('❌ Map initialization failed');
+        }
+    });
+};
+
+// Handle map loading errors
+window.handleMapError = function() {
+    console.error('❌ Google Maps failed to load');
+    const mapElement = document.getElementById('map');
+    if (mapElement) {
+        mapElement.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; 
+                        background: #f8f9fa; color: #6c757d; text-align: center; padding: 20px;">
+                <div>
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px;"></i>
+                    <h3>Map Loading Failed</h3>
+                    <p>Please check your internet connection and refresh the page.</p>
+                    <button onclick="location.reload()" style="padding: 8px 16px; margin-top: 12px; 
+                            background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Refresh Page
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+};
+
+// Export for use in other modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = MapManager;
+}
