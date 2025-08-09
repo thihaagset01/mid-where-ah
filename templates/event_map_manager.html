@@ -77,7 +77,6 @@
 
   <!-- Handle Area - Now appears at bottom as visual indicator -->
   <div class="handle-area" id="container-handle">
-    
     <h4 class="handle-title" id="handle-title">Event Locations</h4>
     <div class="container-handle"></div>
   </div>
@@ -85,16 +84,26 @@
 {% endblock %}
 
 {% block mobile_js %}
-<!-- Override mobile_js to prevent ALL duplicate loading -->
+<!-- FIXED: Include required scripts for event map functionality -->
+<script src="{{ url_for('static', filename='js/location/transport.js') }}"></script>
+<script src="{{ url_for('static', filename='js/location/midpoint.js') }}"></script>
+<script src="{{ url_for('static', filename='js/location/MapManager.js') }}"></script>
+<script src="{{ url_for('static', filename='js/location/location-manager.js') }}"></script>
+<script src="{{ url_for('static', filename='js/location/index.js') }}"></script>
+<script src="{{ url_for('static', filename='js/VenueMapFeatures.js') }}"></script>
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/services/DistanceMatrixService.js') }}"></script>
+<script src="{{ url_for('static', filename='js/services/MeetingPointOptimizer.js') }}"></script>
+
+<!-- CRITICAL: Include AlgorithmVisualizer for event map visualization -->
+<script src="{{ url_for('static', filename='js/services/AlgorithmVisualizer.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/friends-api-adapter.js') }}"></script>
+<script src="{{ url_for('static', filename='js/group-creation.js') }}"></script>
 {% endblock %}
 
 {% block scripts %}
-<!-- Load scripts in correct dependency order - event map specific -->
-
-<!-- Core services first -->
-<script src="{{ url_for('static', filename='js/services/DistanceMatrixService.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/services/MeetingPointOptimizer.js') }}" defer></script>
-
 <!-- Page-specific functionality (loads last) -->
 <script src="{{ url_for('static', filename='js/event_map_manager.js') }}" defer></script>
 
@@ -104,110 +113,60 @@
     src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places,geometry&callback=initMap&loading=async"
     onerror="handleMapError()">
 </script>
-{% else %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    handleMapError('Google Maps API key is not configured');
-});
-</script>
-{% endif %}
 
-<!-- Global UI helper functions -->
 <script>
-// Global functions for UI interactions
-function toggleLegend() {
-    const content = document.getElementById('legend-content');
-    const icon = document.getElementById('legend-toggle-icon');
+function initMap() {
+    // This will be called when Google Maps API loads
+    console.log('🗺️ Google Maps API loaded, initializing...');
     
-    if (content && icon) {
-        if (content.style.display === 'none') {
-            content.style.display = 'block';
-            icon.style.transform = 'rotate(0deg)';
-        } else {
-            content.style.display = 'none';
-            icon.style.transform = 'rotate(-90deg)';
-        }
+    // Hide loading spinner immediately when Maps API loads
+    const loadingSpinner = document.getElementById('loading-spinner');
+    if (loadingSpinner) {
+        loadingSpinner.style.display = 'none';
+        console.log('✅ Loading spinner hidden on map init');
     }
+    
+    // Create map
+    const map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 1.3521, lng: 103.8198 }, // Singapore center
+        zoom: 11,
+        styles: [
+            {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [{ visibility: "off" }]
+            }
+        ]
+    });
+
+    // Notify EventMapManager that map is ready
+    if (window.eventMapManager) {
+        window.eventMapManager.onMapReady(map);
+    }
+    
+    console.log('✅ Map initialized successfully');
 }
 
-function centerMapOnAll() {
-    if (window.eventMapManager && window.eventMapManager.centerMapOnAllLocations) {
-        window.eventMapManager.centerMapOnAllLocations();
-    } else if (window.mapManager && window.mapManager.map) {
-        const bounds = new google.maps.LatLngBounds();
-        const singapore = { lat: 1.3521, lng: 103.8198 };
-        bounds.extend(singapore);
-        window.mapManager.map.fitBounds(bounds);
-    }
-}
-
-// Global error handler for map loading
-function handleMapError(message) {
-    console.error('Map loading error:', message);
+function handleMapError() {
+    console.error('Failed to load Google Maps');
     
+    // Hide loading spinner on error too
     const loadingSpinner = document.getElementById('loading-spinner');
     if (loadingSpinner) {
         loadingSpinner.style.display = 'none';
     }
     
-    const mapElement = document.getElementById('map');
-    if (mapElement) {
-        mapElement.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #f5f5f5; color: #666; text-align: center; padding: 20px;">
-                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #dc3545; margin-bottom: 16px;"></i>
-                <h3>Map Loading Error</h3>
-                <p>${message || 'Unable to load Google Maps. Please check your internet connection and try again.'}</p>
-                <button onclick="location.reload()" style="background: #8B5DB8; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-top: 10px;">
-                    <i class="fas fa-redo"></i> Retry
-                </button>
-            </div>
-        `;
-    }
+    document.getElementById('map').innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f5f5f5;"><p>Failed to load map. Please refresh the page.</p></div>';
 }
 
-// Initialize map when Google Maps API loads
-function initMap() {
-    console.log('🗺️ Google Maps API loaded, initializing...');
-    
-    // Hide loading spinner
-    const spinner = document.getElementById('loading-spinner');
-    if (spinner) {
-        spinner.style.display = 'none';
+// Fallback: Hide spinner after 5 seconds if nothing else has hidden it
+setTimeout(() => {
+    const loadingSpinner = document.getElementById('loading-spinner');
+    if (loadingSpinner && loadingSpinner.style.display !== 'none') {
+        loadingSpinner.style.display = 'none';
+        console.log('⏰ Loading spinner hidden by fallback timeout');
     }
-    
-    // Create a simple MapManager for event map
-    if (typeof google !== 'undefined' && google.maps) {
-        try {
-            // Initialize map directly without conflicts
-            const mapElement = document.getElementById('map');
-            if (mapElement) {
-                const map = new google.maps.Map(mapElement, {
-                    zoom: 12,
-                    center: { lat: 1.3521, lng: 103.8198 }, // Singapore center
-                    styles: [
-                        {
-                            featureType: 'poi',
-                            elementType: 'labels',
-                            stylers: [{ visibility: 'off' }]
-                        }
-                    ]
-                });
-                
-                console.log('✅ Map initialized successfully');
-                
-                // Initialize EventMapManager if available
-                if (window.eventMapManager) {
-                    window.eventMapManager.onMapReady(map);
-                }
-            }
-        } catch (error) {
-            console.error('❌ Map initialization failed:', error);
-            handleMapError('Failed to initialize map');
-        }
-    } else {
-        console.error('❌ Google Maps not available');
-        handleMapError('Google Maps not loaded');
-    }
-}
+}, 5000);
 </script>
+{% endif %}
 {% endblock %}

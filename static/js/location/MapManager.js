@@ -19,8 +19,8 @@ class MapManager {
         
         // Singapore bounds for region restriction
         this.singaporeBounds = new google.maps.LatLngBounds(
-            new google.maps.LatLng(1.1, 103.6),
-            new google.maps.LatLng(1.5, 104.1)
+            new google.maps.LatLng(1.0, 103.6),
+            new google.maps.LatLng(1.7, 104.1)
         );
         
         console.log('MapManager initialized with enhanced marker tracking');
@@ -56,8 +56,8 @@ class MapManager {
                 ],
                 mapTypeControl: false,
                 streetViewControl: false,
-                fullscreenControl: true,
-                zoomControl: true,
+                fullscreenControl: false,
+                zoomControl: false,
                 gestureHandling: 'greedy'
             };
             

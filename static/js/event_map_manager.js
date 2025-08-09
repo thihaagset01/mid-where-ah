@@ -1,12 +1,14 @@
 /**
  * event_map_manager.js - Event-specific UI and functionality for MidWhereAh
- * REWRITTEN to use MeetingPointOptimizer for advanced midpoint calculations
+ * UPDATED to include AlgorithmVisualizer and consistent marker styling
  * 
  * Features:
  * - Advanced midpoint optimization with fairness calculations
  * - Real travel time analysis using Google Distance Matrix
+ * - AlgorithmVisualizer integration for animated optimization
  * - Automatic venue discovery during optimization
  * - Event-specific venue flow (optimization → swipe interface)
+ * - Consistent marker styling with homepage
  * - Full UI management for events
  */
 
@@ -314,34 +316,8 @@ class EventMapManager {
                 lng: position.coords.longitude
             };
 
-            // Add current location marker if in Singapore bounds
-            const sgBounds = {
-                north: 1.48, south: 1.16,
-                east: 104.1, west: 103.6
-            };
-
-            if (this.userCurrentLocation.lat >= sgBounds.south && 
-                this.userCurrentLocation.lat <= sgBounds.north &&
-                this.userCurrentLocation.lng >= sgBounds.west && 
-                this.userCurrentLocation.lng <= sgBounds.east) {
-                
-                const marker = new google.maps.Marker({
-                    position: this.userCurrentLocation,
-                    map: this.map,
-                    title: 'Your Current Location',
-                    icon: {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        fillColor: '#4285F4',
-                        fillOpacity: 1,
-                        strokeColor: '#ffffff',
-                        strokeWeight: 3,
-                        scale: 10
-                    }
-                });
-
-                this.markers.push(marker);
-                console.log('✅ Current location added to map');
-            }
+            // REMOVED: Current location marker as requested
+            console.log('✅ Current location obtained but marker not added');
         } catch (error) {
             console.warn('Could not get current location:', error);
         }
@@ -655,12 +631,18 @@ class EventMapManager {
 
     addMemberMarkers() {
         this.memberLocations.forEach((location, index) => {
+            // UPDATED: Use consistent marker style like homepage
             const marker = new google.maps.Marker({
                 position: location.position,
                 map: this.map,
                 title: `${location.name} - ${location.address}`,
                 icon: {
-                    url: `https://maps.google.com/mapfiles/ms/icons/${this.getMarkerColor(index)}-dot.png`
+                    path: google.maps.SymbolPath.CIRCLE,
+                    fillColor: this.getMarkerColor(index),
+                    fillOpacity: 0.9,
+                    strokeWeight: 2,
+                    strokeColor: '#FFFFFF',
+                    scale: 8
                 }
             });
 
@@ -687,8 +669,8 @@ class EventMapManager {
     }
 
     /**
-     * MAIN OPTIMIZATION METHOD - Uses MeetingPointOptimizer
-     * This replaces the basic geometric midpoint calculation
+     * MAIN OPTIMIZATION METHOD - Uses MeetingPointOptimizer with AlgorithmVisualizer
+     * UPDATED to include visualization like homepage
      */
     async calculateAndDisplayOptimalMidpoint() {
         if (this.memberLocations.length < 2) {
@@ -699,11 +681,12 @@ class EventMapManager {
         const findMeetingBtn = document.getElementById('find-meeting-point-btn');
         const originalContent = findMeetingBtn ? findMeetingBtn.innerHTML : '';
         
-        if (findMeetingBtn) {
-            findMeetingBtn.innerHTML = '<i class="fas fa-cog fa-spin"></i> Optimizing...';
-            findMeetingBtn.disabled = true;
-            findMeetingBtn.classList.add('loading');
+        // Performance optimization: Debounce rapid clicks
+        if (this._isProcessingRequest) {
+            console.log('Request already in progress');
+            return;
         }
+        this._isProcessingRequest = true;
 
         try {
             // Convert member locations to optimizer format
@@ -717,32 +700,115 @@ class EventMapManager {
 
             console.log('🚀 Using advanced optimizer for event locations:', users);
 
-            // Use the same sophisticated optimizer as home page
-            const result = await window.meetingPointOptimizer.findOptimalMeetingPoint(users);
+            // Store users globally
+            window.currentUsers = users;
             
-            if (result) {
-                this.displayOptimalEventPoint(result);
-                console.log(`🎯 Event Optimization: ${(result.fairness * 100).toFixed(1)}% fair, ${result.venues.length} venues, ${result.metadata.duration}ms`);
+            // Force initialize AlgorithmVisualizer if it doesn't exist
+            if (!window.algorithmVisualizer) {
+                if (window.AlgorithmVisualizer && this.map) {
+                    console.log('🎨 Force creating AlgorithmVisualizer for event map');
+                    window.algorithmVisualizer = new window.AlgorithmVisualizer(this.map);
+                } else {
+                    console.warn('❌ AlgorithmVisualizer class or map not available:', {
+                        hasClass: !!window.AlgorithmVisualizer,
+                        hasMap: !!this.map
+                    });
+                }
+            }
+            
+            const self = this;
+            
+            // Check if we can show visualization
+            const canShowVisualization = !!(window.algorithmVisualizer && this.map && window.meetingPointOptimizer);
+            const userWantsVisualization = true; // You can make this a user setting
+            
+            console.log('🔍 Event visualization check:', {
+                hasVisualizer: !!window.algorithmVisualizer,
+                hasVisualizerClass: !!window.AlgorithmVisualizer,
+                hasMap: !!this.map,
+                hasOptimizer: !!window.meetingPointOptimizer,
+                canShow: canShowVisualization,
+                userWants: userWantsVisualization
+            });
+            
+            if (canShowVisualization && userWantsVisualization) {
+                console.log('🎬 Starting event optimization with visualization...');
+                
+                // Change button to show visualization is starting
+                if (findMeetingBtn) {
+                    findMeetingBtn.innerHTML = '<i class="fas fa-brain fa-pulse"></i> Analyzing...';
+                    findMeetingBtn.disabled = true;
+                    findMeetingBtn.classList.add('loading');
+                }
+                
+                // Start the visualization
+                window.algorithmVisualizer.visualizeOptimization(users, function(result) {
+                    console.log('🎯 Event visualization completed with result:', result);
+                    
+                    if (result) {
+                        self.displayOptimalEventPoint(result);
+                        console.log(`🎯 Event Optimization: ${(result.fairness * 100).toFixed(1)}% fair, ${result.venues.length} venues, ${result.metadata.duration}ms`);
+                    } else {
+                        console.warn('⚠️ Event visualization completed without result, falling back to basic midpoint');
+                        self.fallbackToBasicMidpoint();
+                    }
+                    
+                    // Re-enable the button
+                    if (findMeetingBtn) {
+                        findMeetingBtn.innerHTML = originalContent;
+                        findMeetingBtn.disabled = false;
+                        findMeetingBtn.classList.remove('loading');
+                    }
+                    self._isProcessingRequest = false;
+                });
             } else {
-                throw new Error('Optimization failed');
+                // Fallback to direct optimization without visualization
+                console.log('🚀 Running event optimization without visualization...');
+                console.log('Reason: Visualizer available?', !!window.algorithmVisualizer, 'Map available?', !!this.map, 'Optimizer available?', !!window.meetingPointOptimizer);
+                
+                if (findMeetingBtn) {
+                    findMeetingBtn.innerHTML = '<i class="fas fa-cog fa-spin"></i> Optimizing...';
+                    findMeetingBtn.disabled = true;
+                    findMeetingBtn.classList.add('loading');
+                }
+
+                // Use the same sophisticated optimizer as home page
+                const result = await window.meetingPointOptimizer.findOptimalMeetingPoint(users);
+                
+                if (result) {
+                    this.displayOptimalEventPoint(result);
+                    console.log(`🎯 Event Optimization: ${(result.fairness * 100).toFixed(1)}% fair, ${result.venues.length} venues, ${result.metadata.duration}ms`);
+                } else {
+                    throw new Error('Optimization failed');
+                }
+                
+                // Re-enable the button
+                if (findMeetingBtn) {
+                    findMeetingBtn.innerHTML = originalContent;
+                    findMeetingBtn.disabled = false;
+                    findMeetingBtn.classList.remove('loading');
+                }
+                this._isProcessingRequest = false;
             }
                 
         } catch (error) {
             console.error('❌ Event optimization error:', error);
             // Fallback to basic geometric midpoint
             await this.fallbackToBasicMidpoint();
-        } finally {
-            // Restore button state
+            
+            // Re-enable the button
             if (findMeetingBtn) {
                 findMeetingBtn.innerHTML = originalContent;
                 findMeetingBtn.disabled = false;
                 findMeetingBtn.classList.remove('loading');
             }
+            this._isProcessingRequest = false;
         }
     }
 
     /**
      * Display optimized meeting point with detailed stats
+     * UPDATED: Use consistent marker style like homepage
      */
     displayOptimalEventPoint(result) {
         // Remove existing midpoint marker
@@ -750,13 +816,12 @@ class EventMapManager {
             this.midpointMarker.setMap(null);
         }
 
-        // Determine marker color based on fairness
+        // Determine marker color based on fairness - UPDATED to match homepage
         const fairness = result.fairness || 0;
-        let color = '#4CAF50'; // Green for good fairness
-        if (fairness < 0.7) color = '#FFA726'; // Orange for medium fairness
-        if (fairness < 0.5) color = '#F44336'; // Red for poor fairness
+        const isOptimal = result.metadata && !result.metadata.fallbackUsed;
+        let color = isOptimal ? '#2E7D32' : '#FF9800'; // Green for optimal, orange for fallback
 
-        // Add optimized midpoint marker
+        // UPDATED: Add optimized midpoint marker with consistent style
         this.midpointMarker = new google.maps.Marker({
             position: result.point,
             map: this.map,
@@ -772,7 +837,7 @@ class EventMapManager {
             }
         });
 
-        // Create detailed info window with optimization stats
+        // Create detailed info window with optimization stats and travel times
         const travelInfo = result.times ? result.times.map((time, i) => 
             `<li>${this.memberLocations[i]?.name || `Member ${i + 1}`}: ${Math.round(time)} min</li>`
         ).join('') : '<li>Travel times calculated</li>';
@@ -870,6 +935,7 @@ class EventMapManager {
 
     /**
      * Fallback to basic geometric midpoint if optimization fails
+     * UPDATED: Use consistent marker style
      */
     async fallbackToBasicMidpoint() {
         console.log('🔄 Event fallback to basic midpoint...');
@@ -881,6 +947,7 @@ class EventMapManager {
             this.midpointMarker.setMap(null);
         }
 
+        // UPDATED: Use consistent marker style
         this.midpointMarker = new google.maps.Marker({
             position: midpoint,
             map: this.map,
@@ -961,7 +1028,8 @@ class EventMapManager {
     }
 
     /**
-     * EVENT-SPECIFIC: Explore venues via swipe interface
+     * Navigate to the temporary venues page with current optimization results
+     * This follows the same pattern as the homepage venue exploration
      */
     exploreEventVenues() {
         if (!this.lastOptimalResult) {
@@ -969,137 +1037,48 @@ class EventMapManager {
             return;
         }
 
-        const groupId = this.eventData?.groupId;
+        const point = this.lastOptimalResult.point;
+        const venues = this.lastOptimalResult.venues || [];
         
-        if (groupId) {
-            // Store venues for the group and redirect to swipe interface
-            this.storeVenuesForGroup(groupId, this.lastOptimalResult.venues).then(() => {
-                window.location.href = `/swipe/${groupId}`;
-            }).catch(error => {
-                console.error('Error storing venues:', error);
-                this.showErrorMessage('Failed to save venues for voting');
-            });
-        } else {
-            this.showErrorMessage('Group ID not found');
-        }
-    }
-
-    /**
-     * Store venues in Firestore for group voting
-     */
-    async storeVenuesForGroup(groupId, venues) {
-        if (!venues || venues.length === 0) {
-            console.warn('No venues to store');
-            return;
-        }
+        console.log('🔍 Exploring venues from event map...');
         
-        console.log(`📝 Storing ${venues.length} venues for group ${groupId}...`);
-        
-        const batch = firebase.firestore().batch();
-        
-        venues.forEach(venue => {
-            const venueRef = firebase.firestore()
-                .collection('groups')
-                .doc(groupId)
-                .collection('venues')
-                .doc();
-                
-            batch.set(venueRef, {
-                ...venue,
+        // Create session data following the same pattern as homepage
+        const tempSession = {
+            midpoint: point,
+            venues: venues.map(v => ({
+                ...v,
                 // Ensure we have the necessary properties for the venue card
-                name: venue.name || 'Unnamed Venue',
-                vicinity: venue.vicinity || venue.formatted_address || 'No address available',
-                rating: venue.rating || 0,
-                price_level: venue.price_level || 0,
-                photos: venue.photos || [],
-                geometry: venue.geometry || { location: this.lastOptimalResult.point }
-            });
-        });
-        
-        await batch.commit();
-        console.log('✅ Stored venues for group voting');
-    }
-
-    /**
-     * Legacy venue finding (if needed for manual venue search)
-     */
-    async findNearbyVenues() {
-        if (!this.midpointMarker) {
-            this.showInfoMessage('Please calculate meeting point first');
-            return;
-        }
-
-        if (!this.placesService) {
-            this.showErrorMessage('Places service not available');
-            return;
-        }
-        
-        this.showLoadingState('Finding nearby venues...');
-
-        const request = {
-            location: this.midpointMarker.getPosition(),
-            radius: 1000,
-            type: ['restaurant', 'cafe', 'food', 'meal_takeaway']
+                name: v.name || 'Unnamed Venue',
+                vicinity: v.vicinity || v.formatted_address || 'No address available',
+                rating: v.rating || 0,
+                price_level: v.price_level || 0,
+                photos: v.photos || [],
+                geometry: v.geometry || { location: point }
+            })),
+            locationData: this.memberLocations.map(loc => ({
+                name: loc.name,
+                position: loc.position,
+                isValid: true
+            })),
+            timestamp: Date.now(),
+            source: 'event_map',
+            groupId: this.eventData?.groupId, // Add group context
+            eventId: this.eventData?.eventId, // Add event context
+            fairness: this.lastOptimalResult.fairness,
+            avgTime: this.lastOptimalResult.avgTime,
+            timeRange: this.lastOptimalResult.timeRange
         };
 
-        this.placesService.nearbySearch(request, (results, status) => {
-            this.hideLoadingState();
-
-            if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-                this.displayVenues(results.slice(0, 10));
-                this.showSuccessMessage(`Found ${results.length} nearby venues`);
-            } else {
-                this.showErrorMessage('Failed to find venues');
-            }
-        });
-    }
-
-    /**
-     * Display venue markers on map
-     */
-    displayVenues(venues) {
-        // Clear existing venue markers
-        this.clearVenueMarkers();
-
-        venues.forEach((place, index) => {
-            const marker = new google.maps.Marker({
-                position: place.geometry.location,
-                map: this.map,
-                title: place.name,
-                icon: {
-                    url: 'https://maps.google.com/mapfiles/ms/icons/restaurant.png'
-                },
-                animation: google.maps.Animation.DROP
-            });
-
-            const priceLevel = place.price_level ? '$'.repeat(place.price_level) : 'N/A';
-            const rating = place.rating ? `${place.rating}/5` : 'N/A';
+        try {
+            // Store the data in sessionStorage (same key as homepage)
+            sessionStorage.setItem('tempVenues', JSON.stringify(tempSession));
             
-            const infoWindow = new google.maps.InfoWindow({
-                content: `
-                    <div class="venue-info">
-                        <h4>${place.name}</h4>
-                        <p>Rating: ${rating}</p>
-                        <p>Price Level: ${priceLevel}</p>
-                        ${place.vicinity ? `<p>${place.vicinity}</p>` : ''}
-                        <div class="venue-actions">
-                            <button onclick="window.eventMapManager.selectVenue('${place.place_id}')" class="venue-btn">
-                                <i class="fas fa-check-circle"></i> Select
-                            </button>
-                            <button onclick="window.eventMapManager.getDirectionsTo(${place.geometry.location.lat()}, ${place.geometry.location.lng()})" class="venue-btn">
-                                <i class="fas fa-directions"></i> Directions
-                            </button>
-                        </div>
-                    </div>
-                `
-            });
-
-            marker.addListener('click', () => {
-                infoWindow.open(this.map, marker);
-            });
-
-            this.venueMarkers.push(marker);
-        });
+            // Navigate to the temp venues page
+            window.location.href = '/mobile/venues/temp';
+        } catch (error) {
+            console.error('Error saving session data:', error);
+            this.showErrorMessage('Failed to load venues. Please try again.');
+        }
     }
 
     // =============================================================================
@@ -1144,16 +1123,17 @@ class EventMapManager {
     }
 
     getMarkerColor(index) {
-        const colors = ['blue', 'red', 'green', 'yellow', 'purple', 'orange'];
+        const colors = ['#4285F4', '#EA4335', '#34A853', '#FBBC05', '#9C27B0', '#FF6D01'];
         return colors[index % colors.length];
     }
 
     clearMemberMarkers() {
         this.markers = this.markers.filter(marker => {
             const icon = marker.getIcon();
-            if (typeof icon === 'string' && icon.includes('ms/icons/')) {
-                const color = icon.match(/\/([a-z]+)-dot\.png/);
-                if (color && ['blue', 'red', 'green', 'yellow', 'purple', 'orange'].includes(color[1])) {
+            if (typeof icon === 'object' && icon.path === google.maps.SymbolPath.CIRCLE) {
+                // Check if it's a member marker (not current location)
+                const title = marker.getTitle();
+                if (title && title !== 'Your Current Location') {
                     marker.setMap(null);
                     return false;
                 }
@@ -1293,64 +1273,6 @@ class EventMapManager {
     getDirectionsTo(lat, lng) {
         const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
         window.open(googleMapsUrl, '_blank');
-    }
-
-    // =============================================================================
-    // VENUE EXPLORATION
-    // =============================================================================
-
-    /**
-     * Navigate to the temporary venues page with current optimization results
-     * This follows the same pattern as the homepage venue exploration
-     */
-    exploreEventVenues() {
-        if (!this.lastOptimalResult) {
-            this.showErrorMessage('No meeting point to explore');
-            return;
-        }
-
-        const point = this.lastOptimalResult.point;
-        const venues = this.lastOptimalResult.venues || [];
-        
-        console.log('🔍 Exploring venues from event map...');
-        
-        // Create session data following the same pattern as homepage
-        const tempSession = {
-            midpoint: point,
-            venues: venues.map(v => ({
-                ...v,
-                // Ensure we have the necessary properties for the venue card
-                name: v.name || 'Unnamed Venue',
-                vicinity: v.vicinity || v.formatted_address || 'No address available',
-                rating: v.rating || 0,
-                price_level: v.price_level || 0,
-                photos: v.photos || [],
-                geometry: v.geometry || { location: point }
-            })),
-            locationData: this.memberLocations.map(loc => ({
-                name: loc.name,
-                position: loc.position,
-                isValid: true
-            })),
-            timestamp: Date.now(),
-            source: 'event_map',
-            groupId: this.eventData?.groupId, // Add group context
-            eventId: this.eventData?.eventId, // Add event context
-            fairness: this.lastOptimalResult.fairness,
-            avgTime: this.lastOptimalResult.avgTime,
-            timeRange: this.lastOptimalResult.timeRange
-        };
-
-        try {
-            // Store the data in sessionStorage (same key as homepage)
-            sessionStorage.setItem('tempVenues', JSON.stringify(tempSession));
-            
-            // Navigate to the temp venues page
-            window.location.href = '/mobile/venues/temp';
-        } catch (error) {
-            console.error('Error saving session data:', error);
-            this.showErrorMessage('Failed to load venues. Please try again.');
-        }
     }
 }
 

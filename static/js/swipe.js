@@ -120,7 +120,26 @@ class SwipeInterface {
         try {
             console.log('🔍 Loading venues for voting...');
             
-            // Get venues that have been added to voting
+            // First, get all venues to debug
+            const allVenuesSnapshot = await firebase.firestore()
+                .collection('groups')
+                .doc(this.groupId)
+                .collection('venues')
+                .get();
+                
+            console.log('🔍 Found', allVenuesSnapshot.size, 'total venues in collection');
+            
+            // Log all venues and their addedToVoting status
+            allVenuesSnapshot.forEach(doc => {
+                const data = doc.data();
+                console.log(`Venue ${doc.id}:`, {
+                    name: data.name,
+                    addedToVoting: data.addedToVoting,
+                    hasAddedToVoting: 'addedToVoting' in data
+                });
+            });
+            
+            // Now get only venues added to voting
             const venuesSnapshot = await firebase.firestore()
                 .collection('groups')
                 .doc(this.groupId)
@@ -691,22 +710,40 @@ function swipeRight() {
 }
 
 function goBackToVenues() {
-    // Return to venues temp page
-    const returnPath = sessionStorage.getItem('swipe_return_path');
-    if (returnPath) {
-        window.location.href = returnPath;
-    } else {
+    try {
+        // Use VenueNavigationService if available
+        if (window.venueNavigationService) {
+            const venueNavService = window.venueNavigationService;
+            const source = sessionStorage.getItem(venueNavService.STORAGE_KEYS.SOURCE_PAGE) || 'homepage';
+            
+            // Navigate back using the service
+            venueNavService.navigateToVenueExploration({
+                source: source,
+                swipeMode: false
+            });
+        } else {
+            // Fallback to direct navigation
+            const returnPath = sessionStorage.getItem('swipe_return_path');
+            if (returnPath) {
+                window.location.href = returnPath;
+            } else {
+                window.location.href = '/mobile/venues/temp';
+            }
+        }
+    } catch (error) {
+        console.error('Error navigating back to venues:', error);
+        // Fallback to default behavior
         window.location.href = '/mobile/venues/temp';
     }
 }
 
 function toggleToResults() {
-    // Navigate back to results view
+    // Navigate back to results view using the unified method
     goBackToVenues();
 }
 
 function showResults() {
-    // Navigate to results/top picks page
+    // Navigate to results/top picks page using the unified method
     goBackToVenues();
 }
 
