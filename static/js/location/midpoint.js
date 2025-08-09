@@ -2,6 +2,7 @@
  * midpoint.js - Midpoint calculation functionality for MidWhereAh
  * Handles calculation of central meeting points based on multiple locations
  * STREAMLINED VERSION - Goes directly to venues after calculation with visualization
+ * TECHNICAL DEBT MINIMIZED - Fixed button parameter passing and improved error handling
  */
 
 // MidpointCalculator class - using prototype-based syntax for better compatibility
@@ -433,7 +434,7 @@ MidpointCalculator.prototype.showDetailedMarkerWithPopup = function(result) {
                         style="background: ${color}; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 8px;">
                     📤 Share Location
                 </button>
-                <button onclick="window.midpointCalculator.goDirectlyToVenues()" 
+                <button onclick="window.midpointCalculator.exploreVenuesFromPopup()" 
                         style="background: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                     🔍 Explore Venues
                 </button>
@@ -464,33 +465,104 @@ MidpointCalculator.prototype.showDetailedMarkerWithPopup = function(result) {
 };
 
 /**
+ * FIXED: Explore venues from popup - uses stored result
+ */
+MidpointCalculator.prototype.exploreVenuesFromPopup = function() {
+    console.log('🔍 Exploring venues from popup');
+    
+    if (!this.lastOptimalResult) {
+        console.error('No optimization result available');
+        this.showErrorMessage('No meeting point data available. Please calculate again.');
+        return;
+    }
+    
+    // Call the main venues method with the stored result
+    this.goDirectlyToVenues(this.lastOptimalResult);
+};
+
+/**
+ * Share meeting point location
+ */
+MidpointCalculator.prototype.shareMeetingPoint = function() {
+    if (!this.lastOptimalResult || !this.lastOptimalResult.point) {
+        this.showErrorMessage('No meeting point to share');
+        return;
+    }
+    
+    const point = this.lastOptimalResult.point;
+    const fairnessText = this.lastOptimalResult.fairness ? 
+        ` (${(this.lastOptimalResult.fairness * 100).toFixed(1)}% fairness)` : '';
+    
+    const googleMapsUrl = `https://www.google.com/maps?q=${point.lat},${point.lng}`;
+    const text = `Meeting point${fairnessText}\n${googleMapsUrl}`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Meeting Point',
+            text: text,
+            url: googleMapsUrl
+        }).catch((err) => {
+            console.log('Error sharing:', err);
+            // Fallback to clipboard
+            this.copyToClipboard(text);
+        });
+    } else {
+        this.copyToClipboard(text);
+    }
+};
+
+/**
+ * Copy text to clipboard
+ */
+MidpointCalculator.prototype.copyToClipboard = function(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            this.showSuccessToast('📋 Meeting point copied to clipboard!');
+        }).catch(() => {
+            // Show shareable text in alert as last resort
+            prompt('Copy this meeting point:', text);
+        });
+    } else {
+        // Show shareable text in prompt for older browsers
+        prompt('Copy this meeting point:', text);
+    }
+};
+
+/**
  * Go directly to venues page
  * @param {Object} result - The result object containing point and venues
  */
 MidpointCalculator.prototype.goDirectlyToVenues = function(result) {
+    // Validate input
+    if (!result || !result.point) {
+        console.error('Invalid result object passed to goDirectlyToVenues:', result);
+        this.showErrorMessage('Invalid meeting point data. Please try again.');
+        return;
+    }
+    
     const point = result.point;
     const venues = result.venues || [];
 
-    console.log('🚀 Going directly to venues...');
+    console.log('🚀 Going directly to venues with result:', result);
 
     // Store venues data in sessionStorage for temp venues page
     const tempSession = {
         midpoint: point,
-            venues: venues.map(v => ({
-                ...v,
-                // Ensure we have the necessary properties for the venue card
-                name: v.name || 'Unnamed Venue',
-                vicinity: v.vicinity || v.formatted_address || 'No address available',
-                rating: v.rating || 0,
-                price_level: v.price_level || 0,
-                photos: v.photos || [],
-                geometry: v.geometry || { location: point }
-            })),
+        venues: venues.map(v => ({
+            ...v,
+            // Ensure we have the necessary properties for the venue card
+            name: v.name || 'Unnamed Venue',
+            vicinity: v.vicinity || v.formatted_address || 'No address available',
+            rating: v.rating || 0,
+            price_level: v.price_level || 0,
+            photos: v.photos || [],
+            geometry: v.geometry || { location: point }
+        })),
         timestamp: Date.now(),
         source: 'midpoint_calculator',
-        fairness: this.lastOptimalResult.fairness,
-        avgTime: this.lastOptimalResult.avgTime,
-        timeRange: this.lastOptimalResult.timeRange
+        fairness: result.fairness || 0,
+        avgTime: result.avgTime || 0,
+        timeRange: result.timeRange || 0
     };
     
     try {

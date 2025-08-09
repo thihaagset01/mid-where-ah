@@ -1,4 +1,4 @@
-// static/js/swipe.js
+// static/js/swipe.js - CLEAN MINIMAL VERSION with fixed CSS classes
 
 class SwipeInterface {
     constructor() {
@@ -7,9 +7,6 @@ class SwipeInterface {
         this.currentIndex = 0;
         this.votes = {};
         this.isAnimating = false;
-        this.dragStartX = 0;
-        this.dragStartY = 0;
-        this.isDragging = false;
         this.members = [];
         this.currentUser = null;
         
@@ -18,14 +15,12 @@ class SwipeInterface {
         this.loadingContainer = null;
         this.emptyContainer = null;
         this.instructionsElement = null;
-        this.progressBar = null;
-        this.progressText = null;
         this.membersContainer = null;
         this.actionButtons = null;
     }
 
     async initialize(groupId) {
-        console.log('🎯 Initializing Swipe Interface for group:', groupId);
+        console.log('🎯 Initializing Clean Swipe Interface for group:', groupId);
         this.groupId = groupId;
         
         // Initialize DOM elements
@@ -43,7 +38,7 @@ class SwipeInterface {
         // Set up event listeners
         this.setupEventListeners();
         
-        console.log('✅ Swipe Interface initialized');
+        console.log('✅ Clean Swipe Interface initialized');
     }
 
     initializeDOMElements() {
@@ -51,572 +46,622 @@ class SwipeInterface {
         this.loadingContainer = document.getElementById('loading-container');
         this.emptyContainer = document.getElementById('empty-container');
         this.instructionsElement = document.getElementById('swipe-instructions');
-        this.progressBar = document.getElementById('progress-bar');
-        this.progressText = document.getElementById('progress-text');
         this.membersContainer = document.getElementById('members-container');
-        this.actionButtons = document.querySelectorAll('.action-btn');
+        this.actionButtons = document.querySelectorAll('.swipe-action-btn');
     }
 
     async waitForAuth() {
         return new Promise((resolve) => {
-            if (firebase.auth().currentUser) {
-                this.currentUser = firebase.auth().currentUser;
-                resolve();
-            } else {
-                const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
-                    if (user) {
-                        this.currentUser = user;
-                        unsubscribe();
-                        resolve();
-                    }
-                });
-            }
+            const checkAuth = () => {
+                if (window.firebase && window.firebase.auth && window.firebase.auth().currentUser) {
+                    this.currentUser = window.firebase.auth().currentUser;
+                    console.log('✅ Auth ready for swipe interface');
+                    resolve();
+                } else {
+                    setTimeout(checkAuth, 100);
+                }
+            };
+            checkAuth();
         });
     }
 
     async loadGroupMembers() {
         try {
-            const groupDoc = await firebase.firestore()
-                .collection('groups')
-                .doc(this.groupId)
-                .get();
-
+            console.log('🔍 Loading group members...');
+            
+            const groupRef = firebase.firestore().collection('groups').doc(this.groupId);
+            const groupDoc = await groupRef.get();
+            
             if (groupDoc.exists) {
                 const groupData = groupDoc.data();
-                this.members = Object.values(groupData.members || {});
-                this.displayMembers();
-                console.log('✅ Loaded', this.members.length, 'group members');
+                // Ensure members is always an array
+                this.members = Array.isArray(groupData.members) ? groupData.members : [];
+                
+                // If no members in the group data, create a default member for current user
+                if (this.members.length === 0) {
+                    this.members = [{
+                        userId: this.currentUser.uid,
+                        name: this.currentUser.displayName || this.currentUser.email.split('@')[0] || 'User',
+                        email: this.currentUser.email,
+                        role: 'admin'
+                    }];
+                }
+                
+                console.log(`✅ Loaded ${this.members.length} group members`);
+                this.renderMembers();
+            } else {
+                // Group doesn't exist, create default member
+                console.log('⚠️ Group not found, creating default member');
+                this.members = [{
+                    userId: this.currentUser.uid,
+                    name: this.currentUser.displayName || this.currentUser.email.split('@')[0] || 'User',
+                    email: this.currentUser.email,
+                    role: 'admin'
+                }];
+                console.log(`✅ Created default member: ${this.members[0].name}`);
+                this.renderMembers();
             }
         } catch (error) {
-            console.error('Error loading group members:', error);
+            console.error('❌ Error loading group members:', error);
+            // Fallback to current user as only member
+            this.members = [{
+                userId: this.currentUser.uid,
+                name: this.currentUser.displayName || this.currentUser.email.split('@')[0] || 'User',
+                email: this.currentUser.email,
+                role: 'admin'
+            }];
+            console.log('🔧 Fallback: Using current user as only member');
+            this.renderMembers();
         }
-    }
-
-    displayMembers() {
-        if (!this.membersContainer) return;
-
-        this.membersContainer.innerHTML = '';
-        this.members.forEach(member => {
-            const memberElement = document.createElement('div');
-            memberElement.className = 'member-avatar';
-            memberElement.title = member.name || member.email;
-            
-            // Get initials
-            const name = member.name || member.email;
-            const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-            
-            memberElement.innerHTML = `
-                ${initials}
-                <div class="vote-indicator" style="display: none;">
-                    <i class="fas fa-check"></i>
-                </div>
-            `;
-            
-            this.membersContainer.appendChild(memberElement);
-        });
     }
 
     async loadVenues() {
         try {
             console.log('🔍 Loading venues for voting...');
             
-            // First, get all venues to debug
-            const allVenuesSnapshot = await firebase.firestore()
-                .collection('groups')
-                .doc(this.groupId)
-                .collection('venues')
-                .get();
+            // First try to load from Firebase
+            let venues = await this.loadVenuesFromFirebase();
+            
+            // If no venues in Firebase, try to load from sessionStorage and save to Firebase
+            if (venues.length === 0) {
+                console.log('📱 No venues in Firebase, checking sessionStorage...');
+                venues = await this.loadVenuesFromSessionStorage();
                 
-            console.log('🔍 Found', allVenuesSnapshot.size, 'total venues in collection');
-            
-            // Log all venues and their addedToVoting status
-            allVenuesSnapshot.forEach(doc => {
-                const data = doc.data();
-                console.log(`Venue ${doc.id}:`, {
-                    name: data.name,
-                    addedToVoting: data.addedToVoting,
-                    hasAddedToVoting: 'addedToVoting' in data
-                });
-            });
-            
-            // Now get only venues added to voting
-            const venuesSnapshot = await firebase.firestore()
-                .collection('groups')
-                .doc(this.groupId)
-                .collection('venues')
-                .where('addedToVoting', '==', true)
-                .get();
-
-            this.venues = [];
-            venuesSnapshot.forEach(doc => {
-                this.venues.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
-            });
-
-            console.log('✅ Loaded', this.venues.length, 'venues for voting');
-
-            // Load existing votes
-            await this.loadExistingVotes();
-
-            // Filter out already voted venues
-            this.filterUnvotedVenues();
-
-            // Display venues
-            this.displayVenues();
-
-        } catch (error) {
-            console.error('Error loading venues:', error);
-            this.showError('Failed to load venues');
-        }
-    }
-
-    async loadExistingVotes() {
-        if (!this.currentUser) return;
-
-        try {
-            const voteDoc = await firebase.firestore()
-                .collection('groups')
-                .doc(this.groupId)
-                .collection('votes')
-                .doc(this.currentUser.uid)
-                .get();
-
-            if (voteDoc.exists) {
-                this.votes = voteDoc.data().votes || {};
-                console.log('✅ Loaded existing votes:', Object.keys(this.votes).length);
+                if (venues.length > 0) {
+                    console.log(`💾 Found ${venues.length} venues in sessionStorage, saving to Firebase...`);
+                    await this.saveVenuesToFirebase(venues);
+                }
             }
+            
+            // Filter out venues already voted on by current user
+            const unvotedVenues = venues.filter(venue => {
+                const userVote = venue.votes && venue.votes[this.currentUser.uid];
+                return !userVote;
+            });
+            
+            this.venues = unvotedVenues;
+            console.log(`✅ Loaded ${this.venues.length} venues for voting`);
+            
+            // Hide loading and show appropriate content
+            this.hideLoading();
+            
+            if (this.venues.length === 0) {
+                this.showEmptyState();
+            } else {
+                this.renderCurrentVenue();
+                this.updateProgress();
+            }
+            
         } catch (error) {
-            console.error('Error loading votes:', error);
+            console.error('❌ Error loading venues:', error);
+            this.hideLoading();
+            this.showError('Failed to load venues for voting');
         }
     }
 
-    filterUnvotedVenues() {
-        // Filter out venues that user has already voted on
-        const unvotedVenues = this.venues.filter(venue => {
-            const venueId = venue.id || venue.placeId || venue.place_id;
-            return !this.votes[venueId];
-        });
-
-        this.venues = unvotedVenues;
-        console.log('📊 Unvoted venues:', this.venues.length);
+    async loadVenuesFromFirebase() {
+        try {
+            const venuesRef = firebase.firestore()
+                .collection('groups')
+                .doc(this.groupId)
+                .collection('venues');
+            
+            const snapshot = await venuesRef.get();
+            console.log(`🔍 Found ${snapshot.size} total venues in collection`);
+            
+            const venues = [];
+            snapshot.forEach(doc => {
+                const venueData = doc.data();
+                venues.push({
+                    id: doc.id,
+                    ...venueData
+                });
+            });
+            
+            return venues;
+        } catch (error) {
+            console.error('Error loading venues from Firebase:', error);
+            return [];
+        }
     }
 
-    displayVenues() {
-        this.hideLoading();
+    async loadVenuesFromSessionStorage() {
+        try {
+            // Try multiple sessionStorage keys for venue data
+            const storageKeys = ['tempVenues', 'optimizationResult', 'venues'];
+            let venues = [];
+            
+            for (const key of storageKeys) {
+                const data = sessionStorage.getItem(key);
+                if (!data) continue;
+                
+                console.log(`📱 Found data in sessionStorage.${key}`);
+                const parsed = JSON.parse(data);
+                
+                // Extract venues from different data structures
+                if (parsed.venues && Array.isArray(parsed.venues)) {
+                    venues = parsed.venues;
+                    console.log(`✅ Extracted ${venues.length} venues from ${key}`);
+                    break;
+                } else if (Array.isArray(parsed)) {
+                    venues = parsed;
+                    console.log(`✅ Found ${venues.length} venues directly in ${key}`);
+                    break;
+                }
+            }
+            
+            // Ensure venues have required fields for swipe interface
+            return venues.map(venue => ({
+                name: venue.name || 'Unknown Venue',
+                vicinity: venue.vicinity || venue.formatted_address || 'No address available',
+                rating: venue.rating || 0,
+                price_level: venue.price_level || 0,
+                place_id: venue.place_id || venue.id || Math.random().toString(36).substr(2, 9),
+                photos: venue.photos || [],
+                geometry: venue.geometry || { location: { lat: 0, lng: 0 } },
+                types: venue.types || [],
+                votes: {} // Initialize empty votes object
+            }));
+        } catch (error) {
+            console.error('Error loading venues from sessionStorage:', error);
+            return [];
+        }
+    }
 
-        if (this.venues.length === 0) {
+    async saveVenuesToFirebase(venues) {
+        try {
+            const batch = firebase.firestore().batch();
+            const venuesRef = firebase.firestore()
+                .collection('groups')
+                .doc(this.groupId)
+                .collection('venues');
+            
+            venues.forEach(venue => {
+                const venueRef = venuesRef.doc(venue.place_id);
+                batch.set(venueRef, {
+                    ...venue,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    createdBy: this.currentUser.uid
+                });
+            });
+            
+            await batch.commit();
+            console.log(`✅ Saved ${venues.length} venues to Firebase`);
+        } catch (error) {
+            console.error('❌ Error saving venues to Firebase:', error);
+            throw error;
+        }
+    }
+
+    renderMembers() {
+        if (!this.membersContainer || !this.members || !Array.isArray(this.members)) {
+            console.log('⚠️ Cannot render members: missing container or invalid members data');
+            return;
+        }
+        
+        const membersHTML = this.members.map(member => {
+            const isCurrentUser = member.userId === this.currentUser.uid;
+            const avatarClass = isCurrentUser ? 'current' : '';
+            const memberName = member.name || member.email?.split('@')[0] || 'User';
+            
+            return `
+                <div class="swipe-member">
+                    <div class="swipe-avatar ${avatarClass}">
+                        ${memberName.charAt(0).toUpperCase()}
+                    </div>
+                    <span class="swipe-member-name">${memberName}</span>
+                </div>
+            `;
+        }).join('');
+        
+        this.membersContainer.innerHTML = membersHTML;
+        console.log(`✅ Rendered ${this.members.length} member avatars`);
+    }
+
+    renderCurrentVenue() {
+        if (this.venues.length === 0 || this.currentIndex >= this.venues.length) {
             this.showEmptyState();
             return;
         }
 
-        // Create venue cards
-        this.venues.forEach((venue, index) => {
-            const card = this.createVenueCard(venue, index);
-            this.swipeContainer.appendChild(card);
-        });
-
-        // Hide instructions after first card
-        if (this.venues.length > 0) {
-            setTimeout(() => {
-                this.instructionsElement.style.opacity = '0';
-                setTimeout(() => {
-                    this.instructionsElement.style.display = 'none';
-                }, 300);
-            }, 2000);
+        const venue = this.venues[this.currentIndex];
+        
+        // Hide instructions once first venue is shown
+        if (this.instructionsElement) {
+            this.instructionsElement.style.display = 'none';
         }
-
-        // Update progress
-        this.updateProgress();
-
-        // Enable action buttons
-        this.enableActionButtons();
+        
+        const venueCard = this.createVenueCard(venue);
+        this.swipeContainer.innerHTML = venueCard;
+        
+        // Show swipe container
+        if (this.swipeContainer) {
+            this.swipeContainer.style.display = 'block';
+        }
+        
+        // Set up swipe gestures for the new card
+        this.setupSwipeGestures();
     }
 
-    createVenueCard(venue, index) {
-        const card = document.createElement('div');
-        card.className = 'swipe-card entering';
-        card.dataset.venueId = venue.id || venue.placeId || venue.place_id;
-        card.dataset.index = index;
-
+    createVenueCard(venue) {
         const photoUrl = this.getVenuePhotoUrl(venue);
-        const rating = venue.rating ? venue.rating.toFixed(1) : 'N/A';
         const priceLevel = venue.price_level ? '$'.repeat(venue.price_level) : '$';
-        const address = venue.vicinity || venue.formatted_address || 'Address not available';
-        const venueTypes = venue.types ? venue.types.slice(0, 3) : [];
+        const venueType = venue.types && venue.types.length > 0 
+            ? this.formatVenueType(venue.types[0])
+            : 'Restaurant';
 
-        card.innerHTML = `
-            <div class="card-image">
-                ${photoUrl 
-                    ? `<img src="${photoUrl}" alt="${venue.name}" loading="lazy">`
-                    : `<div class="card-image-placeholder">
-                         <i class="fas fa-utensils"></i>
-                       </div>`
-                }
-                <div class="vote-overlay like">
-                    <i class="fas fa-heart me-2"></i>LIKE
-                </div>
-                <div class="vote-overlay dislike">
-                    <i class="fas fa-times me-2"></i>SKIP
-                </div>
-            </div>
-            <div class="card-content">
-                <div class="venue-name">${venue.name || 'Unnamed Venue'}</div>
-                <div class="venue-details">
-                    <div class="venue-rating">
-                        <i class="fas fa-star"></i>
-                        ${rating}
+        return `
+            <div class="swipe-venue-card top" data-venue-id="${venue.place_id}">
+                <div class="swipe-card-image">
+                    ${photoUrl ? 
+                        `<img src="${photoUrl}" alt="${venue.name}" loading="lazy">` :
+                        `<div class="swipe-image-placeholder">
+                            <i class="fas fa-utensils"></i>
+                        </div>`
+                    }
+                    <div class="swipe-rating-badge">
+                        <span class="star">★</span>
+                        ${venue.rating || 'N/A'}
                     </div>
-                    <div class="venue-price">${priceLevel}</div>
                 </div>
-                <div class="venue-address">
-                    <i class="fas fa-map-marker-alt"></i>
-                    ${address}
+                
+                <div class="swipe-card-content">
+                    <div>
+                        <h3 class="swipe-venue-name">${venue.name}</h3>
+                        <p class="swipe-venue-address">
+                            <i class="fas fa-map-marker-alt"></i>
+                            ${venue.vicinity}
+                        </p>
+                    </div>
+                    <div class="swipe-venue-meta">
+                        <span class="swipe-venue-type">${venueType}</span>
+                        <span class="swipe-venue-price">${priceLevel}</span>
+                    </div>
                 </div>
-                <div class="venue-tags">
-                    ${venueTypes.map(type => 
-                        `<span class="venue-tag">${this.formatVenueType(type)}</span>`
-                    ).join('')}
-                </div>
+                
+                <div class="swipe-overlay like">LIKE</div>
+                <div class="swipe-overlay pass">PASS</div>
             </div>
         `;
-
-        // Add touch/mouse event listeners
-        this.addCardEventListeners(card);
-
-        return card;
     }
 
-    addCardEventListeners(card) {
+    setupSwipeGestures() {
+        // Handle both full-screen and regular container classes
+        const venueCard = this.swipeContainer.querySelector('.swipe-venue-card.top') || 
+                          this.swipeContainer.querySelector('.swipe-venue-card');
+        if (!venueCard) return;
+
+        let startX = 0;
+        let startY = 0;
+        let currentX = 0;
+        let currentY = 0;
+        let isDragging = false;
+
+        const onStart = (e) => {
+            if (this.isAnimating) return;
+            
+            isDragging = true;
+            const touch = e.touches ? e.touches[0] : e;
+            startX = touch.clientX;
+            startY = touch.clientY;
+            
+            venueCard.style.transition = 'none';
+        };
+
+        const onMove = (e) => {
+            if (!isDragging || this.isAnimating) return;
+            
+            e.preventDefault();
+            const touch = e.touches ? e.touches[0] : e;
+            currentX = touch.clientX - startX;
+            currentY = touch.clientY - startY;
+            
+            const rotation = currentX * 0.1;
+            venueCard.style.transform = `translateX(${currentX}px) translateY(${currentY}px) rotate(${rotation}deg)`;
+            
+            // Show/hide overlays based on swipe direction
+            const likeOverlay = venueCard.querySelector('.swipe-overlay.like');
+            const passOverlay = venueCard.querySelector('.swipe-overlay.pass');
+            
+            if (currentX < -50) {
+                passOverlay.style.opacity = Math.min(1, Math.abs(currentX) / 100);
+                likeOverlay.style.opacity = 0;
+            } else if (currentX > 50) {
+                likeOverlay.style.opacity = Math.min(1, currentX / 100);
+                passOverlay.style.opacity = 0;
+            } else {
+                passOverlay.style.opacity = 0;
+                likeOverlay.style.opacity = 0;
+            }
+        };
+
+        const onEnd = () => {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            venueCard.style.transition = 'transform 0.3s ease-out';
+            
+            const threshold = 100;
+            
+            if (Math.abs(currentX) > threshold) {
+                // Trigger swipe
+                if (currentX > 0) {
+                    this.swipeRight();
+                } else {
+                    this.swipeLeft();
+                }
+            } else {
+                // Snap back
+                venueCard.style.transform = 'translateX(0) translateY(0) rotate(0deg)';
+                // Reset overlays
+                const overlays = venueCard.querySelectorAll('.swipe-overlay');
+                overlays.forEach(overlay => overlay.style.opacity = 0);
+            }
+        };
+
         // Touch events
-        card.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
-        card.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
-        card.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+        venueCard.addEventListener('touchstart', onStart, { passive: false });
+        venueCard.addEventListener('touchmove', onMove, { passive: false });
+        venueCard.addEventListener('touchend', onEnd);
 
-        // Mouse events
-        card.addEventListener('mousedown', this.handleMouseDown.bind(this));
-        card.addEventListener('mousemove', this.handleMouseMove.bind(this));
-        card.addEventListener('mouseup', this.handleMouseUp.bind(this));
-        card.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+        // Mouse events for desktop
+        venueCard.addEventListener('mousedown', onStart);
+        venueCard.addEventListener('mousemove', onMove);
+        venueCard.addEventListener('mouseup', onEnd);
+        venueCard.addEventListener('mouseleave', onEnd);
     }
 
-    handleTouchStart(e) {
-        if (this.isAnimating) return;
-        e.preventDefault();
-        
-        const touch = e.touches[0];
-        this.startDrag(touch.clientX, touch.clientY, e.target);
-    }
-
-    handleTouchMove(e) {
-        if (!this.isDragging || this.isAnimating) return;
-        e.preventDefault();
-        
-        const touch = e.touches[0];
-        this.updateDrag(touch.clientX, touch.clientY);
-    }
-
-    handleTouchEnd(e) {
-        if (!this.isDragging || this.isAnimating) return;
-        e.preventDefault();
-        
-        this.endDrag();
-    }
-
-    handleMouseDown(e) {
-        if (this.isAnimating) return;
-        e.preventDefault();
-        
-        this.startDrag(e.clientX, e.clientY, e.target);
-    }
-
-    handleMouseMove(e) {
-        if (!this.isDragging || this.isAnimating) return;
-        e.preventDefault();
-        
-        this.updateDrag(e.clientX, e.clientY);
-    }
-
-    handleMouseUp(e) {
-        if (!this.isDragging || this.isAnimating) return;
-        e.preventDefault();
-        
-        this.endDrag();
-    }
-
-    startDrag(x, y, target) {
-        const card = target.closest('.swipe-card');
-        if (!card || parseInt(card.dataset.index) !== this.currentIndex) return;
-
-        this.isDragging = true;
-        this.dragStartX = x;
-        this.dragStartY = y;
-        this.currentCard = card;
-        
-        card.classList.add('dragging');
-    }
-
-    updateDrag(x, y) {
-        if (!this.currentCard) return;
-
-        const deltaX = x - this.dragStartX;
-        const deltaY = y - this.dragStartY;
-        const rotation = deltaX * 0.1;
-        const opacity = Math.max(0.7, 1 - Math.abs(deltaX) / 300);
-
-        // Update card position and rotation
-        this.currentCard.style.transform = `translateX(${deltaX}px) translateY(${deltaY}px) rotate(${rotation}deg)`;
-        this.currentCard.style.opacity = opacity;
-
-        // Show vote overlays based on drag direction
-        const likeOverlay = this.currentCard.querySelector('.vote-overlay.like');
-        const dislikeOverlay = this.currentCard.querySelector('.vote-overlay.dislike');
-
-        if (Math.abs(deltaX) > 50) {
-            if (deltaX > 0) {
-                // Dragging right - show like
-                likeOverlay.classList.add('show');
-                dislikeOverlay.classList.remove('show');
-                this.currentCard.classList.add('like-hint');
-                this.currentCard.classList.remove('dislike-hint');
-            } else {
-                // Dragging left - show dislike
-                dislikeOverlay.classList.add('show');
-                likeOverlay.classList.remove('show');
-                this.currentCard.classList.add('dislike-hint');
-                this.currentCard.classList.remove('like-hint');
-            }
-        } else {
-            // Not far enough - hide overlays
-            likeOverlay.classList.remove('show');
-            dislikeOverlay.classList.remove('show');
-            this.currentCard.classList.remove('like-hint', 'dislike-hint');
-        }
-    }
-
-    endDrag() {
-        if (!this.currentCard) return;
-
-        const deltaX = parseInt(this.currentCard.style.transform.match(/translateX\(([^)]+)px\)/)?.[1] || 0);
-        const threshold = 100;
-
-        this.isDragging = false;
-        this.currentCard.classList.remove('dragging');
-
-        if (Math.abs(deltaX) > threshold) {
-            // Swipe detected
-            if (deltaX > 0) {
-                this.performSwipe('right');
-            } else {
-                this.performSwipe('left');
-            }
-        } else {
-            // Snap back to center
-            this.currentCard.style.transform = '';
-            this.currentCard.style.opacity = '';
-            this.currentCard.classList.remove('like-hint', 'dislike-hint');
-            
-            // Hide overlays
-            this.currentCard.querySelectorAll('.vote-overlay').forEach(overlay => {
-                overlay.classList.remove('show');
-            });
-        }
-
-        this.currentCard = null;
-    }
-
-    async performSwipe(direction) {
-        if (this.isAnimating) return;
-        
-        this.isAnimating = true;
-        const card = this.getCurrentCard();
-        if (!card) return;
-
-        const venueId = card.dataset.venueId;
-        const vote = direction === 'right' ? 'yes' : 'no';
-
-        // Animate card exit
-        card.classList.add(direction === 'right' ? 'swiped-right' : 'swiped-left');
-        
-        // Submit vote
-        await this.submitVote(venueId, vote);
-
-        // Show vote confirmation
-        this.showVoteConfirmation(vote, this.venues[this.currentIndex]);
-
-        // Pulse corresponding action button
-        const button = direction === 'right' ? document.querySelector('.like-btn') : document.querySelector('.dislike-btn');
-        button.classList.add('pulse');
-        setTimeout(() => button.classList.remove('pulse'), 300);
-
-        // Move to next card
-        setTimeout(() => {
-            this.nextCard();
-            this.isAnimating = false;
-        }, 300);
-    }
-
-    async submitVote(venueId, vote) {
-        try {
-            if (!this.currentUser) return;
-
-            // Update local votes
-            this.votes[venueId] = vote;
-
-            // Update Firestore
-            const voteRef = firebase.firestore()
-                .collection('groups')
-                .doc(this.groupId)
-                .collection('votes')
-                .doc(this.currentUser.uid);
-
-            await voteRef.set({
-                userId: this.currentUser.uid,
-                userName: this.currentUser.displayName || this.currentUser.email.split('@')[0],
-                votes: this.votes,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-
-            console.log('✅ Vote submitted:', vote, 'for venue', venueId);
-
-        } catch (error) {
-            console.error('Error submitting vote:', error);
-        }
-    }
-
-    showVoteConfirmation(vote, venue) {
-        const modal = document.getElementById('vote-modal');
-        const icon = document.getElementById('vote-result-icon');
-        const text = document.getElementById('vote-result-text');
-        const venueName = document.getElementById('vote-result-venue');
-
-        // Update modal content
-        icon.className = `vote-result-icon ${vote === 'yes' ? 'like' : 'dislike'}`;
-        icon.innerHTML = vote === 'yes' 
-            ? '<i class="fas fa-heart fa-3x"></i>' 
-            : '<i class="fas fa-times fa-3x"></i>';
-            
-        text.textContent = vote === 'yes' ? 'You liked this venue!' : 'You skipped this venue';
-        venueName.textContent = venue.name || 'Venue';
-
-        // Show modal briefly
-        const bootstrapModal = new bootstrap.Modal(modal);
-        bootstrapModal.show();
-
-        setTimeout(() => {
-            bootstrapModal.hide();
-        }, 1500);
-    }
-
-    nextCard() {
-        this.currentIndex++;
-        
-        // Remove the swiped card
-        const swipedCard = this.swipeContainer.querySelector('.swipe-card');
-        if (swipedCard) {
-            swipedCard.remove();
-        }
-
-        // Update progress
-        this.updateProgress();
-
-        // Check if we're done
-        if (this.currentIndex >= this.venues.length) {
-            this.showCompletionState();
-        }
-    }
-
-    getCurrentCard() {
-        return this.swipeContainer.querySelector(`.swipe-card[data-index="${this.currentIndex}"]`);
-    }
-
-    updateProgress() {
-        const progress = this.venues.length > 0 ? (this.currentIndex / this.venues.length) * 100 : 0;
-        const remaining = this.venues.length - this.currentIndex;
-
-        if (this.progressBar) {
-            this.progressBar.style.width = `${progress}%`;
-        }
-
-        if (this.progressText) {
-            this.progressText.textContent = `${this.currentIndex} of ${this.venues.length} venues`;
-        }
-
-        console.log('📊 Progress:', `${this.currentIndex}/${this.venues.length}`, `(${progress.toFixed(1)}%)`);
-    }
-
-    showCompletionState() {
-        console.log('🎉 Voting completed!');
-        
-        // Hide action buttons
-        this.disableActionButtons();
-
-        // Show completion message
-        setTimeout(() => {
-            this.showEmptyState();
-        }, 500);
-
-        // Update member avatar to show completion
-        this.markUserAsCompleted();
-    }
-
-    markUserAsCompleted() {
-        // Find current user's avatar and mark as voted
-        const userEmail = this.currentUser?.email;
-        const memberElements = this.membersContainer.querySelectorAll('.member-avatar');
-        
-        memberElements.forEach(element => {
-            if (element.title.includes(userEmail)) {
-                element.classList.add('voted');
-                element.querySelector('.vote-indicator').style.display = 'flex';
-            }
-        });
-    }
-
-    // Button actions
-    swipeLeft() {
-        if (this.isAnimating) return;
-        const card = this.getCurrentCard();
-        if (card) {
-            this.currentCard = card;
-            this.performSwipe('left');
-        }
-    }
-
-    swipeRight() {
-        if (this.isAnimating) return;
-        const card = this.getCurrentCard();
-        if (card) {
-            this.currentCard = card;
-            this.performSwipe('right');
-        }
-    }
-
-    // Setup event listeners
     setupEventListeners() {
-        // Disable default touch behaviors
-        document.addEventListener('touchmove', (e) => {
-            if (e.target.closest('.swipe-card')) {
-                e.preventDefault();
-            }
-        }, { passive: false });
-
+        // Disable action buttons initially
+        this.disableActionButtons();
+        
+        // Enable them once venues are loaded
+        if (this.venues.length > 0) {
+            this.enableActionButtons();
+        }
+        
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (this.isAnimating) return;
+            if (this.isAnimating || this.venues.length === 0) return;
             
             switch(e.key) {
                 case 'ArrowLeft':
-                    e.preventDefault();
                     this.swipeLeft();
                     break;
                 case 'ArrowRight':
-                    e.preventDefault();
                     this.swipeRight();
                     break;
             }
         });
+    }
+
+    swipeLeft() {
+        this.performSwipe('dislike');
+    }
+
+    swipeRight() {
+        this.performSwipe('like');
+    }
+
+    async performSwipe(action) {
+        if (this.isAnimating || this.currentIndex >= this.venues.length) return;
+        
+        this.isAnimating = true;
+        this.disableActionButtons();
+        
+        const venue = this.venues[this.currentIndex];
+        const venueCard = this.swipeContainer.querySelector('.swipe-venue-card.top');
+        
+        if (venueCard) {
+            // Animate card out
+            const direction = action === 'like' ? 1 : -1;
+            venueCard.style.transition = 'transform 0.4s ease-out, opacity 0.4s ease-out';
+            venueCard.style.transform = `translateX(${direction * window.innerWidth}px) rotate(${direction * 30}deg)`;
+            venueCard.style.opacity = '0';
+        }
+        
+        // Save vote to Firebase
+        try {
+            await this.saveVote(venue.place_id, action);
+            console.log(`✅ Voted ${action} for ${venue.name}`);
+        } catch (error) {
+            console.error('❌ Error saving vote:', error);
+        }
+        
+        // Move to next venue after animation
+        setTimeout(() => {
+            this.currentIndex++;
+            this.isAnimating = false;
+            this.enableActionButtons();
+            
+            if (this.currentIndex < this.venues.length) {
+                this.renderCurrentVenue();
+                this.updateProgress();
+            } else {
+                this.showEmptyState();
+            }
+        }, 400);
+    }
+
+    async saveVote(venueId, vote) {
+        try {
+            const venueRef = firebase.firestore()
+                .collection('groups')
+                .doc(this.groupId)
+                .collection('venues')
+                .doc(venueId);
+            
+            await venueRef.update({
+                [`votes.${this.currentUser.uid}`]: {
+                    vote,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    userName: this.currentUser.displayName || this.currentUser.email
+                }
+            });
+            
+            // Update sessionStorage with vote counts for venues page
+            this.updateSessionStorageVoteCounts(venueId, vote);
+            
+        } catch (error) {
+            console.error('Error saving vote:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update vote counts in sessionStorage so venues page shows updated counts
+     */
+    updateSessionStorageVoteCounts(venueId, vote) {
+        try {
+            const tempVenues = sessionStorage.getItem('tempVenues');
+            if (!tempVenues) return;
+
+            const data = JSON.parse(tempVenues);
+            if (!data.venues) return;
+
+            // Find the venue and update its vote count
+            const venue = data.venues.find(v => v.place_id === venueId);
+            if (venue) {
+                // Initialize votes structure if it doesn't exist
+                if (!venue.votes) {
+                    venue.votes = {};
+                }
+                if (!venue.voteCount) {
+                    venue.voteCount = { likes: 0, dislikes: 0, total: 0 };
+                }
+
+                // Add/update the current user's vote
+                const previousVote = venue.votes[this.currentUser.uid];
+                venue.votes[this.currentUser.uid] = vote;
+
+                // Recalculate vote counts
+                let likes = 0;
+                let total = 0;
+                Object.values(venue.votes).forEach(userVote => {
+                    total++;
+                    if (userVote === 'like') likes++;
+                });
+
+                venue.voteCount = {
+                    likes: likes,
+                    dislikes: total - likes,
+                    total: total
+                };
+
+                // Calculate vote score for sorting
+                venue.voteScore = total > 0 ? likes / total : 0;
+
+                // Update sessionStorage
+                sessionStorage.setItem('tempVenues', JSON.stringify(data));
+                
+                console.log(`✅ Updated vote counts for ${venue.name}: ${likes}/${total} likes`);
+            }
+        } catch (error) {
+            console.error('Error updating sessionStorage vote counts:', error);
+        }
+    }
+
+    /**
+     * Sync all vote counts from Firebase to sessionStorage
+     */
+    async syncAllVoteCounts() {
+        try {
+            console.log('🔄 Syncing all vote counts from Firebase...');
+            
+            // Get all venues with their votes from Firebase
+            const venuesSnapshot = await firebase.firestore()
+                .collection('groups')
+                .doc(this.groupId)
+                .collection('venues')
+                .get();
+
+            const venueVotes = {};
+            venuesSnapshot.forEach(doc => {
+                const venueData = doc.data();
+                if (venueData.votes) {
+                    const venueId = doc.id;
+                    
+                    // Calculate vote counts
+                    let likes = 0;
+                    let total = 0;
+                    Object.values(venueData.votes).forEach(vote => {
+                        total++;
+                        if (vote.vote === 'like') likes++;
+                    });
+
+                    venueVotes[venueId] = {
+                        votes: venueData.votes,
+                        voteCount: {
+                            likes: likes,
+                            dislikes: total - likes,
+                            total: total
+                        },
+                        voteScore: total > 0 ? likes / total : 0
+                    };
+                }
+            });
+
+            // Update sessionStorage
+            const tempVenues = sessionStorage.getItem('tempVenues');
+            if (tempVenues) {
+                const data = JSON.parse(tempVenues);
+                if (data.venues) {
+                    data.venues.forEach(venue => {
+                        const venueId = venue.place_id;
+                        if (venueVotes[venueId]) {
+                            venue.votes = venueVotes[venueId].votes;
+                            venue.voteCount = venueVotes[venueId].voteCount;
+                            venue.voteScore = venueVotes[venueId].voteScore;
+                        }
+                    });
+
+                    sessionStorage.setItem('tempVenues', JSON.stringify(data));
+                    console.log(`✅ Synced vote counts for ${Object.keys(venueVotes).length} venues`);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error syncing vote counts:', error);
+        }
+    }
+
+    updateProgress() {
+        const totalVenues = this.venues.length;
+        const votedVenues = this.currentIndex;
+        
+        console.log(`📊 Unvoted venues: ${totalVenues - votedVenues}`);
+        
+        // Update progress display in the progress container
+        let progressContainer = document.querySelector('.swipe-progress');
+        
+        if (!progressContainer) {
+            // Create progress container if it doesn't exist
+            progressContainer = document.createElement('div');
+            progressContainer.className = 'swipe-progress';
+            progressContainer.textContent = `${votedVenues} / ${totalVenues}`;
+            document.body.appendChild(progressContainer);
+        } else {
+            progressContainer.textContent = `${votedVenues} / ${totalVenues}`;
+        }
     }
 
     // Helper methods
@@ -656,6 +701,11 @@ class SwipeInterface {
         if (this.swipeContainer) {
             this.swipeContainer.style.display = 'none';
         }
+        
+        // Hide instructions
+        if (this.instructionsElement) {
+            this.instructionsElement.style.display = 'none';
+        }
     }
 
     showError(message) {
@@ -663,11 +713,13 @@ class SwipeInterface {
         
         if (this.loadingContainer) {
             this.loadingContainer.innerHTML = `
-                <div class="text-center">
-                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                    <h4>Error Loading Venues</h4>
-                    <p class="text-muted">${message}</p>
-                    <button class="btn btn-primary" onclick="location.reload()">
+                <div style="text-align: center;">
+                    <div style="font-size: 48px; color: #ff4444; margin-bottom: 16px;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h3>Error Loading Venues</h3>
+                    <p style="color: #6c757d; margin-bottom: 20px;">${message}</p>
+                    <button class="swipe-empty-btn" onclick="location.reload()">
                         Try Again
                     </button>
                 </div>
@@ -676,15 +728,19 @@ class SwipeInterface {
     }
 
     enableActionButtons() {
-        this.actionButtons.forEach(btn => {
-            btn.disabled = false;
-        });
+        if (this.actionButtons) {
+            this.actionButtons.forEach(btn => {
+                btn.disabled = false;
+            });
+        }
     }
 
     disableActionButtons() {
-        this.actionButtons.forEach(btn => {
-            btn.disabled = true;
-        });
+        if (this.actionButtons) {
+            this.actionButtons.forEach(btn => {
+                btn.disabled = true;
+            });
+        }
     }
 }
 
@@ -711,6 +767,11 @@ function swipeRight() {
 
 function goBackToVenues() {
     try {
+        // Sync all vote counts before navigating back
+        if (swipeInterface && swipeInterface.groupId) {
+            swipeInterface.syncAllVoteCounts();
+        }
+
         // Use VenueNavigationService if available
         if (window.venueNavigationService) {
             const venueNavService = window.venueNavigationService;

@@ -755,4 +755,6 @@ app.register_blueprint(mobile_bp)
 app.register_blueprint(api_bp)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Run on all network interfaces (0.0.0.0) and port 5000
+    # Accessible on your local network at http://<your-local-ip>:5000
+    app.run(host='0.0.0.0', port=5000, debug=True)
