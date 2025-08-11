@@ -110,7 +110,21 @@ service cloud.firestore {
       
       match /venues/{venueId} {
         allow read: if isGroupMember(groupId);
-        allow write: if isGroupAdmin(groupId);
+        
+        // Allow group members to create venues (from sessionStorage)
+        allow create: if isGroupMember(groupId);
+        
+        // Allow group members to update votes only
+        allow update: if isGroupMember(groupId) && 
+                        onlyUpdatingVotes();
+      }
+
+      // Add this helper function at the top with other functions
+      function onlyUpdatingVotes() {
+        // Check if only the votes field is being updated
+        let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+        return affectedKeys.hasOnly(['votes']) || 
+              affectedKeys.hasOnly(['votes', 'updatedAt']);
       }
     }
     
