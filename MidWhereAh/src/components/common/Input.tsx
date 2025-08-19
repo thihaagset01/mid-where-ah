@@ -17,12 +17,12 @@ import {
 import { colors, typography, spacing } from '../../constants';
 
 export interface InputProps {
-  label: string;
+  label?: string;
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
   error?: string;
-  variant?: 'default' | 'search';
+  variant?: 'default' | 'search' | 'outline';
   leftIcon?: string;
   rightIcon?: string;
   onRightIconPress?: () => void;
