@@ -9,6 +9,7 @@ export interface Coordinate {
     name: string;
     coordinate: Coordinate;
     lines: string[];
+    isInterchange: boolean;
   }
   
   export interface Route {

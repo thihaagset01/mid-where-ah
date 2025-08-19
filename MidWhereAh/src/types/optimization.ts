@@ -10,6 +10,7 @@ export interface OptimizationRequest {
 
 export interface UserLocation {
   id: string;
+  name?: string;
   coordinate: Coordinate;
   transportMode: TransportMode;
   weight?: number;

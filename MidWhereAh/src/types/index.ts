@@ -7,3 +7,6 @@ export * from './optimization';
 export type { Coordinate, MRTStation } from './geography';
 export type { TransportMode, TravelTimeResult } from './transport';
 export type { UserLocation, OptimizationRequest } from './optimization';
+
+// Re-export EquityMetrics from algorithms
+export type { EquityMetrics } from '../algorithms/equity/scoring';
