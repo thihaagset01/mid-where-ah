@@ -21,8 +21,16 @@ export const colors = {
     },
     neutral: {
       white: '#FFFFFF',
+      gray50: '#F9FAFB',
       gray100: '#F8F9FA',
+      gray200: '#E5E7EB',
+      gray300: '#D1D5DB',
+      gray400: '#9CA3AF',
       gray500: '#6B7280',
+      gray600: '#4B5563',
       gray900: '#111827'
+    },
+    brand: {
+      primary: '#8B5DB8'
     }
   } as const;
