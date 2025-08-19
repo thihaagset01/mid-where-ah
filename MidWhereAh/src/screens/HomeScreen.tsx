@@ -1,138 +1,174 @@
-/**
- * Production-ready HomeScreen - Main app interface
- * Features: Two address inputs, map background, bottom navigation with floating action button
- */
-
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
+  TextInput,
+  TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  TouchableOpacity,
-  StatusBar,
-  Platform,
+  Dimensions,
 } from 'react-native';
-import { Button } from '../components/common/Button';
-import { Input } from '../components/common/Input';
-import { Card } from '../components/common/Card';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { MapView } from '../components/maps/MapView';
-import { colors, typography, spacing } from '../constants';
-import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { colors, spacing, typography } from '../constants';
+import { TransportMode, Coordinate } from '../types';
+
+interface LocationInput {
+  id: string;
+  address: string;
+  transportMode: TransportMode;
+  coordinate?: Coordinate;
+}
 
 export const HomeScreen: React.FC = () => {
-  const [address1, setAddress1] = useState('');
-  const [address2, setAddress2] = useState('');
-  const dispatch = useAppDispatch();
+  const [locations, setLocations] = useState<LocationInput[]>([
+    { id: '1', address: '', transportMode: 'TRANSIT' },
+    { id: '2', address: '', transportMode: 'TRANSIT' }
+  ]);
 
-  // Get state from Redux
-  const { user } = useAppSelector(state => state.auth);
+  const updateLocation = useCallback((id: string, address: string) => {
+    setLocations(prev => prev.map(loc => 
+      loc.id === id ? { ...loc, address } : loc
+    ));
+  }, []);
 
-  const handleAddressSearch = () => {
-    // TODO: Implement location search with Google Maps/OneMap
-    console.log('Searching for addresses:', address1, address2);
+  const updateTransportMode = useCallback((id: string, mode: TransportMode) => {
+    setLocations(prev => prev.map(loc => 
+      loc.id === id ? { ...loc, transportMode: mode } : loc
+    ));
+  }, []);
+
+  const addPerson = useCallback(() => {
+    // Generate a new unique string ID
+    const newId = String(Math.max(...locations.map(l => parseInt(l.id, 10))) + 1);
+    setLocations(prev => [...prev, { 
+      id: newId, 
+      address: '', 
+      transportMode: 'TRANSIT' 
+    }]);
+  }, [locations]);
+
+  const handleFindCentral = useCallback(() => {
+    const validLocations = locations.filter(loc => loc.address.trim());
+    if (validLocations.length < 2) return;
+    
+    // TODO: Navigate to optimization screen
+    console.log('Finding central point for:', validLocations);
+  }, [locations]);
+
+  const getTransportIcon = (mode: TransportMode): string => {
+    const icons = {
+      TRANSIT: '🚇',
+      DRIVING: '🚗', 
+      WALKING: '🚶',
+      CYCLING: '🚴'
+    };
+    return icons[mode];
   };
 
-  const handleAddLocation = () => {
-    // Open a new screen to add a location
-    console.log('Add location pressed');
+  const getTransportColor = (mode: TransportMode): string => {
+    const transportColors = {
+      TRANSIT: colors.transport.mrt,
+      DRIVING: colors.transport.drive,
+      WALKING: colors.transport.walk,
+      CYCLING: colors.transport.mixed
+    };
+    return transportColors[mode];
   };
-  
-  // Navigation handlers
-  const handleHomePress = () => console.log('Home pressed');
-  const handleCompassPress = () => console.log('Compass pressed');
-  const handleGroupsPress = () => console.log('Groups pressed');
-  const handleProfilePress = () => console.log('Profile pressed');
+
+  const cycleTransportMode = (current: TransportMode): TransportMode => {
+    const modes: TransportMode[] = ['TRANSIT', 'DRIVING', 'WALKING', 'CYCLING'];
+    const currentIndex = modes.indexOf(current);
+    // Ensure we always return a valid TransportMode
+    return modes[(currentIndex + 1) % modes.length] || 'TRANSIT';
+  };
+
+  const validLocationCount = locations.filter(loc => loc.address.trim()).length;
 
   return (
-    <SafeAreaView style={[styles.container, { paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.neutral.white} />
-      
-      {/* Map Background */}
+    <SafeAreaView style={styles.container}>
+      {/* Full-screen map background */}
       <View style={styles.mapContainer}>
         <MapView 
-          style={styles.mapBackground}
-          userLocations={[]} 
-          showUserLocation={true}
+          style={styles.map}
+          userLocations={locations
+            .filter(loc => loc.coordinate)
+            .map(loc => ({
+              id: loc.id,
+              name: '',
+              coordinate: loc.coordinate!,
+              transportMode: loc.transportMode
+            }))}
+          showUserLocation={false}
+          onVenueSelect={() => {}}
         />
       </View>
-      
-      {/* Main Content */}
-      <View style={styles.contentContainer}>
-        {/* Header with Logo */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>MidWhereAh</Text>
+
+      {/* Floating locations container */}
+      <View style={styles.locationsContainer}>
+        {locations.map((location, index) => (
+          <View key={location.id} style={styles.locationRow}>
+            {/* Transport mode icon */}
+            <TouchableOpacity 
+              style={[
+                styles.transportIcon, 
+                { backgroundColor: getTransportColor(location.transportMode) }
+              ]}
+              onPress={() => updateTransportMode(location.id, cycleTransportMode(location.transportMode))}
+            >
+              <Text style={styles.transportIconText}>
+                {getTransportIcon(location.transportMode)}
+              </Text>
+            </TouchableOpacity>
+            
+            {/* Address input */}
+            <TextInput
+              style={styles.addressInput}
+              value={location.address}
+              onChangeText={(text) => updateLocation(location.id, text)}
+              placeholder={`Address ${index + 1}`}
+              placeholderTextColor={colors.neutral.gray500}
+              autoComplete="street-address"
+              autoCapitalize="words"
+              returnKeyType="done"
+            />
           </View>
+        ))}
+        
+        {/* Actions row */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity 
+            style={styles.addPersonButton} 
+            onPress={addPerson}
+          >
+            <Text style={styles.addPersonIcon}>+</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.findCentralButton,
+              validLocationCount < 2 && styles.findCentralButtonDisabled
+            ]}
+            onPress={handleFindCentral}
+            disabled={validLocationCount < 2}
+          >
+            <Text style={[
+              styles.findCentralButtonText,
+              validLocationCount < 2 && styles.findCentralButtonTextDisabled
+            ]}>
+              Find Central
+            </Text>
+          </TouchableOpacity>
         </View>
-        
-        {/* Address Input Card */}
-        <Card variant="elevated" padding="lg" style={styles.addressCard}>
-          {/* Address 1 Input */}
-          <View style={styles.inputContainer}>
-            <Input
-              value={address1}
-              onChangeText={setAddress1}
-              placeholder="Your location"
-              variant="outline"
-              rightIcon="📍"
-              style={styles.addressInput}
-            />
-          </View>
-          
-          {/* Address 2 Input */}
-          <View style={styles.inputContainer}>
-            <Input
-              value={address2}
-              onChangeText={setAddress2}
-              placeholder="Friend's location"
-              variant="outline"
-              rightIcon="👥"
-              style={styles.addressInput}
-            />
-          </View>
-          
-          <Button 
-            title="Find Midpoint" 
-            variant="primary" 
-            onPress={handleAddressSearch} 
-            style={{ marginTop: 10 }}
-          />
-        </Card>
-      </View>
-      
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNavigation}>
-        <TouchableOpacity style={styles.navItem} onPress={handleHomePress}>
-          <Text style={[styles.navIcon, { color: colors.primary.main }]}>🏠</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={handleCompassPress}>
-          <Text style={styles.navIcon}>🧭</Text>
-        </TouchableOpacity>
-        
-        {/* Floating Action Button */}
-        <TouchableOpacity style={styles.addButton} onPress={handleAddLocation}>
-          <Text style={styles.addButtonText}>+</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={handleGroupsPress}>
-          <Text style={styles.navIcon}>👥</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={handleProfilePress}>
-          <Text style={styles.navIcon}>👤</Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 };
 
+const { width: screenWidth } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.neutral.white,
   },
   mapContainer: {
     position: 'absolute',
@@ -140,96 +176,97 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 0,
   },
-  mapBackground: {
+  map: {
     flex: 1,
-    opacity: 0.9, // Slightly faded map background
   },
-  contentContainer: {
-    flex: 1,
-    zIndex: 1,
-    paddingTop: 40,
+  locationsContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(248, 248, 248, 0.95)',
+    borderRadius: 16,
+    padding: 16,
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    // Android shadow
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  header: {
+  locationRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  logoContainer: {
-    backgroundColor: colors.primary.main,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    shadowColor: colors.neutral.gray900,
+    marginBottom: 12,
+    backgroundColor: 'rgba(248, 248, 248, 0.95)',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 2,
   },
-  logoText: {
-    fontSize: typography.sizes.h3,
-    fontWeight: '700',
-    color: colors.neutral.white,
+  transportIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  addressCard: {
-    marginHorizontal: 20,
-    borderRadius: 15,
-    backgroundColor: colors.neutral.white,
-    shadowColor: colors.neutral.gray900,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 6,
-  },
-  inputContainer: {
-    marginBottom: 15,
+  transportIconText: {
+    fontSize: 16,
+    color: 'white',
   },
   addressInput: {
-    borderColor: colors.neutral.gray200,
-    borderRadius: 10,
+    flex: 1,
+    fontSize: 16,
+    color: colors.neutral.gray900,
+    padding: 8,
+    backgroundColor: 'transparent',
   },
-  bottomNavigation: {
+  actionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderTopWidth: 1,
-    borderTopColor: colors.neutral.gray200,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 2,
+    justifyContent: 'space-between',
+    marginTop: 8,
   },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-  },
-  navIcon: {
-    fontSize: 24,
-  },
-  addButton: {
+  addPersonButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.primary.main,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20, // Lift it up from the bottom nav
-    shadowColor: colors.neutral.gray900,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
   },
-  addButtonText: {
-    fontSize: 32,
-    color: colors.neutral.white,
-    fontWeight: '400',
-    marginTop: -2, // Visual adjustment for the plus sign
+  addPersonIcon: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  findCentralButton: {
+    flex: 1,
+    backgroundColor: colors.primary.main,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    marginLeft: 16,
+    alignItems: 'center',
+  },
+  findCentralButtonDisabled: {
+    backgroundColor: colors.neutral.gray300,
+  },
+  findCentralButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  findCentralButtonTextDisabled: {
+    color: colors.neutral.gray500,
   },
 });
