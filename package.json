@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "csv-writer": "^1.6.0",
-    "firebase": "^11.10.0",
-    "puppeteer": "^24.12.1"
-  }
-}
