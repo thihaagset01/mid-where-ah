@@ -22,8 +22,8 @@ export const store = configureStore({
         // Ignore these action types for Date objects in optimization results
         ignoredActions: ['optimization/start/fulfilled', 'optimization/updateProgress'],
         // Ignore these field paths for Date serialization
-        ignoredActionsPaths: ['payload.completedAt', 'payload.timestamp'],
-        ignoredPaths: ['optimization.result.completedAt'],
+        ignoredActionsPaths: ['payload.completedAt', 'payload.timestamp', 'payload.equityAnalysis.calculatedAt'],
+        ignoredPaths: ['optimization.result.completedAt', 'optimization.result.equityAnalysis.calculatedAt'],
       },
     }),
   devTools: __DEV__,
