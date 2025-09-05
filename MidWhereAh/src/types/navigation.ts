@@ -1,11 +1,10 @@
 import { UserLocationInput } from '../components/location/types';
-import { OptimizationResult } from '../services/optimization';
 
 export type RootStackParamList = {
   Home: undefined;
   Map: undefined;
   Optimization: { userLocations: UserLocationInput[] };
-  Results: { optimizationResult: OptimizationResult };
+  Results: undefined; // Results now come from Redux store
 };
 
 export interface UserLocation {
