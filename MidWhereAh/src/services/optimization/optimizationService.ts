@@ -23,6 +23,7 @@ import {
 } from '../../algorithms/equity/equityLevel';
 import { Coordinate, TransportMode } from '../../components/maps/types';
 import { UserLocationInput } from '../../components/location/types';
+import { travelTimeService, TravelTimeResult } from '../maps';
 
 /**
  * Optimization request interface
@@ -64,6 +65,13 @@ export interface OptimizationResult {
   confidence: number;
   /** Timestamp when optimization completed */
   completedAt: Date;
+  /** API usage statistics for this optimization */
+  apiUsage: {
+    googleMapsRequests: number;
+    oneMapRequests: number;
+    cacheHits: number;
+    totalApiCost: number;
+  };
 }
 
 /**
@@ -91,7 +99,8 @@ export class OptimizationServiceError extends Error {
 }
 
 /**
- * Singapore transport speed constants (km/h)
+ * Singapore transport speed constants (km/h) - kept for reference only
+ * Real travel times now come from Google Maps and OneMap APIs
  */
 const SINGAPORE_AVERAGE_SPEEDS = {
   DRIVING: 30,   // Realistic Singapore traffic conditions
@@ -101,7 +110,8 @@ const SINGAPORE_AVERAGE_SPEEDS = {
 } as const;
 
 /**
- * Transport mode adjustment factors for Singapore conditions
+ * Transport mode adjustment factors for Singapore conditions - kept for reference
+ * Real adjustments now handled by APIs and cache system
  */
 const TRANSPORT_FACTORS = {
   DRIVING: 1.0,    // Baseline travel time
@@ -132,13 +142,27 @@ const haversineDistance = (from: Coordinate, to: Coordinate): number => {
 };
 
 /**
- * Calculates mock travel time based on distance and transport mode.
- * Temporary implementation until Google Maps API integration.
+ * Calculates real travel time using the fallback chain:
+ * 1. Google Maps API
+ * 2. OneMap Singapore API  
+ * 3. Haversine estimation
  * 
  * @param from Starting coordinate
  * @param to Ending coordinate  
  * @param transportMode Transport mode for calculation
- * @returns Travel time in minutes
+ * @returns Promise resolving to travel time result
+ */
+const calculateRealTravelTime = async (
+  from: Coordinate, 
+  to: Coordinate, 
+  transportMode: TransportMode
+): Promise<TravelTimeResult> => {
+  return travelTimeService.getTravelTime(from, to, transportMode);
+};
+
+/**
+ * DEPRECATED: Mock travel time calculation - kept for reference only
+ * Real travel times now come from Google Maps and OneMap APIs
  */
 const calculateMockTravelTime = (
   from: Coordinate, 
@@ -313,41 +337,71 @@ export class OptimizationService {
       
       await this.delay(300);
       
-      // Stage 3: Equity analysis
+      // Stage 3: Equity analysis with real travel times
       this.reportProgress({
         stage: 'analyzing',
         progress: 50,
-        message: 'Analyzing travel equity and fairness...'
+        message: 'Analyzing travel equity and fairness with real travel times...'
       });
       
-      // Calculate travel times from each location to optimal point
-      const participantTravelTimes: TravelTimeData[] = request.locations.map((location, index) => ({
-        id: location.id,
-        travelTimeMinutes: calculateMockTravelTime(
+      // Calculate real travel times from each location to optimal point using APIs
+      const travelTimePromises = request.locations.map(async (location, index) => {
+        const result = await calculateRealTravelTime(
           location.coordinate!,
           optimalLocation,
           location.transportMode
-        ),
-        userId: location.id,
-        locationName: location.address || `Location ${index + 1}`
+        );
+        
+        return {
+          id: location.id,
+          travelTimeMinutes: result.travelTimeMinutes,
+          userId: location.id,
+          locationName: location.address || `Location ${index + 1}`,
+          apiSource: result.source,
+          cached: result.cached
+        };
+      });
+      
+      const participantTravelTimeResults = await Promise.all(travelTimePromises);
+      
+      // Convert to TravelTimeData format for equity analysis
+      const participantTravelTimes: TravelTimeData[] = participantTravelTimeResults.map(result => ({
+        id: result.id,
+        travelTimeMinutes: result.travelTimeMinutes,
+        userId: result.userId,
+        locationName: result.locationName
       }));
+      
+      // Count API usage for statistics
+      const apiUsage = {
+        googleMapsRequests: participantTravelTimeResults.filter(r => r.apiSource === 'google_maps').length,
+        oneMapRequests: participantTravelTimeResults.filter(r => r.apiSource === 'onemap').length,
+        cacheHits: participantTravelTimeResults.filter(r => r.cached).length,
+        totalApiCost: participantTravelTimeResults.filter(r => r.apiSource === 'google_maps').length * 0.005 // $0.005 per Google Maps request
+      };
       
       // Run Jain's Index equity analysis
       const equityAnalysis = calculateEquityAnalysis(participantTravelTimes);
       
       await this.delay(200);
       
-      // Calculate baseline comparison using geometric centroid
-      const baselineTravelTimes: TravelTimeData[] = request.locations.map((location, index) => ({
-        id: `baseline_${location.id}`,
-        travelTimeMinutes: calculateMockTravelTime(
+      // Calculate baseline comparison using geometric centroid with real travel times
+      const baselineTravelTimePromises = request.locations.map(async (location, index) => {
+        const result = await calculateRealTravelTime(
           location.coordinate!,
           geometricCenter,
           location.transportMode
-        ),
-        userId: location.id,
-        locationName: `Baseline ${index + 1}`
-      }));
+        );
+        
+        return {
+          id: `baseline_${location.id}`,
+          travelTimeMinutes: result.travelTimeMinutes,
+          userId: location.id,
+          locationName: `Baseline ${index + 1}`
+        };
+      });
+      
+      const baselineTravelTimes: TravelTimeData[] = await Promise.all(baselineTravelTimePromises);
       
       const baselineEquityAnalysis = calculateEquityAnalysis(baselineTravelTimes);
       
@@ -385,7 +439,7 @@ export class OptimizationService {
       this.reportProgress({
         stage: 'complete',
         progress: 100,
-        message: 'Optimization completed successfully!'
+        message: 'Optimization completed successfully with real Singapore travel times!'
       });
       
       const calculationTime = Date.now() - startTime;
@@ -404,7 +458,8 @@ export class OptimizationService {
         improvementVsBaseline: Math.round(improvementVsBaseline * 100) / 100,
         calculationTime,
         confidence: equityAssessment.confidence,
-        completedAt: new Date()
+        completedAt: new Date(),
+        apiUsage
       };
       
       return result;
@@ -440,6 +495,20 @@ export class OptimizationService {
   private async reverseGeocode(coordinate: Coordinate): Promise<string> {
     // Mock implementation - would use actual geocoding service
     return `${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)} (Singapore)`;
+  }
+
+  /**
+   * Get travel time service status including API usage and costs
+   */
+  async getServiceStatus() {
+    return travelTimeService.getServiceStatus();
+  }
+
+  /**
+   * Perform cache maintenance and cleanup
+   */
+  async performMaintenance() {
+    return travelTimeService.performMaintenance();
   }
 }
 
