@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
-import { OptimizationResult } from '../services/optimization';
+import { useAppSelector } from '../store';
+import { selectOptimizationResult } from '../store/optimization/optimizationSlice';
 import { getEquityLevelColor, isAcceptableEquityLevel, requiresAttention } from '../algorithms/equity/equityLevel';
 
 type ResultsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Results'>;
@@ -14,8 +15,14 @@ interface Props {
   route: ResultsScreenRouteProp;
 }
 
-export function ResultsScreen({ navigation, route }: Props) {
-  const { optimizationResult }: { optimizationResult: OptimizationResult } = route.params;
+export function ResultsScreen({ navigation }: Props) {
+  const optimizationResult = useAppSelector(selectOptimizationResult);
+
+  // If no optimization result is available, redirect to home
+  if (!optimizationResult) {
+    navigation.replace('Home');
+    return null;
+  }
 
   /**
    * Get equity level emoji based on level

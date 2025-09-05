@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Provider } from 'react-redux';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNetworkState } from './src/hooks/useNetworkState';
 import { AppState } from './src/types/navigation';
+import { store } from './src/store';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>({
@@ -76,21 +78,23 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
-        <View style={styles.container}>
-          {/* Show network status if disconnected */}
-          {appState.networkState === 'disconnected' && (
-            <View style={styles.networkBanner}>
-              <Text style={styles.networkBannerText}>📶 No internet connection</Text>
-            </View>
-          )}
-          
-          <AppNavigator />
-          <StatusBar style="auto" />
-        </View>
-      </ErrorBoundary>
-    </SafeAreaProvider>
+    <Provider store={store}>
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <View style={styles.container}>
+            {/* Show network status if disconnected */}
+            {appState.networkState === 'disconnected' && (
+              <View style={styles.networkBanner}>
+                <Text style={styles.networkBannerText}>📶 No internet connection</Text>
+              </View>
+            )}
+            
+            <AppNavigator />
+            <StatusBar style="auto" />
+          </View>
+        </ErrorBoundary>
+      </SafeAreaProvider>
+    </Provider>
   );
 }
 

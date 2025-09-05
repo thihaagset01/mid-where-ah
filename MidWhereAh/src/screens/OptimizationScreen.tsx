@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { UserLocationInput } from '../components/location/types';
-import { startOptimization, OptimizationProgress, OptimizationResult } from '../services/optimization';
+import { useAppDispatch, useAppSelector } from '../store';
+import { 
+  startOptimizationThunk, 
+  selectIsOptimizing, 
+  selectOptimizationProgress, 
+  selectOptimizationError,
+  clearError 
+} from '../store/optimization/optimizationSlice';
 
 type OptimizationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Optimization'>;
 type OptimizationScreenRouteProp = RouteProp<RootStackParamList, 'Optimization'>;
@@ -16,33 +23,27 @@ interface Props {
 
 export function OptimizationScreen({ navigation, route }: Props) {
   const { userLocations } = route.params;
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [progress, setProgress] = useState<OptimizationProgress | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const dispatch = useAppDispatch();
+  const isOptimizing = useAppSelector(selectIsOptimizing);
+  const progress = useAppSelector(selectOptimizationProgress);
+  const error = useAppSelector(selectOptimizationError);
 
   /**
-   * Handle progress updates from optimization service
-   */
-  const handleProgress = (progressUpdate: OptimizationProgress) => {
-    setProgress(progressUpdate);
-  };
-
-  /**
-   * Start the optimization process
+   * Start the optimization process using Redux
    */
   const handleOptimize = async () => {
-    setIsOptimizing(true);
-    setError(null);
-    setProgress(null);
-
+    dispatch(clearError());
+    
     try {
-      const result: OptimizationResult = await startOptimization(userLocations, handleProgress);
+      const result = await dispatch(startOptimizationThunk(userLocations));
       
-      // Navigate to results screen with the optimization result
-      navigation.replace('Results', { optimizationResult: result });
+      if (result.meta.requestStatus === 'fulfilled') {
+        // Navigate to results screen - results are now in Redux store
+        navigation.replace('Results');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Optimization failed');
-      setIsOptimizing(false);
+      // Error is handled by Redux slice
+      console.error('Optimization dispatch failed:', err);
     }
   };
 
