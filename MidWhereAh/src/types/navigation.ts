@@ -1,7 +1,10 @@
+import { UserLocationInput } from '../components/location/types';
+import { OptimizationResult } from '../services/optimization';
+
 export type RootStackParamList = {
   Home: undefined;
   Map: undefined;
-  Optimization: { userLocations: UserLocation[] };
+  Optimization: { userLocations: UserLocationInput[] };
   Results: { optimizationResult: OptimizationResult };
 };
 
@@ -13,7 +16,9 @@ export interface UserLocation {
   timestamp?: number;
 }
 
-export interface OptimizationResult {
+// Legacy interface - kept for backward compatibility
+// New OptimizationResult is imported from services
+export interface LegacyOptimizationResult {
   id: string;
   centerPoint: {
     latitude: number;
