@@ -31,11 +31,27 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# Environment files (exclude actual API keys)
 .env*.local
+.env.development
+.env.production
+!.env.example
+
+# Sensitive configuration files
+google-service-account.json
+ios-dist-cert.p12
+android-upload-key.keystore
 
 # typescript
 *.tsbuildinfo
 
 # test coverage
 coverage/
+
+# ESLint cache
+.eslintcache
+
+# Build artifacts
+*.apk
+*.ipa
+*.aab
