@@ -1,22 +1,71 @@
 // Jest setup file for React Native components
 
 // Mock react-native modules
-jest.mock('react-native', () => {
-  const ReactNative = jest.requireActual('react-native');
+jest.mock('react-native', () => ({
+  Alert: {
+    alert: jest.fn(),
+  },
+  Dimensions: {
+    get: jest.fn(() => ({ width: 375, height: 667 })),
+  },
+  Platform: {
+    OS: 'ios',
+    select: jest.fn((obj) => obj.ios),
+  },
+  StyleSheet: {
+    create: jest.fn((styles) => styles),
+    flatten: jest.fn((style) => style),
+  },
+  View: 'View',
+  Text: 'Text',
+  AccessibilityInfo: {
+    announceForAccessibility: jest.fn(),
+    announceForAccessibilityWithOptions: jest.fn(),
+    isScreenReaderEnabled: jest.fn(() => Promise.resolve(false)),
+    setAccessibilityFocus: jest.fn(),
+  },
+}));
+
+// Mock react-native-reanimated
+jest.mock('react-native-reanimated', () => {
+  const Reanimated = require('react-native-reanimated/mock');
+  
+  // The mock for `call` immediately calls the callback which is incorrect
+  // So we override it with a no-op
+  Reanimated.default.call = () => {};
+  
   return {
-    ...ReactNative,
-    Alert: {
-      alert: jest.fn(),
+    ...Reanimated,
+    useSharedValue: jest.fn(() => ({ value: 0 })),
+    useAnimatedStyle: jest.fn(() => ({})),
+    withTiming: jest.fn((value) => value),
+    withSpring: jest.fn((value) => value),
+    withDelay: jest.fn((delay, value) => value),
+    withSequence: jest.fn((...values) => values[values.length - 1]),
+    withRepeat: jest.fn((value) => value),
+    useDerivedValue: jest.fn(() => ({ value: 0 })),
+    useAnimatedGestureHandler: jest.fn(() => ({})),
+    runOnJS: jest.fn((fn) => fn),
+    Easing: {
+      linear: jest.fn(),
+      bezier: jest.fn(),
     },
-    Dimensions: {
-      get: jest.fn(() => ({ width: 375, height: 667 })),
-    },
-    Platform: {
-      OS: 'ios',
-      select: jest.fn((obj) => obj.ios),
-    },
+    interpolate: jest.fn(),
   };
 });
+
+// Mock react-native-gesture-handler
+jest.mock('react-native-gesture-handler', () => ({
+  TapGestureHandler: 'TapGestureHandler',
+  PanGestureHandler: 'PanGestureHandler',
+  State: {
+    BEGAN: 0,
+    ACTIVE: 1,
+    END: 2,
+    CANCELLED: 3,
+    FAILED: 4,
+  },
+}));
 
 // Mock AsyncStorage for testing
 jest.mock('@react-native-async-storage/async-storage', () => ({

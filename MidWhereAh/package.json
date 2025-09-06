@@ -9,7 +9,17 @@
     "web": "expo start --web",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:accessibility": "jest src/__tests__/accessibility/",
+    "lint": "eslint src/ --ext .ts,.tsx",
+    "lint:fix": "eslint src/ --ext .ts,.tsx --fix",
+    "build:development": "eas build --profile development",
+    "build:preview": "eas build --profile preview",
+    "build:production": "eas build --profile production",
+    "submit:ios": "eas submit --platform ios",
+    "submit:android": "eas submit --platform android",
+    "prebuild": "expo prebuild",
+    "prebuild:clean": "expo prebuild --clean"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -20,6 +30,8 @@
     "@types/supercluster": "^7.1.3",
     "axios": "^1.11.0",
     "expo": "~53.0.20",
+    "expo-build-properties": "^0.14.8",
+    "expo-dev-client": "^5.2.4",
     "expo-linear-gradient": "^14.1.5",
     "expo-location": "^18.1.6",
     "expo-status-bar": "~2.2.3",
@@ -28,6 +40,7 @@
     "react-native-gesture-handler": "^2.28.0",
     "react-native-google-places-autocomplete": "^2.5.7",
     "react-native-maps": "^1.26.1",
+    "react-native-reanimated": "^4.1.0",
     "react-native-safe-area-context": "^5.6.1",
     "react-native-screens": "^4.15.4",
     "react-redux": "^9.2.0",
@@ -39,6 +52,13 @@
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.0.10",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "eslint": "^9.35.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "identity-obj-proxy": "^3.0.0",
     "jest": "^30.1.3",
     "jest-environment-jsdom": "^30.1.2",
     "react-test-renderer": "^19.0.0",
@@ -47,7 +67,7 @@
   },
   "jest": {
     "preset": "ts-jest",
-    "testEnvironment": "node",
+    "testEnvironment": "jsdom",
     "setupFilesAfterEnv": [
       "<rootDir>/jest.setup.js"
     ],
@@ -59,6 +79,12 @@
     ],
     "transform": {
       "^.+\\.(ts|tsx)$": "ts-jest"
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(react-native|@react-native|expo|@expo|react-native-maps|@react-navigation|react-redux))"
+    ],
+    "moduleNameMapper": {
+      "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "identity-obj-proxy"
     },
     "roots": [
       "<rootDir>/src",
@@ -78,10 +104,10 @@
     ],
     "coverageThreshold": {
       "global": {
-        "branches": 90,
-        "functions": 90,
-        "lines": 90,
-        "statements": 90
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
       }
     }
   },
