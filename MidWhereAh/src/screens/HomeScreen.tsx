@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import LinearGradient from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList } from '../types/navigation';
 import { LocationInput } from '../components/location/LocationInput';
 import { UserLocationInput } from '../components/location/types';
@@ -59,7 +59,7 @@ export function HomeScreen({ navigation }: Props) {
   if (showLocationInput) {
     return (
       <LinearGradient
-        colors={PurpleTheme.gradients.background.colors}
+        colors={[...PurpleTheme.gradients.background.colors]}
         start={PurpleTheme.gradients.background.direction.start}
         end={PurpleTheme.gradients.background.direction.end}
         style={styles.container}
@@ -104,7 +104,7 @@ export function HomeScreen({ navigation }: Props) {
 
   return (
     <LinearGradient
-      colors={PurpleTheme.gradients.background.colors}
+      colors={[...PurpleTheme.gradients.background.colors]}
       start={PurpleTheme.gradients.background.direction.start}
       end={PurpleTheme.gradients.background.direction.end}
       style={styles.container}
@@ -119,7 +119,7 @@ export function HomeScreen({ navigation }: Props) {
             onPress={() => setShowLocationInput(true)}
           >
             <LinearGradient
-              colors={PurpleTheme.gradients.button.colors}
+              colors={[...PurpleTheme.gradients.button.colors]}
               start={PurpleTheme.gradients.button.direction.start}
               end={PurpleTheme.gradients.button.direction.end}
               style={styles.button}
