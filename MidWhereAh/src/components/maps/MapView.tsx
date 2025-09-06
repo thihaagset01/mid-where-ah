@@ -58,7 +58,7 @@ const MapViewComponent: React.FC<MapViewProps> = memo(({
   const [isMapReady, setIsMapReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [clusters, setClusters] = useState<ClusterPoint[]>([]);
-  const clusterRef = useRef<Supercluster>();
+  const clusterRef = useRef<Supercluster>(null);
 
   // Initialize clustering engine
   useEffect(() => {
@@ -153,7 +153,7 @@ const MapViewComponent: React.FC<MapViewProps> = memo(({
       ];
 
       // Get clusters for current view
-      const newClusters = clusterRef.current.getClusters(bbox, Math.floor(clampedZoom));
+      const newClusters = clusterRef.current.getClusters(bbox, Math.floor(clampedZoom)) as ClusterPoint[];
       setClusters(newClusters);
     } catch (error) {
       console.error('Clustering error:', error);
@@ -288,7 +288,6 @@ const MapViewComponent: React.FC<MapViewProps> = memo(({
         onRegionChangeComplete={handleRegionChangeComplete}
         onPress={handleMapPress}
         onMapReady={handleMapReady}
-        onError={handleMapError}
         showsUserLocation={showUserLocation}
         showsMyLocationButton={false}
         showsCompass={Platform.OS === 'ios'}

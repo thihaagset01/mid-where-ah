@@ -4,7 +4,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import { useAppSelector } from '../store';
 import { selectOptimizationResult, selectUserLocations } from '../store/optimization/optimizationSlice';
-import { UserLocation, OptimalPoint, MARKER_COLORS } from '../components/maps/types';
+import { UserLocation, OptimalPoint, MARKER_COLORS, MapView } from '../components/maps';
 
 type MapScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Map'>;
 
@@ -58,17 +58,13 @@ export function MapScreen({ navigation }: Props) {
         
         {hasData ? (
           <View style={styles.mapContainer}>
-            <View style={styles.placeholderMapWithData}>
-              <Text style={styles.placeholderText}>🗺️</Text>
-              <Text style={styles.placeholderSubtext}>
-                MapView integration ready - {mapUserLocations.length} locations
-              </Text>
-              {optimalPoint && (
-                <Text style={styles.placeholderSubtext}>
-                  Optimal point: {optimalPoint.coordinate.latitude.toFixed(4)}, {optimalPoint.coordinate.longitude.toFixed(4)}
-                </Text>
-              )}
-            </View>
+            <MapView
+              userLocations={mapUserLocations}
+              optimalPoint={optimalPoint}
+              style={styles.map}
+              onMapReady={() => console.log('Map ready')}
+              onMarkerPress={(marker) => console.log('Marker pressed:', marker.id)}
+            />
             
             {optimizationResult && (
               <View style={styles.resultsSummary}>
@@ -184,15 +180,6 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
-  },
-  placeholderMapWithData: {
-    flex: 1,
-    backgroundColor: '#e8f5e8',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#4CAF50',
-    borderStyle: 'dashed',
   },
   resultsSummary: {
     position: 'absolute',
